@@ -1,0 +1,31 @@
+- generic [ref=e6]:
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - img [ref=e10]
+      - generic [ref=e12]:
+        - heading "配置 GitHub 同步" [level=1] [ref=e13]
+        - paragraph [ref=e14]: 数据存储在你的私有仓库中
+    - button "返回" [ref=e15]:
+      - img [ref=e16]
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]: GitHub Token
+      - 'textbox "GitHub Token 创建 Fine-grained PAT，权限选择 Contents: Read and write" [ref=e21]':
+        - /placeholder: ghp_xxxxxxxxxxxx
+      - paragraph [ref=e22]: "创建 Fine-grained PAT，权限选择 Contents: Read and write"
+    - generic [ref=e23]:
+      - generic [ref=e24]: 仓库所有者
+      - textbox "仓库所有者" [ref=e25]:
+        - /placeholder: your-github-username
+    - generic [ref=e26]:
+      - generic [ref=e27]: 仓库名
+      - textbox "仓库名" [ref=e28]:
+        - /placeholder: todo-data
+    - generic [ref=e29]:
+      - generic [ref=e30]: 存储路径
+      - textbox "存储路径" [ref=e31]:
+        - /placeholder: todo
+        - text: todo
+  - button "保存并同步" [ref=e33]:
+    - img [ref=e34]
+    - text: 保存并同步
