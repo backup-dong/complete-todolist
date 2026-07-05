@@ -7,7 +7,7 @@ import './index.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/complete-todolist">
       <ThemeProvider>
         <App />
       </ThemeProvider>

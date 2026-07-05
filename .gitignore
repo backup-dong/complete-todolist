@@ -32,3 +32,4 @@ vite.config.js
 
 # Claude Code
 .claude
+.playwright-mcp
