@@ -7,6 +7,7 @@ import { useSyncStore } from './syncStore';
 import {
   cacheFileContent,
   getCachedFileContent,
+  clearCachedFile,
   cacheActiveList,
   getCachedActiveList,
   addPendingWrite,

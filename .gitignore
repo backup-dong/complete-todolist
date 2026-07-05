@@ -26,5 +26,9 @@ dist-ssr
 # Test artifacts
 e2e-*.png
 
+# Build info
+tsconfig.node.tsbuildinfo
+vite.config.js
+
 # Claude Code
 .claude
