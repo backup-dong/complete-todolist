@@ -49,6 +49,21 @@ function filePath(config: { basePath: string }, name: string): string {
   return `${config.basePath}/${listNameToFileName(name)}`;
 }
 
+function buildListMeta(file: { name: string; path: string }, defaultCreated = new Date().toISOString().slice(0, 10)): ListMeta {
+  return {
+    name: fileNameToListName(file.name),
+    created: defaultCreated,
+    archived: file.path.includes('_archived'),
+  };
+}
+
+function cleanupActiveList(lists: ListMeta[], currentActive: string | null): string | null {
+  if (!currentActive) return null;
+  if (lists.some((l) => l.name === currentActive)) return currentActive;
+  cacheActiveList('');
+  return null;
+}
+
 // 按文件防抖的后台同步
 const syncTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 const syncInFlight: Map<string, Promise<void>> = new Map();
@@ -65,25 +80,49 @@ function triggerDebouncedSync(name: string, content: string, fileName: string, c
   syncTimeouts.set(name, timeout);
 }
 
-async function performBackgroundSync(name: string, content: string, fileName: string, config: GithubConfig): Promise<void> {
+async function waitForInFlight(name: string): Promise<void> {
   const inFlight = syncInFlight.get(name);
   if (inFlight) {
     await inFlight.catch(() => {});
   }
+}
+
+async function uploadContent(
+  name: string,
+  content: string,
+  config: GithubConfig,
+): Promise<{ sha: string; remoteSha?: string } | null> {
+  const path = filePath(config, name);
+  const remote = await getFileContent(config, path).catch(() => null);
+  const sha = await writeFileContent(config, path, content, remote?.sha);
+  return { sha, remoteSha: remote?.sha };
+}
+
+function clearPendingIfUnchanged(fileName: string, content: string): boolean {
+  const latestPending = getPendingWrites()[fileName];
+  if (latestPending === content) {
+    clearPendingWrite(fileName);
+    return true;
+  }
+  return false;
+}
+
+async function performBackgroundSync(name: string, content: string, fileName: string, config: GithubConfig): Promise<void> {
+  await waitForInFlight(name);
 
   const sync = useSyncStore.getState();
   const promise = (async () => {
     try {
       sync.setSyncing();
-      const path = filePath(config, name);
-      const remote = await getFileContent(config, path).catch(() => null);
-      const sha = await writeFileContent(config, path, content, remote?.sha);
+      const result = await uploadContent(name, content, config);
+      if (!result) {
+        sync.setUnsaved();
+        return;
+      }
 
       // 只有在待写入内容没有再次被覆盖时才清除 pending
-      const latestPending = getPendingWrites()[fileName];
-      if (latestPending === content) {
-        cacheFileContent(name, content, sha);
-        clearPendingWrite(fileName);
+      if (clearPendingIfUnchanged(fileName, content)) {
+        cacheFileContent(name, content, result.sha);
         sync.setSynced();
       } else {
         sync.setUnsaved();
@@ -100,6 +139,20 @@ async function performBackgroundSync(name: string, content: string, fileName: st
   } finally {
     syncInFlight.delete(name);
   }
+}
+
+async function createRemoteList(config: GithubConfig, name: string, content: string): Promise<string> {
+  const path = filePath(config, name);
+  return writeFileContent(config, path, content);
+}
+
+async function deleteRemoteList(config: GithubConfig, name: string, sha: string): Promise<void> {
+  const path = filePath(config, name);
+  await deleteFile(config, path, sha);
+}
+
+function resolveListSha(name: string): string | undefined {
+  return getCachedFileContent(name)?.sha ?? getCachedShaMap()[listNameToFileName(name)];
 }
 
 export const useListsStore = create<ListsState>((set, get) => ({
@@ -121,20 +174,15 @@ export const useListsStore = create<ListsState>((set, get) => ({
       const shaMap: Record<string, string> = {};
       const listMetas: ListMeta[] = [];
 
+      const defaultCreated = new Date().toISOString().slice(0, 10);
       for (const file of allFiles) {
-        const name = fileNameToListName(file.name);
         shaMap[file.name] = file.sha;
-        listMetas.push({ name, created: new Date().toISOString().slice(0, 10), archived: file.path.includes('_archived') });
+        listMetas.push(buildListMeta(file, defaultCreated));
       }
 
       cacheShaMap(shaMap);
-      set({ lists: listMetas });
-      // 如果当前 active list 已不在远端，清空它，避免刷新后中间区显示已删除清单
-      const active = get().activeListName;
-      if (active && !listMetas.some((l) => l.name === active)) {
-        cacheActiveList('');
-        set({ activeListName: null });
-      }
+      const nextActive = cleanupActiveList(listMetas, get().activeListName);
+      set({ lists: listMetas, activeListName: nextActive });
       sync.setSynced();
     } catch (err) {
       console.error('fetchLists failed', err);
@@ -187,8 +235,7 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const path = filePath(sync.config!, name);
     try {
       sync.setSyncing();
-      const cached = getCachedFileContent(name);
-      const sha = cached?.sha ?? getCachedShaMap()[listNameToFileName(name)];
+      const sha = resolveListSha(name);
       if (sha) {
         await deleteFile(sync.config!, path, sha);
       }
@@ -212,29 +259,26 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const sync = useSyncStore.getState();
     if (!sync.ensureInitialized()) return;
 
-    const oldPath = filePath(sync.config!, oldName);
-    const newPath = filePath(sync.config!, newName);
-
     try {
       sync.setSyncing();
       const oldList = get().fileCache[oldName] ?? createEmptyList(oldName);
       const newList = { ...oldList, meta: { ...oldList.meta, name: newName } };
       const content = serializeList(newList);
-
-      const oldCached = getCachedFileContent(oldName);
-      const oldSha = oldCached?.sha ?? getCachedShaMap()[listNameToFileName(oldName)];
+      const oldSha = resolveListSha(oldName);
 
       // 创建新文件
-      const newSha = await writeFileContent(sync.config!, newPath, content);
+      const newSha = await createRemoteList(sync.config!, newName, content);
       // 删除旧文件
       if (oldSha) {
-        await deleteFile(sync.config!, oldPath, oldSha);
+        await deleteRemoteList(sync.config!, oldName, oldSha);
       }
 
       set((state) => ({
         lists: state.lists.map((l) => (l.name === oldName ? { ...l, name: newName } : l)),
         fileCache: Object.fromEntries(
-          Object.entries(state.fileCache).map(([k, v]) => (k === oldName ? [newName, { ...v, meta: { ...v.meta, name: newName }, rawContent: content, sha: newSha }] : [k, v])),
+          Object.entries(state.fileCache).map(([k, v]) =>
+            k === oldName ? [newName, { ...v, meta: { ...v.meta, name: newName }, rawContent: content, sha: newSha }] : [k, v],
+          ),
         ),
         activeListName: state.activeListName === oldName ? newName : state.activeListName,
       }));

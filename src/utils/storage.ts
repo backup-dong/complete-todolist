@@ -2,25 +2,41 @@ import type { GithubConfig } from '@/types';
 
 const CONFIG_KEY = 'dong-todo:github-config';
 
-export function loadConfig(): GithubConfig | null {
+function getJson<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(CONFIG_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed.token && parsed.owner && parsed.repo) {
-      return {
-        ...parsed,
-        basePath: parsed.basePath ?? 'todo',
-      };
-    }
-    return null;
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
-    return null;
+    return fallback;
   }
 }
 
+function setJson(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function updateJson<T>(key: string, updater: (value: T) => T, fallback: T): void {
+  const current = getJson<T>(key, fallback);
+  setJson(key, updater(current));
+}
+
+export function loadConfig(): GithubConfig | null {
+  const parsed = getJson<Partial<GithubConfig>>(CONFIG_KEY, {});
+  if (parsed.token && parsed.owner && parsed.repo) {
+    return {
+      ...parsed,
+      basePath: parsed.basePath ?? 'todo',
+    } as GithubConfig;
+  }
+  return null;
+}
+
 export function saveConfig(config: GithubConfig): void {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+  setJson(CONFIG_KEY, config);
 }
 
 export function clearConfig(): void {
@@ -32,22 +48,13 @@ export function isOffline(): boolean {
 }
 
 export function cacheFileContent(name: string, content: string, sha: string): void {
-  try {
-    localStorage.setItem(`dong-todo:file:${name}`, JSON.stringify({ content, sha, cachedAt: new Date().toISOString() }));
-  } catch {
-    // 忽略缓存写入失败
-  }
+  setJson(`dong-todo:file:${name}`, { content, sha, cachedAt: new Date().toISOString() });
 }
 
 export function getCachedFileContent(name: string): { content: string; sha: string } | null {
-  try {
-    const raw = localStorage.getItem(`dong-todo:file:${name}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return { content: parsed.content, sha: parsed.sha };
-  } catch {
-    return null;
-  }
+  const parsed = getJson<{ content?: string; sha?: string } | null>(`dong-todo:file:${name}`, null);
+  if (!parsed || typeof parsed.content !== 'string' || typeof parsed.sha !== 'string') return null;
+  return { content: parsed.content, sha: parsed.sha };
 }
 
 export function clearCachedFile(name: string): void {
@@ -55,43 +62,24 @@ export function clearCachedFile(name: string): void {
 }
 
 export function cacheShaMap(map: Record<string, string>): void {
-  try {
-    localStorage.setItem('dong-todo:sha-map', JSON.stringify(map));
-  } catch {
-    // ignore
-  }
+  setJson('dong-todo:sha-map', map);
 }
 
 export function getCachedShaMap(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem('dong-todo:sha-map');
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return getJson<Record<string, string>>('dong-todo:sha-map', {});
 }
 
-export function addPendingWrite(name: string, content: string): void {
-  try {
-    const key = 'dong-todo:pending-writes';
-    const raw = localStorage.getItem(key) ?? '{}';
-    const map = JSON.parse(raw);
-    map[name] = { content, timestamp: new Date().toISOString() };
-    localStorage.setItem(key, JSON.stringify(map));
-  } catch {
-    // ignore
-  }
-}
+type PendingWriteRecord = Record<string, string>;
+type RawPendingWriteRecord = Record<string, string | { content: string; timestamp?: string }>;
 
-export function getPendingWrites(): Record<string, string> {
+function parsePendingWrites(raw: string | null): PendingWriteRecord {
+  if (!raw) return {};
   try {
-    const raw = localStorage.getItem('dong-todo:pending-writes') ?? '{}';
-    const map = JSON.parse(raw);
-    // 兼容旧格式：可能是字符串或对象
+    const map = JSON.parse(raw) as Record<string, string | { content: string }>;
     return Object.fromEntries(
       Object.entries(map).map(([name, value]) => [
         name,
-        typeof value === 'string' ? value : (value as { content: string }).content,
+        typeof value === 'string' ? value : value.content,
       ]),
     );
   } catch {
@@ -99,24 +87,37 @@ export function getPendingWrites(): Record<string, string> {
   }
 }
 
-export interface PendingWriteDetail {
+export function addPendingWrite(name: string, content: string): void {
+  updateJson<RawPendingWriteRecord>(
+    'dong-todo:pending-writes',
+    (map) => ({ ...map, [name]: { content, timestamp: new Date().toISOString() } }),
+    {},
+  );
+}
+
+export function getPendingWrites(): Record<string, string> {
+  return parsePendingWrites(localStorage.getItem('dong-todo:pending-writes'));
+}
+
+interface PendingWriteDetail {
   fileName: string;
   content: string;
   timestamp: string;
 }
 
 export function getPendingWriteDetails(): PendingWriteDetail[] {
+  const raw = localStorage.getItem('dong-todo:pending-writes');
+  if (!raw) return [];
   try {
-    const raw = localStorage.getItem('dong-todo:pending-writes') ?? '{}';
-    const map = JSON.parse(raw);
+    const map = JSON.parse(raw) as Record<string, string | { content: string; timestamp?: string }>;
     return Object.entries(map).map(([fileName, value]) => {
       if (typeof value === 'string') {
         return { fileName, content: value, timestamp: new Date().toISOString() };
       }
       return {
         fileName,
-        content: (value as { content: string }).content,
-        timestamp: (value as { timestamp: string }).timestamp,
+        content: value.content,
+        timestamp: value.timestamp ?? new Date().toISOString(),
       };
     });
   } catch {
@@ -125,15 +126,15 @@ export function getPendingWriteDetails(): PendingWriteDetail[] {
 }
 
 export function clearPendingWrite(name: string): void {
-  try {
-    const key = 'dong-todo:pending-writes';
-    const raw = localStorage.getItem(key) ?? '{}';
-    const map = JSON.parse(raw);
-    delete map[name];
-    localStorage.setItem(key, JSON.stringify(map));
-  } catch {
-    // ignore
-  }
+  updateJson<RawPendingWriteRecord>(
+    'dong-todo:pending-writes',
+    (map) => {
+      const next = { ...map };
+      delete next[name];
+      return next;
+    },
+    {},
+  );
 }
 
 export function cacheActiveList(name: string): void {
@@ -145,23 +146,14 @@ export function getCachedActiveList(): string | null {
 }
 
 export function cacheNotified(taskId: string, due: string): void {
-  try {
-    const key = 'dong-todo:notified-tasks';
-    const raw = localStorage.getItem(key) ?? '{}';
-    const map = JSON.parse(raw);
-    map[taskId] = due;
-    localStorage.setItem(key, JSON.stringify(map));
-  } catch {
-    // ignore
-  }
+  updateJson<Record<string, string>>(
+    'dong-todo:notified-tasks',
+    (map) => ({ ...map, [taskId]: due }),
+    {},
+  );
 }
 
 export function hasNotified(taskId: string, due: string): boolean {
-  try {
-    const raw = localStorage.getItem('dong-todo:notified-tasks') ?? '{}';
-    const map = JSON.parse(raw);
-    return map[taskId] === due;
-  } catch {
-    return false;
-  }
+  const map = getJson<Record<string, string>>('dong-todo:notified-tasks', {});
+  return map[taskId] === due;
 }

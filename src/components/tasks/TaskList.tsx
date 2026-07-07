@@ -185,28 +185,37 @@ export function TaskList({
     setActiveId(event.active.id as string);
   };
 
+  const handleFlatDragEnd = (activeId: string, overId: string) => {
+    const oldIndex = tasks.findIndex((t) => t.id === activeId);
+    const newIndex = tasks.findIndex((t) => t.id === overId);
+    onReorder(oldIndex, newIndex);
+  };
+
+  const handleGroupDragEnd = (activeId: string, overId: string) => {
+    if (!grouped || !onReorderInGroup) return;
+
+    const groupName = taskIdToGroup.get(activeId);
+    const overGroup = taskIdToGroup.get(overId);
+    if (!groupName || groupName !== overGroup) return;
+
+    const groupTasks = grouped.find((g) => g.name === groupName)?.tasks ?? [];
+    const oldIndex = groupTasks.findIndex((t) => t.id === activeId);
+    const newIndex = groupTasks.findIndex((t) => t.id === overId);
+    if (oldIndex >= 0 && newIndex >= 0) {
+      onReorderInGroup(groupName, oldIndex, newIndex);
+    }
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
     if (!over || active.id === over.id) return;
 
-    if (groupBy && grouped && onReorderInGroup) {
-      const groupName = taskIdToGroup.get(active.id as string);
-      const overGroup = taskIdToGroup.get(over.id as string);
-      if (!groupName || groupName !== overGroup) return;
-
-      const groupTasks = grouped.find((g) => g.name === groupName)?.tasks ?? [];
-      const oldIndex = groupTasks.findIndex((t) => t.id === active.id);
-      const newIndex = groupTasks.findIndex((t) => t.id === over.id);
-      if (oldIndex >= 0 && newIndex >= 0) {
-        onReorderInGroup(groupName, oldIndex, newIndex);
-      }
-      return;
+    if (groupBy) {
+      handleGroupDragEnd(active.id as string, over.id as string);
+    } else {
+      handleFlatDragEnd(active.id as string, over.id as string);
     }
-
-    const oldIndex = tasks.findIndex((t) => t.id === active.id);
-    const newIndex = tasks.findIndex((t) => t.id === over.id);
-    onReorder(oldIndex, newIndex);
   };
 
   if (tasks.length === 0) {

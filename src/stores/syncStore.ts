@@ -40,6 +40,47 @@ if (initialConfig) {
   initGitHub(initialConfig);
 }
 
+interface PushResult {
+  kind: 'success' | 'conflict' | 'error';
+}
+
+async function tryPushOneFile(
+  name: string,
+  content: string,
+  config: GithubConfig,
+  localShaMap: Record<string, string>,
+): Promise<PushResult> {
+  const path = `${config.basePath}/${name}`;
+  try {
+    const remote = await getFileContent(config, path).catch(() => null);
+    if (remote && localShaMap[name] && remote.sha !== localShaMap[name]) {
+      return { kind: 'conflict' };
+    }
+    const sha = remote?.sha;
+    await writeFileContent(config, path, content, sha);
+    clearPendingWrite(name);
+    return { kind: 'success' };
+  } catch (err) {
+    console.error(`pushPending failed for ${name}`, err);
+    return { kind: 'error' };
+  }
+}
+
+function deriveStatusFromResults(
+  failed: number,
+  conflicts: number,
+): Pick<SyncStatusState, 'status' | 'pendingWrites'> & { conflictFiles: string[] } {
+  const remaining = Object.keys(getPendingWrites()).length;
+  if (remaining === 0 && failed === 0 && conflicts === 0) {
+    return { status: 'synced', pendingWrites: 0, conflictFiles: [] };
+  }
+  return {
+    status: remaining > 0 ? 'unsaved' : 'synced',
+    pendingWrites: remaining,
+    conflictFiles: conflicts > 0 ? ['conflict'] : [], // placeholder, replaced by caller
+  };
+}
+
 export const useSyncStore = create<SyncStore>((set, get) => ({
   status: initialStatus(),
   lastSyncAt: null,
@@ -116,33 +157,18 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
     try {
       for (const name of pendingKeys) {
         const content = pending[name];
-        const path = `${config.basePath}/${name}`;
-        try {
-          const remote = await getFileContent(config, path).catch(() => null);
-          if (remote && localShaMap[name] && remote.sha !== localShaMap[name]) {
-            conflicts.push(name);
-            continue;
-          }
-          const sha = remote?.sha;
-          await writeFileContent(config, path, content, sha);
-          clearPendingWrite(name);
-          succeeded.push(name);
-        } catch (err) {
-          console.error(`pushPending failed for ${name}`, err);
-          failed.push(name);
-        }
+        const result = await tryPushOneFile(name, content, config, localShaMap);
+        if (result.kind === 'success') succeeded.push(name);
+        else if (result.kind === 'conflict') conflicts.push(name);
+        else failed.push(name);
       }
 
-      const remaining = Object.keys(getPendingWrites()).length;
-      if (remaining === 0 && conflicts.length === 0 && failed.length === 0) {
-        set({ status: 'synced', lastSyncAt: new Date().toISOString(), pendingWrites: 0, conflictFiles: [] });
-      } else {
-        set({
-          status: remaining > 0 ? 'unsaved' : 'synced',
-          pendingWrites: remaining,
-          conflictFiles: conflicts,
-        });
-      }
+      const statusState = deriveStatusFromResults(failed.length, conflicts.length);
+      set({
+        ...statusState,
+        conflictFiles: conflicts,
+        lastSyncAt: statusState.status === 'synced' ? new Date().toISOString() : get().lastSyncAt,
+      });
     } catch (err) {
       console.error('pushPending failed', err);
       set({ status: 'unsaved', pendingWrites: Object.keys(getPendingWrites()).length });

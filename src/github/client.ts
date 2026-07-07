@@ -1,7 +1,7 @@
 import { Octokit } from 'octokit';
 import type { GithubConfig } from '@/types';
 
-export interface GitHubFile {
+interface GitHubFile {
   name: string;
   path: string;
   sha: string;
@@ -18,7 +18,7 @@ export function clearGitHub(): void {
   octokit = null;
 }
 
-export function getOctokit(): Octokit {
+function getOctokit(): Octokit {
   if (!octokit) throw new Error('GitHub client not initialized');
   return octokit;
 }

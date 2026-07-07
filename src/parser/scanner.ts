@@ -2,13 +2,13 @@ import type { Group, Link, ListMeta, ParsedList, Subtask, Task, TaskMeta } from 
 import { generateTaskId } from '@/utils/id';
 import { durationDays, nowIso, todayIso } from '@/utils/date';
 
-export interface TaskBlock {
+interface TaskBlock {
   heading: string;
   metadata: string;
   bodyLines: string[];
 }
 
-export interface RawGroup {
+interface RawGroup {
   name: string;
   blocks: TaskBlock[];
 }
@@ -46,15 +46,19 @@ export function scanBlocks(lines: string[]): { title: string; meta: ListMeta; gr
   let currentGroup: RawGroup | null = null;
   let currentBlock: TaskBlock | null = null;
 
+  function flushCurrentBlock(): void {
+    if (currentBlock) {
+      currentGroup?.blocks.push(currentBlock);
+      currentBlock = null;
+    }
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
     if (line.startsWith('# ') && !line.startsWith('## ')) {
+      flushCurrentBlock();
       title = line.slice(2).trim();
-      if (currentBlock) {
-        currentGroup?.blocks.push(currentBlock);
-        currentBlock = null;
-      }
       continue;
     }
 
@@ -69,19 +73,14 @@ export function scanBlocks(lines: string[]): { title: string; meta: ListMeta; gr
     }
 
     if (line.startsWith('## ')) {
-      if (currentBlock) {
-        currentGroup?.blocks.push(currentBlock);
-        currentBlock = null;
-      }
+      flushCurrentBlock();
       currentGroup = { name: line.slice(3).trim(), blocks: [] };
       groups.push(currentGroup);
       continue;
     }
 
     if (line.startsWith('### ')) {
-      if (currentBlock) {
-        currentGroup?.blocks.push(currentBlock);
-      }
+      flushCurrentBlock();
       currentBlock = { heading: line.slice(4).trim(), metadata: '', bodyLines: [] };
       continue;
     }
@@ -98,9 +97,7 @@ export function scanBlocks(lines: string[]): { title: string; meta: ListMeta; gr
     currentBlock.bodyLines.push(line);
   }
 
-  if (currentBlock) {
-    currentGroup?.blocks.push(currentBlock);
-  }
+  flushCurrentBlock();
 
   if (!currentGroup) {
     groups.push({ name: '默认分组', blocks: [] });
@@ -128,7 +125,28 @@ const META_KEYS: (keyof TaskMeta)[] = [
   'tags',
 ];
 
-export function parseMetadataLine(line: string): Partial<TaskMeta> {
+const META_PARSERS: Partial<{
+  [K in keyof TaskMeta]: (value: string) => TaskMeta[K] | undefined;
+}> = {
+  status: (value) => (['pending', 'active', 'done'].includes(value) ? (value as TaskMeta['status']) : undefined),
+  priority: (value) => (['high', 'med', 'low'].includes(value) ? (value as TaskMeta['priority']) : undefined),
+  created: (value) => value,
+  start: (value) => value,
+  due: (value) => value,
+  repeat: (value) => value,
+  repeat_until: (value) => value,
+  repeat_count: (value) => {
+    const n = parseInt(value, 10);
+    return Number.isNaN(n) ? undefined : n;
+  },
+  order: (value) => {
+    const n = parseFloat(value);
+    return Number.isNaN(n) ? undefined : n;
+  },
+  tags: (value) => value.split(',').map((t) => t.trim()).filter(Boolean),
+};
+
+function parseMetadataLine(line: string): Partial<TaskMeta> {
   const meta: Partial<TaskMeta> = {};
   const parts = line.split('|').map((p) => p.trim());
   for (const part of parts) {
@@ -139,41 +157,12 @@ export function parseMetadataLine(line: string): Partial<TaskMeta> {
     const value = part.slice(idx + 1).trim();
     if (!META_KEYS.includes(key)) continue;
 
-    switch (key) {
-      case 'status':
-        if (['pending', 'active', 'done'].includes(value)) {
-          meta.status = value as TaskMeta['status'];
-        }
-        break;
-      case 'priority':
-        if (['high', 'med', 'low'].includes(value)) {
-          meta.priority = value as TaskMeta['priority'];
-        }
-        break;
-      case 'created':
-        meta.created = value;
-        break;
-      case 'start':
-        meta.start = value;
-        break;
-      case 'due':
-        meta.due = value;
-        break;
-      case 'repeat':
-        meta.repeat = value;
-        break;
-      case 'repeat_until':
-        meta.repeat_until = value;
-        break;
-      case 'repeat_count':
-        meta.repeat_count = parseInt(value, 10);
-        break;
-      case 'order':
-        meta.order = parseFloat(value);
-        break;
-      case 'tags':
-        meta.tags = value.split(',').map((t) => t.trim()).filter(Boolean);
-        break;
+    const parser = META_PARSERS[key];
+    if (parser) {
+      const parsed = parser(value);
+      if (parsed !== undefined) {
+        (meta as Record<string, unknown>)[key] = parsed;
+      }
     }
   }
   return meta;
@@ -183,6 +172,91 @@ const SUBTASK_RE = /^(\s*)-\s*\[([ xX])\]\s+(.*)$/;
 const COMPLETED_TIME_RE = /^(.*)\s+\((\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2}))\)$/;
 const FINISH_RE = /^🏁\s+(.+?)\s*\|\s*⏱\s*(.+)$/;
 const LINK_RE = /^-?\s*\[([^\]]+)\]\(([^)]+)\)\s*$/;
+const SUBTASK_ATTR_RE = /^\s*(note|link|start|due):\s*(.*)$/;
+
+interface ParsedSubtaskLine {
+  indent: number;
+  level: number;
+  completed: boolean;
+  text: string;
+  completedAt?: string;
+}
+
+function parseSubtaskLine(line: string): ParsedSubtaskLine | null {
+  const match = SUBTASK_RE.exec(line);
+  if (!match) return null;
+
+  const indent = match[1].length;
+  const level = Math.floor(indent / 2) + 1;
+  const completed = match[2].toLowerCase() === 'x';
+  let text = match[3].trim();
+  let completedAt: string | undefined;
+
+  if (completed) {
+    const completedMatch = COMPLETED_TIME_RE.exec(text);
+    if (completedMatch) {
+      text = completedMatch[1].trim();
+      completedAt = completedMatch[2];
+    }
+  }
+
+  return { indent, level, completed, text, completedAt };
+}
+
+function attachSubtaskToParent(subtasks: Subtask[], subtask: Subtask, stack: Subtask[]): void {
+  if (stack.length === 0) {
+    subtasks.push(subtask);
+    return;
+  }
+
+  const last = stack[stack.length - 1];
+  if (subtask.level <= last.level) {
+    while (stack.length > 0 && stack[stack.length - 1].level >= subtask.level) {
+      stack.pop();
+    }
+  }
+
+  if (stack.length === 0) {
+    subtasks.push(subtask);
+    return;
+  }
+
+  const parent = stack[stack.length - 1];
+  let currentParent = parent;
+  while (currentParent.level < subtask.level - 1) {
+    const placeholder: Subtask = {
+      text: '',
+      level: currentParent.level + 1,
+      completed: false,
+      children: [],
+    };
+    currentParent.children.push(placeholder);
+    currentParent = placeholder;
+  }
+  currentParent.children.push(subtask);
+}
+
+function applySubtaskAttribute(last: Subtask, attrName: string, attrValue: string): void {
+  switch (attrName) {
+    case 'note':
+      last.note = last.note ? `${last.note}\n${attrValue}` : attrValue;
+      break;
+    case 'link': {
+      const linkMatch = LINK_RE.exec(attrValue);
+      if (linkMatch) {
+        last.links = last.links ?? [];
+        last.links.push({ title: linkMatch[1], url: linkMatch[2] });
+      }
+      break;
+    }
+    case 'start':
+      last.start = attrValue || undefined;
+      break;
+    case 'due':
+      last.due = attrValue || undefined;
+      break;
+  }
+}
 
 function parseSubtasks(bodyLines: string[]): { subtasks: Subtask[]; remainingLines: string[] } {
   const subtasks: Subtask[] = [];
@@ -192,40 +266,16 @@ function parseSubtasks(bodyLines: string[]): { subtasks: Subtask[]; remainingLin
   let i = 0;
   while (i < bodyLines.length) {
     const line = bodyLines[i];
-    const match = SUBTASK_RE.exec(line);
+    const parsed = parseSubtaskLine(line);
 
-    if (!match) {
-      const attrMatch =
-        /^\s*(note|link|start|due):\s*(.*)$/.exec(line) ?? undefined;
+    if (!parsed) {
+      const attrMatch = SUBTASK_ATTR_RE.exec(line) ?? undefined;
       if (attrMatch && stack.length > 0) {
         const indent = line.length - line.trimStart().length;
         const last = stack[stack.length - 1];
         const expectedIndent = (last.level - 1) * 2 + 2;
         if (indent >= expectedIndent) {
-          const attrName = attrMatch[1] as 'note' | 'link' | 'start' | 'due';
-          const attrValue = attrMatch[2].trim();
-          switch (attrName) {
-            case 'note': {
-              last.note = last.note ? `${last.note}\n${attrValue}` : attrValue;
-              break;
-            }
-            case 'link': {
-              const lm = LINK_RE.exec(attrValue);
-              if (lm) {
-                last.links = last.links ?? [];
-                last.links.push({ title: lm[1], url: lm[2] });
-              }
-              break;
-            }
-            case 'start': {
-              last.start = attrValue || undefined;
-              break;
-            }
-            case 'due': {
-              last.due = attrValue || undefined;
-              break;
-            }
-          }
+          applySubtaskAttribute(last, attrMatch[1], attrMatch[2].trim());
           i++;
           continue;
         }
@@ -235,62 +285,29 @@ function parseSubtasks(bodyLines: string[]): { subtasks: Subtask[]; remainingLin
       continue;
     }
 
-    const indent = match[1].length;
-    const level = Math.floor(indent / 2) + 1;
-    const completed = match[2].toLowerCase() === 'x';
-    let text = match[3].trim();
-    let completedAt: string | undefined;
-
-    if (completed) {
-      const cm = COMPLETED_TIME_RE.exec(text);
-      if (cm) {
-        text = cm[1].trim();
-        completedAt = cm[2];
-      }
-    }
-
     const subtask: Subtask = {
-      text,
-      level,
-      completed,
-      completed_at: completedAt,
+      text: parsed.text,
+      level: parsed.level,
+      completed: parsed.completed,
+      completed_at: parsed.completedAt,
       children: [],
     };
 
-    if (stack.length === 0) {
-      subtasks.push(subtask);
-      stack.push(subtask);
-    } else {
-      const last = stack[stack.length - 1];
-      if (level <= last.level) {
-        while (stack.length > 0 && stack[stack.length - 1].level >= level) {
-          stack.pop();
-        }
-      }
-      if (stack.length === 0) {
-        subtasks.push(subtask);
-      } else {
-        const parent = stack[stack.length - 1];
-        let currentParent = parent;
-        while (currentParent.level < level - 1) {
-          const placeholder: Subtask = {
-            text: '',
-            level: currentParent.level + 1,
-            completed: false,
-            children: [],
-          };
-          currentParent.children.push(placeholder);
-          currentParent = placeholder;
-        }
-        currentParent.children.push(subtask);
-      }
-      stack.push(subtask);
-    }
-
+    attachSubtaskToParent(subtasks, subtask, stack);
+    stack.push(subtask);
     i++;
   }
 
   return { subtasks, remainingLines: remaining };
+}
+
+function flushNoteBuffer(buffer: string[], mode: 'none' | 'note' | 'links'): string | undefined {
+  if (mode === 'note' && buffer.length > 0) {
+    const note = buffer.join('\n').trim();
+    buffer.length = 0;
+    return note;
+  }
+  return undefined;
 }
 
 function parseMainNoteAndLinks(remainingLines: string[]): {
@@ -311,30 +328,21 @@ function parseMainNoteAndLinks(remainingLines: string[]): {
     const trimmed = line.trim();
 
     if (trimmed === '**备注**') {
-      if (buffer.length && mode === 'note') {
-        note = buffer.join('\n').trim();
-        buffer.length = 0;
-      }
+      note = flushNoteBuffer(buffer, mode) ?? note;
       mode = 'note';
       continue;
     }
 
     if (trimmed === '**链接**') {
-      if (buffer.length && mode === 'note') {
-        note = buffer.join('\n').trim();
-        buffer.length = 0;
-      }
+      note = flushNoteBuffer(buffer, mode) ?? note;
       mode = 'links';
       continue;
     }
 
-    const fm = FINISH_RE.exec(trimmed);
-    if (fm) {
-      if (buffer.length && mode === 'note') {
-        note = buffer.join('\n').trim();
-        buffer.length = 0;
-      }
-      finish = { completed_at: fm[1].trim(), duration: fm[2].trim() };
+    const finishMatch = FINISH_RE.exec(trimmed);
+    if (finishMatch) {
+      note = flushNoteBuffer(buffer, mode) ?? note;
+      finish = { completed_at: finishMatch[1].trim(), duration: finishMatch[2].trim() };
       mode = 'none';
       continue;
     }
@@ -342,19 +350,17 @@ function parseMainNoteAndLinks(remainingLines: string[]): {
     if (mode === 'note') {
       buffer.push(line);
     } else if (mode === 'links') {
-      const lm = LINK_RE.exec(line.trim());
-      if (lm) {
+      const linkMatch = LINK_RE.exec(line.trim());
+      if (linkMatch) {
         links = links ?? [];
-        links.push({ title: lm[1], url: lm[2] });
+        links.push({ title: linkMatch[1], url: linkMatch[2] });
       }
     } else {
       trailing.push(line);
     }
   }
 
-  if (mode === 'note' && buffer.length) {
-    note = buffer.join('\n').trim();
-  }
+  note = flushNoteBuffer(buffer, mode) ?? note;
 
   return { note, links, finish, trailingLines: trailing };
 }
@@ -377,7 +383,7 @@ export function inferStatus(subtasks: Subtask[], completedAt?: string): TaskMeta
   return 'pending';
 }
 
-export function parseTaskBlock(block: TaskBlock, groupName: string): Task {
+function parseTaskBlock(block: TaskBlock, groupName: string): Task {
   const meta = parseMetadataLine(block.metadata);
   const created = meta.created ?? todayIso();
   const title = block.heading;

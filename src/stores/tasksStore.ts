@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { FilterState, SortMode, Subtask, Task, TaskMeta } from '@/types';
+import type { FilterState, ParsedList, SortMode, Task, TaskMeta } from '@/types';
 import { generateTaskId } from '@/utils/id';
 import { isDueToday, isDueThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
 import { computeNextDue } from '@/utils/repeat';
+import { cloneSubtasks, resetSubtasks, toggleSubtaskAtPath } from '@/utils/subtasks';
 import { useListsStore } from './listsStore';
 import { normalizeTask } from '@/parser/serializer';
 
@@ -30,10 +31,24 @@ interface TasksState {
   getSelectedTask: () => Task | null;
 }
 
+interface ActiveListCtx {
+  activeListName: string;
+  list: ParsedList;
+  saveListContent: (name: string, list: ParsedList) => Promise<void>;
+}
+
 function flattenTasks(listName: string): Task[] {
   const list = useListsStore.getState().fileCache[listName];
   if (!list) return [];
   return list.groups.flatMap((g) => g.tasks);
+}
+
+function requireActiveList(): ActiveListCtx | null {
+  const { activeListName, fileCache, saveListContent } = useListsStore.getState();
+  if (!activeListName) return null;
+  const list = fileCache[activeListName];
+  if (!list) return null;
+  return { activeListName, list, saveListContent };
 }
 
 function findTaskInList(listName: string, taskId: string): { task: Task; groupIndex: number; taskIndex: number } | null {
@@ -48,30 +63,6 @@ function findTaskInList(listName: string, taskId: string): { task: Task; groupIn
     }
   }
   return null;
-}
-
-function cloneSubtasks(subtasks: Subtask[]): Subtask[] {
-  return subtasks.map((s) => ({
-    ...s,
-    children: cloneSubtasks(s.children),
-  }));
-}
-
-function toggleSubtaskAtPath(subtasks: Subtask[], path: number[]): Subtask[] {
-  if (path.length === 0) return subtasks;
-  const [index, ...rest] = path;
-  return subtasks.map((s, i) => {
-    if (i !== index) return s;
-    if (rest.length === 0) {
-      const completed = !s.completed;
-      return {
-        ...s,
-        completed,
-        completed_at: completed ? nowIso() : undefined,
-      };
-    }
-    return { ...s, children: toggleSubtaskAtPath(s.children, rest) };
-  });
 }
 
 function matchesFilter(task: Task, filter: FilterState, query: string): boolean {
@@ -113,15 +104,6 @@ function advanceRepeatingTask(task: Task): Task {
   const nextDue = computeNextDue(task.meta.due, task.meta.repeat, task.meta.repeat_until);
   if (!nextDue) return task;
 
-  function resetSubtasks(subtasks: Subtask[]): Subtask[] {
-    return subtasks.map((s) => ({
-      ...s,
-      completed: false,
-      completed_at: undefined,
-      children: resetSubtasks(s.children),
-    }));
-  }
-
   return {
     ...task,
     meta: {
@@ -135,6 +117,10 @@ function advanceRepeatingTask(task: Task): Task {
   };
 }
 
+function buildTaskPatch(patch: Partial<Task>, explicitStatus?: TaskMeta['status']): Task {
+  return normalizeTask(patch as Task, explicitStatus);
+}
+
 export const useTasksStore = create<TasksState>((set, get) => ({
   tasks: [],
   selectedTaskId: null,
@@ -144,8 +130,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   loadTasks: async (listName) => {
     // 先使用本地缓存渲染，避免切换清单时阻塞 UI
-    const cached = useListsStore.getState().fileCache[listName];
-    if (cached) {
+    if (useListsStore.getState().fileCache[listName]) {
       set({ tasks: flattenTasks(listName) });
     }
 
@@ -155,11 +140,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   createTask: async (title, group) => {
-    const { activeListName, fileCache } = useListsStore.getState();
-    if (!activeListName) return;
-
-    const list = fileCache[activeListName];
-    if (!list) return;
+    const ctx = requireActiveList();
+    if (!ctx) return;
+    const { activeListName, list, saveListContent } = ctx;
 
     const created = todayIso();
     const maxOrder = Math.max(0, ...list.groups.flatMap((g) => g.tasks.map((t) => t.meta.order ?? 0)));
@@ -185,16 +168,14 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       nextList.groups = [...nextList.groups, { name: targetGroup, tasks: [newTask] }];
     }
 
-    await useListsStore.getState().saveListContent(activeListName, nextList);
+    await saveListContent(activeListName, nextList);
     set({ tasks: flattenTasks(activeListName), selectedTaskId: newTask.id });
   },
 
-  updateTask: async (id, patch: Omit<Partial<Task>, 'meta'> & { meta?: Partial<TaskMeta> }) => {
-    const { activeListName, fileCache, saveListContent } = useListsStore.getState();
-    if (!activeListName) return;
-
-    const list = fileCache[activeListName];
-    if (!list) return;
+  updateTask: async (id, patch) => {
+    const ctx = requireActiveList();
+    if (!ctx) return;
+    const { activeListName, list, saveListContent } = ctx;
 
     const found = findTaskInList(activeListName, id);
     if (!found) return;
@@ -210,7 +191,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         if (patch.meta) {
           merged.meta = { ...t.meta, ...patch.meta };
         }
-        return normalizeTask(merged as Task, explicitStatus);
+        return buildTaskPatch(merged as Task, explicitStatus);
       }),
     }));
 
@@ -219,11 +200,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   deleteTask: async (id) => {
-    const { activeListName, fileCache, saveListContent } = useListsStore.getState();
-    if (!activeListName) return;
-
-    const list = fileCache[activeListName];
-    if (!list) return;
+    const ctx = requireActiveList();
+    if (!ctx) return;
+    const { activeListName, list, saveListContent } = ctx;
 
     const nextList = { ...list };
     nextList.groups = nextList.groups.map((g) => ({
@@ -236,11 +215,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   toggleSubtask: async (taskId, path) => {
-    const { activeListName, fileCache, saveListContent } = useListsStore.getState();
-    if (!activeListName) return;
-
-    const list = fileCache[activeListName];
-    if (!list) return;
+    const ctx = requireActiveList();
+    if (!ctx) return;
+    const { activeListName, list, saveListContent } = ctx;
 
     const nextList = { ...list };
     nextList.groups = nextList.groups.map((g) => ({
@@ -261,11 +238,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   completeTaskWithoutSubtasks: async (taskId) => {
-    const { activeListName, fileCache, saveListContent } = useListsStore.getState();
-    if (!activeListName) return;
-
-    const list = fileCache[activeListName];
-    if (!list) return;
+    const ctx = requireActiveList();
+    if (!ctx) return;
+    const { activeListName, list, saveListContent } = ctx;
 
     const nextList = { ...list };
     nextList.groups = nextList.groups.map((g) => ({
@@ -380,12 +355,12 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 }));
 
-// 监听清单切换
+// 监听清单切换，自动加载任务
 let lastActiveList: string | null = null;
-setInterval(() => {
-  const active = useListsStore.getState().activeListName;
+useListsStore.subscribe((state) => {
+  const active = state.activeListName;
   if (active && active !== lastActiveList) {
     lastActiveList = active;
     useTasksStore.getState().loadTasks(active);
   }
-}, 200);
+});

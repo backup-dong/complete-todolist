@@ -62,68 +62,7 @@ export interface Group {
 
 // ========== 组件 Props ==========
 
-export interface SidebarProps {
-  lists: ListMeta[];
-  groups: string[];
-  activeList: string;
-  activeGroup: string | null;
-  onSelectList: (name: string) => void;
-  onSelectGroup: (name: string | null) => void;
-  onNewList: () => void;
-}
-
-export interface SmartListItemProps {
-  icon: string;
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}
-
-export interface ListRowProps {
-  name: string;
-  progress: { done: number; total: number };
-  active: boolean;
-  onClick: () => void;
-  onDelete?: () => void;
-}
-
-export interface TaskCardProps {
-  task: Task;
-  onToggle: (subtaskPath: number[]) => void;
-  onStartEdit: () => void;
-  onDelete: () => void;
-}
-
-export interface SubtaskItemProps {
-  subtask: Subtask;
-  path: number[];
-  onToggle: (path: number[]) => void;
-  depth: number;
-}
-
-export interface DetailPanelProps {
-  task: Task | null;
-  onSave: (updated: Task) => void;
-  onClose: () => void;
-  groups: string[];
-}
-
 export type SortMode = 'drag' | 'due' | 'priority';
-
-export interface TaskListProps {
-  tasks: Task[];
-  sortMode: SortMode;
-  onReorder: (fromIndex: number, toIndex: number) => void;
-  onToggle: (taskId: string, path: number[]) => void;
-  onSelect: (taskId: string) => void;
-}
-
-export interface SearchBarProps {
-  value: string;
-  onChange: (q: string) => void;
-  placeholder?: string;
-}
 
 export interface FilterState {
   status: 'all' | 'pending' | 'active' | 'done';

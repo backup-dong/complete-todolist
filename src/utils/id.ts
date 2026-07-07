@@ -9,6 +9,3 @@ export function generateTaskId(title: string, created: string): string {
   return Math.abs(hash).toString(36);
 }
 
-export function generateListId(name: string): string {
-  return name;
-}

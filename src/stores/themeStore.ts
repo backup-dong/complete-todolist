@@ -55,10 +55,6 @@ export const useThemeStore = create<ThemeStore>((set, get) => ({
   },
 }));
 
-export function getEffectiveTheme(theme: Theme): 'light' | 'dark' {
-  return theme === 'system' ? getSystemTheme() : theme;
-}
-
 export function subscribeToSystemTheme(callback: (theme: 'light' | 'dark') => void) {
   if (typeof window === 'undefined') return () => {};
   const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -66,5 +62,3 @@ export function subscribeToSystemTheme(callback: (theme: 'light' | 'dark') => vo
   media.addEventListener('change', handler);
   return () => media.removeEventListener('change', handler);
 }
-
-export { STORAGE_KEY };

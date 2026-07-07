@@ -15,7 +15,7 @@ const META_ORDER: (keyof TaskMeta)[] = [
   'tags',
 ];
 
-export function serializeMetadataLine(meta: TaskMeta): string {
+function serializeMetadataLine(meta: TaskMeta): string {
   const parts: string[] = [];
   for (const key of META_ORDER) {
     const value = meta[key];
@@ -82,7 +82,7 @@ export function normalizeTask(task: Task, explicitStatus?: TaskMeta['status']): 
   };
 }
 
-export function serializeTask(task: Task): string {
+function serializeTask(task: Task): string {
   const normalized = normalizeTask(task);
   const lines: string[] = [];
   lines.push(`### ${normalized.title}`);
@@ -114,7 +114,7 @@ export function serializeTask(task: Task): string {
   return lines.join('\n');
 }
 
-export function serializeGroup(group: Group): string {
+function serializeGroup(group: Group): string {
   const lines: string[] = [];
   lines.push(`## ${group.name}`);
   lines.push('');
@@ -140,18 +140,6 @@ export function serializeList(list: ParsedList): string {
   }
 
   return lines.join('\n').trimEnd() + '\n';
-}
-
-export function normalizeList(list: ParsedList): ParsedList {
-  const normalized: ParsedList = {
-    ...list,
-    groups: list.groups.map((g) => ({
-      ...g,
-      tasks: g.tasks.map((t) => normalizeTask(t)),
-    })),
-  };
-  const content = serializeList(normalized);
-  return { ...normalized, rawContent: content };
 }
 
 export function createEmptyList(name: string): ParsedList {

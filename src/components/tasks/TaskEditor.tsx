@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useReducer, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { Link, Subtask, Task } from '@/types';
 import { NoteEditor } from '@/components/common/NoteEditor';
+import { deleteSubtaskAtPath, emptySubtask, updateSubtaskAtPath } from '@/utils/subtasks';
 
 function detectSubtaskToggle(prev: Subtask[], curr: Subtask[]): boolean {
   if (prev.length !== curr.length) return false;
@@ -58,36 +59,69 @@ function textToLinks(text: string): Link[] | undefined {
   return links.length > 0 ? links : undefined;
 }
 
-function emptySubtask(): Subtask {
-  return { text: '', level: 1, completed: false, children: [] };
+interface DraftTask {
+  title: string;
+  group: string;
+  priority: Task['meta']['priority'];
+  status: NonNullable<Task['meta']['status']>;
+  start: string;
+  due: string;
+  repeat: string;
+  repeat_until: string;
+  note: string;
+  linksText: string;
+  subtasks: Subtask[];
 }
 
-function updateSubtaskAtPath(
-  subtasks: Subtask[],
-  path: number[],
-  updater: (s: Subtask) => Subtask,
-): Subtask[] {
-  if (path.length === 0) return subtasks;
-  const [index, ...rest] = path;
-  return subtasks.map((s, i) => {
-    if (i !== index) return s;
-    if (rest.length === 0) {
-      return updater(s);
-    }
-    return { ...s, children: updateSubtaskAtPath(s.children, rest, updater) };
-  });
+type DraftAction =
+  | { type: 'set'; field: keyof DraftTask; value: DraftTask[keyof DraftTask] }
+  | { type: 'reset'; task: Task };
+
+function buildDraft(task: Task): DraftTask {
+  return {
+    title: task.title,
+    group: task.group,
+    priority: task.meta.priority,
+    status: task.meta.status ?? 'pending',
+    start: task.meta.start ?? '',
+    due: task.meta.due ?? '',
+    repeat: task.meta.repeat ?? '',
+    repeat_until: task.meta.repeat_until ?? '',
+    note: task.note ?? '',
+    linksText: linksToText(task.links),
+    subtasks: task.subtasks,
+  };
 }
 
-function deleteSubtaskAtPath(subtasks: Subtask[], path: number[]): Subtask[] {
-  if (path.length === 0) return subtasks;
-  const [index, ...rest] = path;
-  if (rest.length === 0) {
-    return subtasks.filter((_, i) => i !== index);
+function draftReducer(state: DraftTask, action: DraftAction): DraftTask {
+  switch (action.type) {
+    case 'set':
+      return { ...state, [action.field]: action.value };
+    case 'reset':
+      return buildDraft(action.task);
   }
-  return subtasks.map((s, i) => {
-    if (i !== index) return s;
-    return { ...s, children: deleteSubtaskAtPath(s.children, rest) };
-  });
+}
+
+function LinksTextArea({
+  value,
+  onChange,
+  placeholder,
+  rows,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  rows: number;
+}) {
+  return (
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      rows={rows}
+      className="input"
+      placeholder={placeholder}
+    />
+  );
 }
 
 function SubtaskLinksEditor({
@@ -101,19 +135,12 @@ function SubtaskLinksEditor({
 }) {
   const [linksText, setLinksText] = useState(linksToText(subtask.links));
 
-  useEffect(() => {
-    setLinksText(linksToText(subtask.links));
-  }, [subtask.links]);
-
-  const handleBlur = () => {
-    onChange(path, { ...subtask, links: textToLinks(linksText) });
-  };
-
   return (
     <textarea
+      key={linksToText(subtask.links)}
       value={linksText}
       onChange={(e) => setLinksText(e.target.value)}
-      onBlur={handleBlur}
+      onBlur={() => onChange(path, { ...subtask, links: textToLinks(linksText) })}
       placeholder="链接（每行「标题 URL」）"
       rows={2}
       className="input"
@@ -166,7 +193,7 @@ function SubtaskEditor({
             onClick={() =>
               onChange(path, {
                 ...subtask,
-                children: [...subtask.children, { ...emptySubtask(), level: subtask.level + 1 }],
+                children: [...subtask.children, emptySubtask(subtask.level + 1)],
               })
             }
             title="添加子任务"
@@ -290,6 +317,127 @@ function TaskSubtasksEditor({
   );
 }
 
+function TaskMetaFields({
+  draft,
+  groups,
+  dispatch,
+}: {
+  draft: DraftTask;
+  groups: string[];
+  dispatch: (action: DraftAction) => void;
+}) {
+  return (
+    <>
+      <label className="block">
+        <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">标题</span>
+        <input
+          value={draft.title}
+          onChange={(e) => dispatch({ type: 'set', field: 'title', value: e.target.value })}
+          className="input"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">分组</span>
+        <select
+          value={draft.group}
+          onChange={(e) => dispatch({ type: 'set', field: 'group', value: e.target.value })}
+          className="select w-full"
+        >
+          {groups.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="grid grid-cols-2 gap-4">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">优先级</span>
+          <select
+            value={draft.priority}
+            onChange={(e) => dispatch({ type: 'set', field: 'priority', value: e.target.value as Task['meta']['priority'] })}
+            className="select"
+          >
+            <option value="high">高</option>
+            <option value="med">中</option>
+            <option value="low">低</option>
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">状态</span>
+          <select
+            value={draft.status}
+            onChange={(e) => dispatch({ type: 'set', field: 'status', value: e.target.value as NonNullable<Task['meta']['status']> })}
+            className="select"
+          >
+            <option value="pending">待处理</option>
+            <option value="active">进行中</option>
+            <option value="done">已完成</option>
+          </select>
+        </label>
+      </div>
+    </>
+  );
+}
+
+function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (action: DraftAction) => void }) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">开始时间</span>
+          <input
+            type="date"
+            value={draft.start}
+            onChange={(e) => dispatch({ type: 'set', field: 'start', value: e.target.value })}
+            className="input"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">截止时间</span>
+          <input
+            type="date"
+            value={draft.due}
+            onChange={(e) => dispatch({ type: 'set', field: 'due', value: e.target.value })}
+            className="input"
+          />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复规则</span>
+          <select
+            value={draft.repeat}
+            onChange={(e) => dispatch({ type: 'set', field: 'repeat', value: e.target.value })}
+            className="select"
+          >
+            <option value="">无</option>
+            <option value="daily">每天</option>
+            <option value="weekly">每周</option>
+            <option value="monthly">每月</option>
+            <option value="weekdays">工作日</option>
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复截止</span>
+          <input
+            type="date"
+            value={draft.repeat_until}
+            onChange={(e) => dispatch({ type: 'set', field: 'repeat_until', value: e.target.value })}
+            className="input"
+          />
+        </label>
+      </div>
+    </>
+  );
+}
+
 export function TaskEditor({
   task,
   groups,
@@ -301,47 +449,40 @@ export function TaskEditor({
   onSave: (updated: Task) => void;
   onClose: () => void;
 }) {
-  const [title, setTitle] = useState(task.title);
-  const [group, setGroup] = useState(task.group);
-  const [priority, setPriority] = useState(task.meta.priority);
-  const [status, setStatus] = useState(task.meta.status ?? 'pending');
-  const [start, setStart] = useState(task.meta.start ?? '');
-  const [due, setDue] = useState(task.meta.due ?? '');
-  const [repeat, setRepeat] = useState(task.meta.repeat ?? '');
-  const [repeatUntil, setRepeatUntil] = useState(task.meta.repeat_until ?? '');
-  const [note, setNote] = useState(task.note ?? '');
-  const [linksText, setLinksText] = useState(linksToText(task.links));
-  const [subtasks, setSubtasks] = useState<Subtask[]>(task.subtasks);
+  const [draft, dispatch] = useReducer(draftReducer, task, buildDraft);
 
-  const saveTask = useCallback(() => {
-    const updated: Task = {
+  const makeTask = useCallback((): Task => {
+    return {
       ...task,
-      title: title.trim() || task.title,
-      group,
+      title: draft.title.trim() || task.title,
+      group: draft.group,
       meta: {
         ...task.meta,
-        priority,
-        status,
-        start: start || undefined,
-        due: due || undefined,
-        repeat: repeat || undefined,
-        repeat_until: repeatUntil || undefined,
+        priority: draft.priority,
+        status: draft.status,
+        start: draft.start || undefined,
+        due: draft.due || undefined,
+        repeat: draft.repeat || undefined,
+        repeat_until: draft.repeat_until || undefined,
       },
-      note: note || undefined,
-      links: textToLinks(linksText),
-      subtasks,
+      note: draft.note || undefined,
+      links: textToLinks(draft.linksText),
+      subtasks: draft.subtasks,
     };
-    onSave(updated);
-  }, [task, title, group, priority, status, start, due, repeat, repeatUntil, note, linksText, subtasks, onSave]);
+  }, [draft, task]);
 
-  const prevSubtasksRef = useRef<Subtask[]>(subtasks);
+  const saveTask = useCallback(() => {
+    onSave(makeTask());
+  }, [makeTask, onSave]);
+
+  const prevSubtasksRef = useRef<Subtask[]>(draft.subtasks);
 
   useEffect(() => {
-    if (detectSubtaskToggle(prevSubtasksRef.current, subtasks)) {
+    if (detectSubtaskToggle(prevSubtasksRef.current, draft.subtasks)) {
       saveTask();
     }
-    prevSubtasksRef.current = subtasks;
-  }, [subtasks, saveTask]);
+    prevSubtasksRef.current = draft.subtasks;
+  }, [draft.subtasks, saveTask]);
 
   return (
     <div
@@ -362,125 +503,34 @@ export function TaskEditor({
 
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">标题</span>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="input"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">分组</span>
-            <select
-              value={group}
-              onChange={(e) => setGroup(e.target.value)}
-              className="select w-full"
-            >
-              {groups.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="grid grid-cols-2 gap-4">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">优先级</span>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as Task['meta']['priority'])}
-                className="select"
-              >
-                <option value="high">高</option>
-                <option value="med">中</option>
-                <option value="low">低</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">状态</span>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as NonNullable<Task['meta']['status']>)}
-                className="select"
-              >
-                <option value="pending">待处理</option>
-                <option value="active">进行中</option>
-                <option value="done">已完成</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">开始时间</span>
-              <input
-                type="date"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                className="input"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">截止时间</span>
-              <input
-                type="date"
-                value={due}
-                onChange={(e) => setDue(e.target.value)}
-                className="input"
-              />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复规则</span>
-              <select
-                value={repeat}
-                onChange={(e) => setRepeat(e.target.value)}
-                className="select"
-              >
-                <option value="">无</option>
-                <option value="daily">每天</option>
-                <option value="weekly">每周</option>
-                <option value="monthly">每月</option>
-                <option value="weekdays">工作日</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复截止</span>
-              <input
-                type="date"
-                value={repeatUntil}
-                onChange={(e) => setRepeatUntil(e.target.value)}
-                className="input"
-              />
-            </label>
-          </div>
+          <TaskMetaFields draft={draft} groups={groups} dispatch={dispatch} />
+          <TaskDateFields draft={draft} dispatch={dispatch} />
 
           <div className="block">
             <span className="mb-2 block text-sm font-medium text-[var(--color-text-secondary)]">子任务</span>
-            <TaskSubtasksEditor subtasks={subtasks} onChange={setSubtasks} />
+            <TaskSubtasksEditor
+              subtasks={draft.subtasks}
+              onChange={(subtasks) => dispatch({ type: 'set', field: 'subtasks', value: subtasks })}
+            />
           </div>
 
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">备注（Markdown）</span>
-            <NoteEditor value={note} onChange={setNote} placeholder="备注（Markdown）" rows={4} />
+            <NoteEditor
+              value={draft.note}
+              onChange={(v) => dispatch({ type: 'set', field: 'note', value: v })}
+              placeholder="备注（Markdown）"
+              rows={4}
+            />
           </label>
 
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">链接（每行「标题 URL」）</span>
-            <textarea
-              value={linksText}
-              onChange={(e) => setLinksText(e.target.value)}
-              rows={3}
-              className="input"
+            <LinksTextArea
+              value={draft.linksText}
+              onChange={(v) => dispatch({ type: 'set', field: 'linksText', value: v })}
               placeholder="飞书任务 https://example.com"
+              rows={3}
             />
           </label>
         </div>

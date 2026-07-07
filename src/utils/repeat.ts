@@ -54,10 +54,9 @@ const WEEKDAY_MAP: Record<WeekDay, number> = {
 
 function nextWeekday(base: Date): Date {
   const day = getDay(base);
-  // 周五(5) -> 下周一(+3), 周六(6) -> 下周一(+2), 周日(0) -> 下周一(+1), 其他 -> 明天(+1)
+  // 周五(5) -> 下周一(+3), 周六(6) -> 下周一(+2), 其他 -> 明天(+1)
   if (day === 5) return addDays(base, 3);
   if (day === 6) return addDays(base, 2);
-  if (day === 0) return addDays(base, 1);
   return addDays(base, 1);
 }
 

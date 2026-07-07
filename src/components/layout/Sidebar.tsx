@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -20,7 +20,7 @@ import { confirm } from '@/stores/confirmStore';
 import { toast } from '@/utils/toast';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { getPendingWriteDetails } from '@/utils/storage';
-import type { ListMeta } from '@/types';
+import type { ListMeta, ParsedList } from '@/types';
 
 function SyncIndicator({ pendingCount }: { pendingCount: number }) {
   const { status, lastSyncAt } = useSyncStore();
@@ -53,9 +53,11 @@ function SyncIndicator({ pendingCount }: { pendingCount: number }) {
 function PendingQueue({ expanded }: { expanded: boolean }) {
   const { status, pushPending } = useSyncStore();
   const [retrying, setRetrying] = useState(false);
-  const details = useMemo(() => getPendingWriteDetails(), []);
 
-  if (!expanded || details.length === 0) return null;
+  if (!expanded) return null;
+
+  const details = getPendingWriteDetails();
+  if (details.length === 0) return null;
 
   const formatTime = (timestamp: string) => {
     try {
@@ -225,18 +227,240 @@ function ListRow({
   );
 }
 
+function SmartListsSection({
+  items,
+  onSelect,
+}: {
+  items: readonly { key: string; icon: typeof Calendar; label: string }[];
+  onSelect: (key: string) => void;
+}) {
+  return (
+    <>
+      <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        智能列表
+      </div>
+      <div className="mb-4 space-y-1">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onSelect(item.key)}
+              className="nav-item"
+            >
+              <Icon className="h-[18px] w-[18px]" />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function NewGroupInput({
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex gap-1 px-1">
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onSubmit();
+          if (e.key === 'Escape') onCancel();
+        }}
+        onBlur={() => onSubmit()}
+        placeholder="分组名称"
+        className="input flex-1 py-1 text-xs"
+      />
+    </div>
+  );
+}
+
+function NewListInput({
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mt-2 flex gap-2">
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onSubmit();
+          if (e.key === 'Escape') onCancel();
+        }}
+        onBlur={() => onSubmit()}
+        placeholder="清单名称"
+        className="input flex-1"
+      />
+    </div>
+  );
+}
+
+function ListGroups({
+  listData,
+  activeGroup,
+  showInputForList,
+  newGroupName,
+  onSelectGroup,
+  onDeleteGroup,
+  onShowNewGroup,
+  onNewGroupNameChange,
+  onCreateGroup,
+  onCancelNewGroup,
+}: {
+  listData: ParsedList;
+  activeGroup: string | null;
+  showInputForList: string | null;
+  newGroupName: string;
+  onSelectGroup: (name: string | null) => void;
+  onDeleteGroup: (name: string) => Promise<void>;
+  onShowNewGroup: () => void;
+  onNewGroupNameChange: (value: string) => void;
+  onCreateGroup: () => void;
+  onCancelNewGroup: () => void;
+}) {
+  return (
+    <div className="ml-4 mt-0.5 space-y-0.5 border-l border-[var(--color-border)] pl-2">
+      {listData.groups.map((g) => {
+        const done = g.tasks.filter((t) => t.meta.status === 'done').length;
+        return (
+          <GroupRow
+            key={g.name}
+            name={g.name}
+            done={done}
+            total={g.tasks.length}
+            active={activeGroup === g.name}
+            onClick={() => onSelectGroup(activeGroup === g.name ? null : g.name)}
+            onDelete={() => void onDeleteGroup(g.name)}
+          />
+        );
+      })}
+      {showInputForList ? (
+        <NewGroupInput
+          value={newGroupName}
+          onChange={onNewGroupNameChange}
+          onSubmit={onCreateGroup}
+          onCancel={onCancelNewGroup}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={onShowNewGroup}
+          className="flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-colors duration-100"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span>新建分组</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ListsSection({
+  lists,
+  activeListName,
+  fileCache,
+  activeGroup,
+  showNewGroupForList,
+  newGroupName,
+  onSelectList,
+  onDeleteList,
+  onSelectGroup,
+  onDeleteGroup,
+  onShowNewGroup,
+  onNewGroupNameChange,
+  onCreateGroup,
+  onCancelNewGroup,
+}: {
+  lists: ListMeta[];
+  activeListName: string | null;
+  fileCache: Record<string, ParsedList>;
+  activeGroup: string | null;
+  showNewGroupForList: string | null;
+  newGroupName: string;
+  onSelectList: (name: string) => void;
+  onDeleteList: (name: string) => Promise<void>;
+  onSelectGroup: (name: string | null) => void;
+  onDeleteGroup: (name: string) => Promise<void>;
+  onShowNewGroup: (listName: string) => void;
+  onNewGroupNameChange: (value: string) => void;
+  onCreateGroup: (listName: string) => void;
+  onCancelNewGroup: () => void;
+}) {
+  return (
+    <>
+      <div className="mb-2 mt-6 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        我的清单
+      </div>
+      <div className="space-y-1">
+        {lists.map((list) => {
+          const isActive = activeListName === list.name;
+          const listData = fileCache[list.name];
+          return (
+            <div key={list.name} className="space-y-0.5">
+              <ListRow
+                list={list}
+                active={isActive}
+                onClick={() => {
+                  onSelectList(list.name);
+                  onSelectGroup(null);
+                }}
+                onDelete={() => void onDeleteList(list.name)}
+              />
+              {isActive && listData && (
+                <ListGroups
+                  listData={listData}
+                  activeGroup={activeGroup}
+                  showInputForList={showNewGroupForList}
+                  newGroupName={newGroupName}
+                  onSelectGroup={onSelectGroup}
+                  onDeleteGroup={onDeleteGroup}
+                  onShowNewGroup={() => onShowNewGroup(list.name)}
+                  onNewGroupNameChange={onNewGroupNameChange}
+                  onCreateGroup={() => onCreateGroup(list.name)}
+                  onCancelNewGroup={onCancelNewGroup}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export function Sidebar() {
-  const { lists, activeListName, activeGroup, selectList, selectGroup, createGroup, deleteList, deleteGroup } = useListsStore();
+  const { lists, activeListName, activeGroup, selectList, selectGroup, createGroup, createList, deleteList, deleteGroup, fileCache } =
+    useListsStore();
   const { setSearchQuery, setFilter } = useTasksStore();
-  const { pushPending, config } = useSyncStore();
+  const { pushPending, config, pendingWrites } = useSyncStore();
   const navigate = useNavigate();
   const [newListName, setNewListName] = useState('');
   const [showNewList, setShowNewList] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroupForList, setShowNewGroupForList] = useState<string | null>(null);
   const [queueExpanded, setQueueExpanded] = useState(false);
-  const pendingDetails = useMemo(() => getPendingWriteDetails(), []);
-  const pendingCount = pendingDetails.length;
 
   const smartLists = [
     { key: 'today', icon: Calendar, label: '今天' },
@@ -245,7 +469,7 @@ export function Sidebar() {
     { key: 'flagged', icon: Flag, label: '已标记' },
   ] as const;
 
-  const handleSmartClick = (key: typeof smartLists[number]['key']) => {
+  const handleSmartClick = (key: string) => {
     setFilter({ status: 'all', priority: 'all', timeRange: 'all' });
     setSearchQuery('');
     if (key === 'today') {
@@ -270,7 +494,7 @@ export function Sidebar() {
       return;
     }
     try {
-      await useListsStore.getState().createList(name);
+      await createList(name);
       setNewListName('');
       setShowNewList(false);
     } catch (err) {
@@ -286,7 +510,6 @@ export function Sidebar() {
       return;
     }
     try {
-      // ensure we're operating on the target list
       if (activeListName !== listName) {
         selectList(listName);
       }
@@ -295,6 +518,21 @@ export function Sidebar() {
       setShowNewGroupForList(null);
     } catch (err) {
       toast.error('创建分组失败：' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleDeleteList = async (name: string) => {
+    if (await confirm(`确定删除清单「${name}」？`)) {
+      await deleteList(name);
+    }
+  };
+
+  const handleDeleteGroup = async (name: string) => {
+    if (await confirm(`确定删除分组「${name}」及其所有任务？`)) {
+      await deleteGroup(name);
+      if (activeListName) {
+        useTasksStore.getState().refreshTasks(activeListName);
+      }
     }
   };
 
@@ -310,119 +548,35 @@ export function Sidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
-        <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-          智能列表
-        </div>
-        <div className="mb-4 space-y-1">
-          {smartLists.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => handleSmartClick(item.key)}
-                className="nav-item"
-              >
-                <Icon className="h-[18px] w-[18px]" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <SmartListsSection items={smartLists} onSelect={handleSmartClick} />
 
-        <div className="mb-2 mt-6 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-          我的清单
-        </div>
-        <div className="space-y-1">
-          {lists.map((list) => {
-            const isActive = activeListName === list.name;
-            const listData = useListsStore.getState().fileCache[list.name];
-            return (
-              <div key={list.name} className="space-y-0.5">
-                <ListRow
-                  list={list}
-                  active={isActive}
-                  onClick={() => {
-                    selectList(list.name);
-                    selectGroup(null);
-                  }}
-                  onDelete={async () => {
-                    if (await confirm(`确定删除清单「${list.name}」？`)) {
-                      deleteList(list.name);
-                    }
-                  }}
-                />
-                {isActive && listData && (
-                  <div className="ml-4 mt-0.5 space-y-0.5 border-l border-[var(--color-border)] pl-2">
-                    {listData.groups.map((g) => {
-                      const done = g.tasks.filter((t) => t.meta.status === 'done').length;
-                      return (
-                        <GroupRow
-                          key={g.name}
-                          name={g.name}
-                          done={done}
-                          total={g.tasks.length}
-                          active={activeGroup === g.name}
-                          onClick={() => selectGroup(activeGroup === g.name ? null : g.name)}
-                          onDelete={async () => {
-                            if (await confirm(`确定删除分组「${g.name}」及其所有任务？`)) {
-                              await deleteGroup(g.name);
-                              useTasksStore.getState().refreshTasks(list.name);
-                            }
-                          }}
-                        />
-                      );
-                    })}
-                    {showNewGroupForList === list.name ? (
-                      <div className="flex gap-1 px-1">
-                        <input
-                          autoFocus
-                          value={newGroupName}
-                          onChange={(e) => setNewGroupName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleCreateGroup(list.name);
-                            if (e.key === 'Escape') {
-                              setNewGroupName('');
-                              setShowNewGroupForList(null);
-                            }
-                          }}
-                          onBlur={() => handleCreateGroup(list.name)}
-                          placeholder="分组名称"
-                          className="input flex-1 py-1 text-xs"
-                        />
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setShowNewGroupForList(list.name)}
-                        className="flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-colors duration-100"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>新建分组</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <ListsSection
+          lists={lists}
+          activeListName={activeListName}
+          fileCache={fileCache}
+          activeGroup={activeGroup}
+          showNewGroupForList={showNewGroupForList}
+          newGroupName={newGroupName}
+          onSelectList={selectList}
+          onDeleteList={handleDeleteList}
+          onSelectGroup={selectGroup}
+          onDeleteGroup={handleDeleteGroup}
+          onShowNewGroup={setShowNewGroupForList}
+          onNewGroupNameChange={setNewGroupName}
+          onCreateGroup={handleCreateGroup}
+          onCancelNewGroup={() => {
+            setNewGroupName('');
+            setShowNewGroupForList(null);
+          }}
+        />
 
         {showNewList ? (
-          <div className="mt-2 flex gap-2">
-            <input
-              autoFocus
-              value={newListName}
-              onChange={(e) => setNewListName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreateList();
-                if (e.key === 'Escape') setShowNewList(false);
-              }}
-              onBlur={() => handleCreateList()}
-              placeholder="清单名称"
-              className="input flex-1"
-            />
-          </div>
+          <NewListInput
+            value={newListName}
+            onChange={setNewListName}
+            onSubmit={handleCreateList}
+            onCancel={() => setShowNewList(false)}
+          />
         ) : (
           <button
             type="button"
@@ -442,7 +596,7 @@ export function Sidebar() {
           className="w-full"
           aria-expanded={queueExpanded}
         >
-          <SyncIndicator pendingCount={pendingCount} />
+          <SyncIndicator pendingCount={pendingWrites} />
         </button>
         <PendingQueue expanded={queueExpanded} />
         <div className="mb-3 mt-3 flex items-center justify-between">
@@ -461,6 +615,7 @@ export function Sidebar() {
             type="button"
             onClick={() => pushPending()}
             className="btn-secondary flex-1 py-1.5 text-xs"
+
           >
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
             立即同步

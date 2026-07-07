@@ -10,6 +10,13 @@ import {
 import type { Link, Subtask, Task } from '@/types';
 import { formatDate, isDueToday, isOverdue } from '@/utils/date';
 
+function useDueColor(due?: string): string {
+  if (!due) return '';
+  if (isOverdue(due)) return 'text-[var(--color-danger)]';
+  if (isDueToday(due)) return 'text-[var(--color-warning)]';
+  return 'text-[var(--color-text-muted)]';
+}
+
 function PriorityBadge({ priority }: { priority: Task['meta']['priority'] }) {
   const variants: Record<Task['meta']['priority'], { label: string; className: string }> = {
     high: {
@@ -29,6 +36,26 @@ function PriorityBadge({ priority }: { priority: Task['meta']['priority'] }) {
   return <span className={['badge', className].join(' ')}>{label}</span>;
 }
 
+function StatusIconContent({ status }: { status: Task['meta']['status'] }) {
+  if (status === 'done') {
+    return (
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-success)] text-white">
+        <Check className="h-3 w-3" strokeWidth={3} />
+      </span>
+    );
+  }
+  if (status === 'active') {
+    return (
+      <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-[var(--color-warning)]">
+        <span className="h-2 w-2 rounded-full bg-[var(--color-warning)]" />
+      </span>
+    );
+  }
+  return (
+    <span className="h-5 w-5 rounded-full border-2 border-[var(--color-text-muted)] hover:border-[var(--color-primary)]" />
+  );
+}
+
 function StatusIcon({
   status,
   onClick,
@@ -36,30 +63,17 @@ function StatusIcon({
   status: Task['meta']['status'];
   onClick?: () => void;
 }) {
-  const isButton = !!onClick;
   const baseClass =
     'flex h-5 w-5 items-center justify-center rounded-full transition-colors duration-100';
+  const content = <StatusIconContent status={status} />;
 
-  const content =
-    status === 'done' ? (
-      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-success)] text-white">
-        <Check className="h-3 w-3" strokeWidth={3} />
-      </span>
-    ) : status === 'active' ? (
-      <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-[var(--color-warning)]">
-        <span className="h-2 w-2 rounded-full bg-[var(--color-warning)]" />
-      </span>
-    ) : (
-      <span className="h-5 w-5 rounded-full border-2 border-[var(--color-text-muted)] hover:border-[var(--color-primary)]" />
-    );
-
-  if (isButton) {
+  if (onClick) {
     return (
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          onClick?.();
+          onClick();
         }}
         data-testid="status-icon"
         className={`${baseClass} cursor-pointer hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] rounded-full`}
@@ -189,13 +203,7 @@ export function TaskCard({
   onDelete: () => void;
   onComplete?: () => void;
 }) {
-  const dueColor = task.meta.due
-    ? isOverdue(task.meta.due)
-      ? 'text-[var(--color-danger)]'
-      : isDueToday(task.meta.due)
-        ? 'text-[var(--color-warning)]'
-        : 'text-[var(--color-text-muted)]'
-    : '';
+  const dueColor = useDueColor(task.meta.due);
 
   const progress =
     task.subtasks.length > 0

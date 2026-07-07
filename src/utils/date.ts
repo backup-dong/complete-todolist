@@ -13,14 +13,6 @@ export function todayIso(): string {
   return format(new Date(), 'yyyy-MM-dd');
 }
 
-export function formatDateTime(iso: string): string {
-  try {
-    return format(parseISO(iso), 'yyyy-MM-dd HH:mm', { locale: zhCN });
-  } catch {
-    return iso;
-  }
-}
-
 export function formatDate(iso: string): string {
   try {
     const date = parseISO(iso);
@@ -28,14 +20,6 @@ export function formatDate(iso: string): string {
     if (isTomorrow(date)) return '明天';
     if (isYesterday(date)) return '昨天';
     return format(date, 'MM/dd', { locale: zhCN });
-  } catch {
-    return iso;
-  }
-}
-
-export function formatDateFull(iso: string): string {
-  try {
-    return format(parseISO(iso), 'yyyy-MM-dd', { locale: zhCN });
   } catch {
     return iso;
   }
