@@ -670,7 +670,7 @@ export function TaskEditor({
 
   return (
     <div
-      className="flex h-full flex-col border-l border-[var(--color-border)] bg-[var(--color-surface-raised)]"
+      className="flex h-full flex-col bg-[var(--color-surface-raised)]"
       data-testid="task-editor"
     >
       <div className="flex items-center justify-between border-b border-[var(--color-border)] p-4">

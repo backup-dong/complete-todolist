@@ -129,6 +129,10 @@ def run_tests():
         if not page.locator('text=测试任务').is_visible():
             log_failure('Newly created task "测试任务" not visible')
 
+        # 创建任务后会自动打开编辑器弹窗，先关闭它再继续列表操作
+        page.click('button[aria-label="关闭"]')
+        page.wait_for_timeout(300)
+
         # 5. Edit task - add subtask
         page.click('text=测试任务')
         page.wait_for_timeout(300)
@@ -163,6 +167,10 @@ def run_tests():
         page.locator('input[placeholder="新建任务..."]').fill('每周任务')
         page.locator('input[placeholder="新建任务..."] + button').click()
         page.wait_for_timeout(800)
+
+        # 创建任务后自动打开编辑器弹窗，先关闭它再继续列表操作
+        page.click('button[aria-label="关闭"]')
+        page.wait_for_timeout(300)
 
         page.click('text=每周任务')
         page.wait_for_timeout(300)

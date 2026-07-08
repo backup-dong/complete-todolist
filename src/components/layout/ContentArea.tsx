@@ -7,7 +7,7 @@ import type { Task } from '@/types';
 import { copyWeeklyReport } from '@/utils/report';
 import { SearchBar, FilterDropdown, ViewToggle } from '../tasks/Toolbar';
 import { TaskList } from '../tasks/TaskList';
-import { TaskEditor } from '../tasks/TaskEditor';
+import { TaskEditorDialog } from '../tasks/TaskEditorDialog';
 import { ConflictBanner } from './ConflictBanner';
 
 function ProgressBar({ done, total }: { done: number; total: number }) {
@@ -201,30 +201,6 @@ function BatchActionBar({
   );
 }
 
-function TaskEditorPanel({
-  task,
-  groups,
-  onSave,
-  onClose,
-}: {
-  task: Task;
-  groups: string[];
-  onSave: (updated: Task) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="w-[360px] shrink-0">
-      <TaskEditor
-        key={task.id}
-        task={task}
-        groups={groups}
-        onSave={onSave}
-        onClose={onClose}
-      />
-    </div>
-  );
-}
-
 export function ContentArea() {
   const { activeListName, activeGroup, fileCache, createGroup } = useListsStore();
   const {
@@ -249,7 +225,6 @@ export function ContentArea() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
-  const [showEditor, setShowEditor] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -271,7 +246,6 @@ export function ContentArea() {
     if (!title) return;
     createTask(title, effectiveNewTaskGroup);
     setNewTaskTitle('');
-    setShowEditor(true);
   };
 
   const handleSaveTask = (updated: Task) => {
@@ -388,7 +362,6 @@ export function ContentArea() {
                 toggleSelectedId(id);
               } else {
                 selectTask(id);
-                setShowEditor(true);
               }
             }}
             onDelete={async (id) => {
@@ -420,17 +393,14 @@ export function ContentArea() {
         </div>
       </div>
 
-      {showEditor && selectedTask && (
-        <TaskEditorPanel
-          task={selectedTask}
-          groups={groups}
-          onSave={handleSaveTask}
-          onClose={() => {
-            setShowEditor(false);
-            selectTask(null);
-          }}
-        />
-      )}
+      <TaskEditorDialog
+        task={selectedTask}
+        groups={groups}
+        onSave={handleSaveTask}
+        onClose={() => {
+          selectTask(null);
+        }}
+      />
     </div>
   );
 }
