@@ -322,7 +322,7 @@ function SortableSubtaskEditor({
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: isDragging ? transition : undefined,
     opacity: isDragging ? 0.4 : 1,
     scale: isDragging ? '0.98' : '1',
     zIndex: isDragging ? 10 : 'auto',
