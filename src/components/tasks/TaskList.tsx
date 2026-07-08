@@ -72,7 +72,6 @@ function GroupSection({
   name,
   tasks,
   sortMode,
-  first,
   onToggle,
   onSelect,
   onDelete,
@@ -81,7 +80,6 @@ function GroupSection({
   name: string;
   tasks: Task[];
   sortMode: 'drag' | 'due' | 'priority';
-  first: boolean;
   onToggle: (taskId: string, path: number[]) => void;
   onSelect: (taskId: string) => void;
   onDelete: (taskId: string) => void;
@@ -108,7 +106,7 @@ function GroupSection({
         </div>
       </div>
 
-      <div className={`px-4 pb-4 ${first ? 'pt-4' : ''}`}>
+      <div className="px-4 pb-4 pt-4">
         {tasks.length === 0 ? (
           <p className="py-2 text-xs text-[var(--color-text-muted)]">该分组下还没有任务</p>
         ) : (
@@ -232,7 +230,7 @@ export function TaskList({
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       {groupBy && grouped ? (
         <div>
-          {grouped.map((group, index) => (
+          {grouped.map((group) => (
             <SortableContext
               key={group.name}
               items={group.tasks.map((t) => t.id)}
@@ -242,7 +240,6 @@ export function TaskList({
                 name={group.name}
                 tasks={group.tasks}
                 sortMode={sortMode}
-                first={index === 0}
                 onToggle={onToggle}
                 onSelect={onSelect}
                 onDelete={onDelete}

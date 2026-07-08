@@ -10,8 +10,9 @@ import {
 import type { Link, Subtask, Task } from '@/types';
 import { formatDate, isDueToday, isOverdue } from '@/utils/date';
 
-function useDueColor(due?: string): string {
+function useDueColor(due?: string, status?: Task['meta']['status']): string {
   if (!due) return '';
+  if (status === 'done') return 'text-[var(--color-text-muted)]';
   if (isOverdue(due)) return 'text-[var(--color-danger)]';
   if (isDueToday(due)) return 'text-[var(--color-warning)]';
   return 'text-[var(--color-text-muted)]';
@@ -203,7 +204,7 @@ export function TaskCard({
   onDelete: () => void;
   onComplete?: () => void;
 }) {
-  const dueColor = useDueColor(task.meta.due);
+  const dueColor = useDueColor(task.meta.due, task.meta.status);
 
   const progress =
     task.subtasks.length > 0
@@ -278,9 +279,10 @@ export function TaskCard({
         <button
           type="button"
           onClick={onDelete}
+          onPointerDown={(e) => e.stopPropagation()}
           data-testid="delete-task"
           aria-label="删除任务"
-          className="shrink-0 rounded-md p-1.5 text-[var(--color-text-muted)] opacity-0 transition-opacity duration-100 hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger)] focus:opacity-100 group-hover:opacity-100"
+          className="shrink-0 rounded-md p-1.5 text-[var(--color-text-muted)] opacity-0 transition-opacity duration-100 hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger)] focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
         >
           <Trash2 className="h-4 w-4" />
         </button>

@@ -275,8 +275,21 @@ function parseSubtasks(bodyLines: string[]): { subtasks: Subtask[]; remainingLin
         const last = stack[stack.length - 1];
         const expectedIndent = (last.level - 1) * 2 + 2;
         if (indent >= expectedIndent) {
-          applySubtaskAttribute(last, attrMatch[1], attrMatch[2].trim());
+          const attrName = attrMatch[1];
+          applySubtaskAttribute(last, attrName, attrMatch[2].trim());
           i++;
+          // note 属性支持多行缩进续写，避免子任务备注中的无序列表第二行丢失
+          if (attrName === 'note') {
+            while (i < bodyLines.length) {
+              const nextLine = bodyLines[i];
+              const nextIndent = nextLine.length - nextLine.trimStart().length;
+              if (nextIndent < expectedIndent) break;
+              if (parseSubtaskLine(nextLine)) break;
+              if (SUBTASK_ATTR_RE.exec(nextLine)) break;
+              last.note = last.note ? `${last.note}\n${nextLine.trim()}` : nextLine.trim();
+              i++;
+            }
+          }
           continue;
         }
       }

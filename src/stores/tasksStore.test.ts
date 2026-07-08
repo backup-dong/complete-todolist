@@ -79,4 +79,17 @@ describe('tasksStore reorder', () => {
     expect(groupTasks.map((t) => t.meta.order)).toEqual([1, 2, 3]);
     expect(updated!.groups[1].tasks.map((t) => t.id)).toEqual(['t4']);
   });
+
+  it('updateTask moves task to another group and updates both groups', async () => {
+    const list = makeList();
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({ tasks: list.groups.flatMap((g) => g.tasks) });
+
+    await useTasksStore.getState().updateTask('t1', { group: '项目Beta' });
+
+    const updated = useListsStore.getState().fileCache['工作'];
+    expect(updated!.groups[0].tasks.map((t) => t.id)).toEqual(['t2', 't3']);
+    expect(updated!.groups[1].tasks.map((t) => t.id)).toEqual(['t4', 't1']);
+    expect(updated!.groups[1].tasks.find((t) => t.id === 't1')?.group).toBe('项目Beta');
+  });
 });

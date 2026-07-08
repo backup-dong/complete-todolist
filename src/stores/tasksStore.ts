@@ -181,20 +181,46 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     if (!found) return;
 
     const explicitStatus = patch.meta?.status;
-    const nextList = { ...list };
-    nextList.groups = nextList.groups.map((g) => ({
-      ...g,
-      tasks: g.tasks.map((t) => {
-        if (t.id !== id) return t;
-        // 合并 meta，避免部分 patch（如 { meta: { status: 'pending' } }）丢失其他字段
-        const merged = { ...t, ...patch };
-        if (patch.meta) {
-          merged.meta = { ...t.meta, ...patch.meta };
-        }
-        return buildTaskPatch(merged as Task, explicitStatus);
-      }),
-    }));
+    const merged = { ...found.task, ...patch };
+    if (patch.meta) {
+      merged.meta = { ...found.task.meta, ...patch.meta };
+    }
+    const updatedTask = buildTaskPatch(merged as Task, explicitStatus);
 
+    // 如果修改了任务所属分组，需要在 groups 数组间物理移动，
+    // 否则侧边栏分组计数和刷新后的分组归属都会出错。
+    const oldGroupName = found.task.group;
+    const newGroupName = updatedTask.group;
+    let nextGroups: typeof list.groups;
+
+    if (newGroupName === oldGroupName) {
+      nextGroups = list.groups.map((g) => ({
+        ...g,
+        tasks: g.name === oldGroupName ? g.tasks.map((t) => (t.id === id ? updatedTask : t)) : g.tasks,
+      }));
+    } else {
+      const targetExists = list.groups.some((g) => g.name === newGroupName);
+      if (!targetExists) {
+        // 目标分组不存在时回退到原分组，避免任务丢失
+        updatedTask.group = oldGroupName;
+        nextGroups = list.groups.map((g) => ({
+          ...g,
+          tasks: g.name === oldGroupName ? g.tasks.map((t) => (t.id === id ? updatedTask : t)) : g.tasks,
+        }));
+      } else {
+        nextGroups = list.groups.map((g) => {
+          if (g.name === oldGroupName) {
+            return { ...g, tasks: g.tasks.filter((t) => t.id !== id) };
+          }
+          if (g.name === newGroupName) {
+            return { ...g, tasks: [...g.tasks, updatedTask] };
+          }
+          return g;
+        });
+      }
+    }
+
+    const nextList = { ...list, groups: nextGroups };
     await saveListContent(activeListName, nextList);
     set({ tasks: flattenTasks(activeListName) });
   },

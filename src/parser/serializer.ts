@@ -43,7 +43,15 @@ function serializeSubtasks(subtasks: Subtask[], indent = 0): string[] {
       lines.push(`${prefix}  due: ${s.due}`);
     }
     if (s.note) {
-      lines.push(`${prefix}  note: ${s.note}`);
+      const attrPrefix = `${prefix}  `;
+      const noteLines = s.note.split('\n');
+      lines.push(`${attrPrefix}note: ${noteLines[0]}`);
+      for (let k = 1; k < noteLines.length; k++) {
+        const noteLine = noteLines[k].trim();
+        if (noteLine) {
+          lines.push(`${attrPrefix}${noteLine}`);
+        }
+      }
     }
     if (s.links?.length) {
       for (const link of s.links) {

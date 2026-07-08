@@ -255,6 +255,32 @@ priority: med | created: 2026-07-01
   });
 });
 
+  it('round-trips subtask notes containing multi-line unordered lists', () => {
+    const markdown = `# 测试
+
+## 默认分组
+
+### 任务
+priority: med | created: 2026-07-01
+
+- [ ] 子任务 A
+  note: 第一行
+  - 第二行无序列表
+  - 第三行无序列表
+- [ ] 子任务 B
+
+---
+`;
+
+    const parsed = parseMarkdownToList(markdown, 'sha');
+    const task = parsed.groups[0].tasks[0];
+    expect(task.subtasks[0].note).toBe('第一行\n- 第二行无序列表\n- 第三行无序列表');
+
+    const serialized = serializeList(parsed);
+    const reparsed = parseMarkdownToList(serialized, 'sha');
+    expect(reparsed.groups[0].tasks[0].subtasks[0].note).toBe('第一行\n- 第二行无序列表\n- 第三行无序列表');
+  });
+
   it('does not treat indented subtask attributes as task metadata when task has no metadata line', () => {
     const markdown = `# 测试
 
