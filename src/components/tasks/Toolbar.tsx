@@ -75,7 +75,7 @@ function StatusFilterDropdown({
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          className="select inline-flex appearance-none items-center justify-between gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 pr-8 text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]"
+          className="relative inline-flex min-w-[120px] items-center justify-between gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 pr-8 text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]"
           aria-label="状态过滤"
         >
           <span className="truncate">{label}</span>
@@ -102,6 +102,14 @@ function StatusFilterDropdown({
               {opt.label}
             </DropdownMenu.CheckboxItem>
           ))}
+          <DropdownMenu.Separator className="my-1 h-px bg-[var(--color-border)]" />
+          <DropdownMenu.Item
+            disabled={value.length === 0}
+            onSelect={() => onChange([])}
+            className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm text-[var(--color-text)] outline-none hover:bg-[var(--color-surface-hover)] focus:bg-[var(--color-surface-hover)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            清除选择
+          </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
