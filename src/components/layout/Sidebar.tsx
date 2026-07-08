@@ -470,7 +470,7 @@ export function Sidebar() {
   ] as const;
 
   const handleSmartClick = (key: string) => {
-    setFilter({ status: 'all', priority: 'all', timeRange: 'all' });
+    setFilter({ status: [], priority: 'all', timeRange: 'all' });
     setSearchQuery('');
     if (key === 'today') {
       setFilter({ timeRange: 'today' });

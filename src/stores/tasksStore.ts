@@ -18,6 +18,7 @@ interface TasksState {
   createTask: (title: string, group?: string) => Promise<void>;
   updateTask: (id: string, patch: Omit<Partial<Task>, 'meta'> & { meta?: Partial<TaskMeta> }) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
+  deleteTasks: (ids: string[]) => Promise<void>;
   toggleSubtask: (taskId: string, path: number[]) => Promise<void>;
   completeTaskWithoutSubtasks: (taskId: string) => Promise<void>;
   reorderTasks: (fromIdx: number, toIdx: number) => Promise<void>;
@@ -66,7 +67,7 @@ function findTaskInList(listName: string, taskId: string): { task: Task; groupIn
 }
 
 function matchesFilter(task: Task, filter: FilterState, query: string): boolean {
-  if (filter.status !== 'all' && task.meta.status !== filter.status) return false;
+  if (filter.status.length > 0 && !filter.status.includes(task.meta.status ?? 'pending')) return false;
   if (filter.priority !== 'all' && task.meta.priority !== filter.priority) return false;
   if (filter.timeRange !== 'all') {
     if (filter.timeRange === 'today' && !isDueToday(task.meta.due)) return false;
@@ -125,7 +126,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   tasks: [],
   selectedTaskId: null,
   sortMode: 'drag',
-  filter: { status: 'all', priority: 'all', timeRange: 'all' },
+  filter: { status: [], priority: 'all', timeRange: 'all' },
   searchQuery: '',
 
   loadTasks: async (listName) => {
@@ -234,6 +235,22 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     nextList.groups = nextList.groups.map((g) => ({
       ...g,
       tasks: g.tasks.filter((t) => t.id !== id),
+    }));
+
+    await saveListContent(activeListName, nextList);
+    set({ tasks: flattenTasks(activeListName), selectedTaskId: null });
+  },
+
+  deleteTasks: async (ids) => {
+    const ctx = requireActiveList();
+    if (!ctx) return;
+    const { activeListName, list, saveListContent } = ctx;
+    const idSet = new Set(ids);
+
+    const nextList = { ...list };
+    nextList.groups = nextList.groups.map((g) => ({
+      ...g,
+      tasks: g.tasks.filter((t) => !idSet.has(t.id)),
     }));
 
     await saveListContent(activeListName, nextList);

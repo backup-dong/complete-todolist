@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Copy, FolderPlus, Inbox, Plus } from 'lucide-react';
+import { Copy, FolderPlus, Inbox, ListChecks, Plus, X } from 'lucide-react';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
 import { confirm } from '@/stores/confirmStore';
@@ -43,6 +43,8 @@ function ListHeader({
   onCancelNewGroup,
   sortMode,
   onSortModeChange,
+  batchMode,
+  onToggleBatchMode,
 }: {
   title: string;
   done: number;
@@ -57,6 +59,8 @@ function ListHeader({
   onCancelNewGroup: () => void;
   sortMode: 'drag' | 'due' | 'priority';
   onSortModeChange: (mode: 'drag' | 'due' | 'priority') => void;
+  batchMode: boolean;
+  onToggleBatchMode: () => void;
 }) {
   return (
     <div className="mb-3 flex items-center justify-between">
@@ -103,6 +107,19 @@ function ListHeader({
             新建分组
           </button>
         )}
+        <button
+          type="button"
+          onClick={onToggleBatchMode}
+          title={batchMode ? '退出批量选择' : '批量选择'}
+          className={[
+            'btn-secondary flex items-center gap-1.5 py-1.5 text-xs',
+            batchMode ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : '',
+          ].join(' ')}
+          aria-pressed={batchMode}
+        >
+          <ListChecks className="h-3.5 w-3.5" />
+          {batchMode ? '退出选择' : '批量'}
+        </button>
         <ViewToggle mode={sortMode} onChange={onSortModeChange} />
       </div>
     </div>
@@ -147,6 +164,43 @@ function NewTaskBar({
   );
 }
 
+function BatchActionBar({
+  count,
+  onDelete,
+  onCancel,
+}: {
+  count: number;
+  onDelete: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-sm text-[var(--color-text-secondary)]">
+        已选 <strong className="text-[var(--color-text)]">{count}</strong> 项
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={count === 0}
+          className="btn-danger flex items-center gap-1.5 py-1.5 text-xs"
+        >
+          <ListChecks className="h-3.5 w-3.5" />
+          删除 {count} 项
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="btn-secondary flex items-center gap-1.5 py-1.5 text-xs"
+        >
+          <X className="h-3.5 w-3.5" />
+          取消
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function TaskEditorPanel({
   task,
   groups,
@@ -183,6 +237,7 @@ export function ContentArea() {
     setSearchQuery,
     toggleSubtask,
     deleteTask,
+    deleteTasks,
     reorderTasks,
     reorderTasksInGroup,
     selectTask,
@@ -195,6 +250,8 @@ export function ContentArea() {
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [showEditor, setShowEditor] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const activeList = activeListName ? fileCache[activeListName] : null;
   const groups = useMemo(() => activeList?.groups.map((g) => g.name) ?? [], [activeList]);
@@ -245,6 +302,32 @@ export function ContentArea() {
     }
   };
 
+  const toggleSelectedId = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleBatchMode = () => {
+    setBatchMode((v) => !v);
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (await confirm(`确定删除选中的 ${selectedIds.size} 个任务？`)) {
+      await deleteTasks(Array.from(selectedIds));
+      setBatchMode(false);
+      setSelectedIds(new Set());
+    }
+  };
+
   if (!activeListName) {
     return (
       <div className="flex h-full flex-1 flex-col items-center justify-center text-[var(--color-text-muted)]">
@@ -281,6 +364,8 @@ export function ContentArea() {
             }}
             sortMode={sortMode}
             onSortModeChange={setSortMode}
+            batchMode={batchMode}
+            onToggleBatchMode={handleToggleBatchMode}
           />
           <div className="flex flex-col gap-3">
             <SearchBar value={searchQuery} onChange={setSearchQuery} />
@@ -293,27 +378,45 @@ export function ContentArea() {
             tasks={displayTasks}
             sortMode={sortMode}
             groupBy={sortMode === 'drag' && !activeGroup}
+            selectable={batchMode}
+            selectedIds={selectedIds}
             onReorder={reorderTasks}
             onReorderInGroup={reorderTasksInGroup}
             onToggle={toggleSubtask}
             onSelect={(id) => {
-              selectTask(id);
-              setShowEditor(true);
+              if (batchMode) {
+                toggleSelectedId(id);
+              } else {
+                selectTask(id);
+                setShowEditor(true);
+              }
             }}
             onDelete={async (id) => {
               if (await confirm('确定删除该任务？')) deleteTask(id);
             }}
             onComplete={handleCompleteTask}
+            onToggleSelect={toggleSelectedId}
           />
         </div>
 
         <div className="border-t border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-          <NewTaskBar
-            groupLabel={effectiveNewTaskGroup}
-            title={newTaskTitle}
-            onTitleChange={setNewTaskTitle}
-            onCreate={handleCreateTask}
-          />
+          {batchMode ? (
+            <BatchActionBar
+              count={selectedIds.size}
+              onDelete={handleBatchDelete}
+              onCancel={() => {
+                setBatchMode(false);
+                setSelectedIds(new Set());
+              }}
+            />
+          ) : (
+            <NewTaskBar
+              groupLabel={effectiveNewTaskGroup}
+              title={newTaskTitle}
+              onTitleChange={setNewTaskTitle}
+              onCreate={handleCreateTask}
+            />
+          )}
         </div>
       </div>
 

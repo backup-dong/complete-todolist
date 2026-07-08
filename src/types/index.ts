@@ -1,7 +1,9 @@
 // ========== 数据模型 ==========
 
+export type TaskStatus = 'pending' | 'active' | 'done';
+
 export interface TaskMeta {
-  status?: 'pending' | 'active' | 'done';
+  status?: TaskStatus;
   priority: 'high' | 'med' | 'low';
   created: string; // ISO 8601
   start?: string;
@@ -65,7 +67,7 @@ export interface Group {
 export type SortMode = 'drag' | 'due' | 'priority';
 
 export interface FilterState {
-  status: 'all' | 'pending' | 'active' | 'done';
+  status: TaskStatus[]; // 空数组表示全部
   priority: 'all' | 'high' | 'med' | 'low';
   timeRange: 'all' | 'today' | 'week' | 'overdue';
 }

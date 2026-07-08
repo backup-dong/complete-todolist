@@ -193,12 +193,18 @@ function SubtaskItem({
 
 export function TaskCard({
   task,
+  selected,
+  selectable,
+  onToggleSelect,
   onToggle,
   onStartEdit,
   onDelete,
   onComplete,
 }: {
   task: Task;
+  selected?: boolean;
+  selectable?: boolean;
+  onToggleSelect?: () => void;
   onToggle: (path: number[]) => void;
   onStartEdit: () => void;
   onDelete: () => void;
@@ -220,11 +226,31 @@ export function TaskCard({
   return (
     <div
       onClick={handleCardClick}
-      className="group relative cursor-pointer rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 shadow-sm transition-all duration-150 ease-out hover:border-[var(--color-border)] hover:shadow-md"
+      className={[
+        'group relative cursor-pointer rounded-lg border p-4 shadow-sm transition-all duration-150 ease-out hover:shadow-md',
+        selected
+          ? 'border-[var(--color-primary)] bg-[var(--color-primary-subtle)]'
+          : 'border-[var(--color-border-subtle)] bg-[var(--color-surface)] hover:border-[var(--color-border)]',
+      ].join(' ')}
     >
       <div className="flex items-start gap-3">
         <div className="mt-0.5 shrink-0">
-          <StatusIcon status={task.meta.status} onClick={task.subtasks.length === 0 ? onComplete : undefined} />
+          {selectable ? (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={(e) => {
+                e.stopPropagation();
+                onToggleSelect?.();
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="h-5 w-5 rounded border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-primary)] focus:ring-[var(--color-border-focus)]"
+              aria-label="选择任务"
+              data-testid="select-task"
+            />
+          ) : (
+            <StatusIcon status={task.meta.status} onClick={task.subtasks.length === 0 ? onComplete : undefined} />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <button

@@ -1,14 +1,31 @@
-import { useCallback, useEffect, useRef, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useReducer, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
+  GripVertical,
   Plus,
   Trash2,
   X,
 } from 'lucide-react';
+import type { DraggableAttributes, DragEndEvent } from '@dnd-kit/core';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { Link, Subtask, Task } from '@/types';
 import { NoteEditor } from '@/components/common/NoteEditor';
-import { deleteSubtaskAtPath, emptySubtask, updateSubtaskAtPath } from '@/utils/subtasks';
+import { deleteSubtaskAtPath, emptySubtask, reorderSubtasksAtPath, updateSubtaskAtPath } from '@/utils/subtasks';
 
 function detectSubtaskToggle(prev: Subtask[], curr: Subtask[]): boolean {
   if (prev.length !== curr.length) return false;
@@ -154,12 +171,16 @@ function SubtaskEditor({
   onChange,
   onDelete,
   depth,
+  dragHandleAttributes,
+  dragHandleListeners,
 }: {
   subtask: Subtask;
   path: number[];
   onChange: (path: number[], updated: Subtask) => void;
   onDelete: (path: number[]) => void;
   depth: number;
+  dragHandleAttributes?: DraggableAttributes;
+  dragHandleListeners?: ReturnType<typeof useSortable>['listeners'];
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -173,6 +194,17 @@ function SubtaskEditor({
       className="mt-2 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3 shadow-sm"
     >
       <div className="flex items-center gap-2">
+        {dragHandleAttributes && (
+          <button
+            type="button"
+            className="shrink-0 cursor-grab rounded-md p-1 text-[var(--color-text-muted)] opacity-0 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus:opacity-100 active:cursor-grabbing group-hover:opacity-100"
+            aria-label="拖拽排序"
+            {...dragHandleAttributes}
+            {...dragHandleListeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
         <input
           type="checkbox"
           checked={subtask.completed}
@@ -259,19 +291,106 @@ function SubtaskEditor({
       )}
 
       <div className="mt-2">
-        {subtask.children.map((child, i) => (
-          <SubtaskEditor
-            key={`${path.join('-')}-${i}`}
-            subtask={child}
-            path={[...path, i]}
-            onChange={onChange}
-            onDelete={onDelete}
-            depth={depth + 1}
-          />
-        ))}
+        <SubtaskList
+          subtasks={subtask.children}
+          parentPath={path}
+          onChange={onChange}
+          onDelete={onDelete}
+          depth={depth + 1}
+        />
       </div>
     </div>
   );
+}
+
+function SortableSubtaskEditor({
+  subtask,
+  path,
+  onChange,
+  onDelete,
+  depth,
+}: {
+  subtask: Subtask;
+  path: number[];
+  onChange: (path: number[], updated: Subtask) => void;
+  onDelete: (path: number[]) => void;
+  depth: number;
+}) {
+  const id = path.join('.');
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="group">
+      <SubtaskEditor
+        subtask={subtask}
+        path={path}
+        onChange={onChange}
+        onDelete={onDelete}
+        depth={depth}
+        dragHandleAttributes={attributes}
+        dragHandleListeners={listeners}
+      />
+    </div>
+  );
+}
+
+function SubtaskList({
+  subtasks,
+  parentPath,
+  onChange,
+  onDelete,
+  depth,
+}: {
+  subtasks: Subtask[];
+  parentPath: number[];
+  onChange: (path: number[], updated: Subtask) => void;
+  onDelete: (path: number[]) => void;
+  depth: number;
+}) {
+  const ids = useMemo(() => subtasks.map((_, i) => [...parentPath, i].join('.')), [subtasks, parentPath]);
+
+  return (
+    <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+      <div>
+        {subtasks.map((s, i) => (
+          <SortableSubtaskEditor
+            key={[...parentPath, i].join('.')}
+            subtask={s}
+            path={[...parentPath, i]}
+            onChange={onChange}
+            onDelete={onDelete}
+            depth={depth}
+          />
+        ))}
+      </div>
+    </SortableContext>
+  );
+}
+
+function idToPath(id: string): number[] {
+  return id.split('.').map(Number);
+}
+
+function areSiblings(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length - 1; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function getChildrenAtPath(subtasks: Subtask[], path: number[]): Subtask[] {
+  let current = subtasks;
+  for (const idx of path) {
+    current = current[idx]?.children ?? [];
+  }
+  return current;
 }
 
 function TaskSubtasksEditor({
@@ -293,27 +412,54 @@ function TaskSubtasksEditor({
     onChange([...subtasks, emptySubtask()]);
   };
 
+  const handleReorder = (parentPath: number[], fromIndex: number, toIndex: number) => {
+    onChange(reorderSubtasksAtPath(subtasks, parentPath, fromIndex, toIndex));
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const fromPath = idToPath(active.id as string);
+    const toPath = idToPath(over.id as string);
+    if (!areSiblings(fromPath, toPath)) return;
+
+    const parentPath = fromPath.slice(0, -1);
+    const ids = getChildrenAtPath(subtasks, parentPath).map((_, i) => [...parentPath, i].join('.'));
+    const from = ids.indexOf(active.id as string);
+    const to = ids.indexOf(over.id as string);
+    if (from < 0 || to < 0) return;
+
+    handleReorder(parentPath, from, to);
+  };
+
   return (
-    <div className="space-y-2">
-      {subtasks.map((s, i) => (
-        <SubtaskEditor
-          key={`root-${i}`}
-          subtask={s}
-          path={[i]}
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <div className="space-y-2">
+        <SubtaskList
+          subtasks={subtasks}
+          parentPath={[]}
           onChange={handleChange}
           onDelete={handleDelete}
           depth={0}
         />
-      ))}
-      <button
-        type="button"
-        onClick={handleAddRoot}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors duration-100"
-      >
-        <Plus className="h-4 w-4" />
-        添加子任务
-      </button>
-    </div>
+        <button
+          type="button"
+          onClick={handleAddRoot}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors duration-100"
+        >
+          <Plus className="h-4 w-4" />
+          添加子任务
+        </button>
+      </div>
+    </DndContext>
   );
 }
 
