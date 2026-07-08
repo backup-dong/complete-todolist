@@ -7,9 +7,10 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import type { DraggableAttributes, DragEndEvent } from '@dnd-kit/core';
+import type { DraggableAttributes, DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
@@ -323,6 +324,8 @@ function SortableSubtaskEditor({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
+    scale: isDragging ? '0.98' : '1',
+    zIndex: isDragging ? 10 : 'auto',
   };
 
   return (
@@ -425,6 +428,7 @@ function TaskSubtasksEditor({
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveId(null);
     if (!over || active.id === over.id) return;
 
     const fromPath = idToPath(active.id as string);
@@ -440,8 +444,32 @@ function TaskSubtasksEditor({
     handleReorder(parentPath, from, to);
   };
 
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const activeSubtask = useMemo(() => {
+    if (!activeId) return null;
+    const path = idToPath(activeId);
+    let current: Subtask | null = null;
+    let list = subtasks;
+    for (let i = 0; i < path.length; i++) {
+      current = list[path[i]] ?? null;
+      if (!current) return null;
+      list = current.children;
+    }
+    return current;
+  }, [activeId, subtasks]);
+
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
       <div className="space-y-2">
         <SubtaskList
           subtasks={subtasks}
@@ -459,6 +487,16 @@ function TaskSubtasksEditor({
           添加子任务
         </button>
       </div>
+      <DragOverlay dropAnimation={null}>
+        {activeSubtask ? (
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg opacity-90 rotate-1">
+            <div className="flex items-center gap-2">
+              <GripVertical className="h-4 w-4 text-[var(--color-text-muted)]" />
+              <span className="text-sm text-[var(--color-text)]">{activeSubtask.text}</span>
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
