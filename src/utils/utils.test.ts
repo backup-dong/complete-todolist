@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { isDueToday, isOverdue, isDueThisWeek, formatDate, durationDays } from '@/utils/date';
+import { isDueToday, isOverdue, isDueThisWeek, formatDate, durationDays, todayIso } from '@/utils/date';
 import {
   getCurrentWeekRange,
   isCompletedThisWeek,
@@ -12,14 +12,14 @@ import type { ParsedList } from '@/types';
 
 describe('date utils', () => {
   it('detects today', () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIso();
     expect(isDueToday(today)).toBe(true);
     expect(isDueToday('1999-01-01')).toBe(false);
   });
 
   it('detects overdue dates', () => {
     expect(isOverdue('1999-01-01')).toBe(true);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIso();
     expect(isOverdue(today)).toBe(false);
   });
 
@@ -38,7 +38,7 @@ describe('date utils', () => {
   });
 
   it('formats relative dates', () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIso();
     expect(formatDate(today)).toBe('今天');
   });
 

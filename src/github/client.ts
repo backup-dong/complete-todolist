@@ -23,18 +23,28 @@ function getOctokit(): Octokit {
   return octokit;
 }
 
-export async function listMarkdownFiles(config: GithubConfig): Promise<Pick<GitHubFile, 'name' | 'path' | 'sha'>[]> {
+export async function listFilesByExtension(
+  config: GithubConfig,
+  extension: '.md' | '.json',
+  subPath?: string,
+): Promise<Pick<GitHubFile, 'name' | 'path' | 'sha'>[]> {
+  const path = subPath ? `${config.basePath}/${subPath}` : config.basePath;
   const { data } = await getOctokit().rest.repos.getContent({
     owner: config.owner,
     repo: config.repo,
-    path: config.basePath,
+    path,
   });
 
   if (!Array.isArray(data)) return [];
 
   return data
-    .filter((item) => item.type === 'file' && item.name.endsWith('.md'))
+    .filter((item) => item.type === 'file' && item.name.endsWith(extension))
     .map((item) => ({ name: item.name, path: item.path!, sha: item.sha! }));
+}
+
+/** @deprecated 旧 Markdown 专用列表函数，迁移完成后可删除 */
+export async function listMarkdownFiles(config: GithubConfig): Promise<Pick<GitHubFile, 'name' | 'path' | 'sha'>[]> {
+  return listFilesByExtension(config, '.md');
 }
 
 function utf8ToBase64(str: string): string {

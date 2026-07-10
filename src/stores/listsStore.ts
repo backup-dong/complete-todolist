@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import type { GithubConfig, ListMeta, ParsedList } from '@/types';
-import { getFileContent, listMarkdownFiles, writeFileContent, deleteFile } from '@/github/client';
-import { parseMarkdownToList } from '@/parser/scanner';
-import { serializeList, createEmptyList } from '@/parser/serializer';
+import { getFileContent, listFilesByExtension, writeFileContent, deleteFile } from '@/github/client';
+import { parseJsonToList, parseMarkdownToList, serializeListToJson, createEmptyList } from '@/parser';
 import { useSyncStore } from './syncStore';
 import {
   cacheFileContent,
@@ -22,6 +21,7 @@ interface ListsState {
   activeListName: string | null;
   activeGroup: string | null;
   fileCache: Record<string, ParsedList>;
+  pendingMigrations: string[];
 
   fetchLists: () => Promise<void>;
   selectList: (name: string) => void;
@@ -37,16 +37,19 @@ interface ListsState {
   deleteGroup: (name: string) => Promise<void>;
 }
 
-function fileNameToListName(fileName: string): string {
-  return fileName.replace(/\.md$/, '');
-}
+const LEGACY_EXT = '.md';
+const NEW_EXT = '.json';
 
 function listNameToFileName(name: string): string {
-  return `${name}.md`;
+  return `${name}${NEW_EXT}`;
 }
 
-function filePath(config: { basePath: string }, name: string): string {
-  return `${config.basePath}/${listNameToFileName(name)}`;
+function fileNameToListName(fileName: string): string {
+  return fileName.replace(/\.(md|json)$/, '');
+}
+
+function filePath(config: { basePath: string }, name: string, ext = NEW_EXT): string {
+  return `${config.basePath}/${name}${ext}`;
 }
 
 function buildListMeta(file: { name: string; path: string }, defaultCreated = new Date().toISOString().slice(0, 10)): ListMeta {
@@ -151,8 +154,47 @@ async function deleteRemoteList(config: GithubConfig, name: string, sha: string)
   await deleteFile(config, path, sha);
 }
 
-function resolveListSha(name: string): string | undefined {
-  return getCachedFileContent(name)?.sha ?? getCachedShaMap()[listNameToFileName(name)];
+async function deleteLegacyMdIfExists(config: GithubConfig, name: string, sha?: string): Promise<void> {
+  if (!sha) return;
+  const path = filePath(config, name, LEGACY_EXT);
+  await deleteFile(config, path, sha).catch((err) => {
+    console.warn(`Failed to delete legacy .md for ${name}:`, err);
+  });
+}
+
+function resolveListSha(name: string): { json?: string; md?: string } {
+  const cached = getCachedFileContent(name);
+  if (cached?.sha) {
+    return { json: cached.sha };
+  }
+  const shaMap = getCachedShaMap();
+  return {
+    json: shaMap[listNameToFileName(name)],
+    md: shaMap[`${name}${LEGACY_EXT}`],
+  };
+}
+
+async function migrateListToJson(
+  config: GithubConfig,
+  name: string,
+  list: ParsedList,
+  oldMdSha?: string,
+): Promise<string> {
+  const jsonContent = serializeListToJson(list);
+  const jsonPath = filePath(config, name);
+
+  try {
+    // 先写 .json
+    const newSha = await writeFileContent(config, jsonPath, jsonContent);
+    // 写成功后再删 .md
+    if (oldMdSha) {
+      await deleteLegacyMdIfExists(config, name, oldMdSha);
+    }
+    return newSha;
+  } catch (err) {
+    console.error(`migrateListToJson failed for ${name}`, err);
+    throw err;
+  }
 }
 
 export const useListsStore = create<ListsState>((set, get) => ({
@@ -160,6 +202,7 @@ export const useListsStore = create<ListsState>((set, get) => ({
   activeListName: getCachedActiveList(),
   activeGroup: null,
   fileCache: {},
+  pendingMigrations: [],
 
   fetchLists: async () => {
     const sync = useSyncStore.getState();
@@ -167,22 +210,42 @@ export const useListsStore = create<ListsState>((set, get) => ({
 
     sync.setSyncing();
     try {
-      const files = await listMarkdownFiles(sync.config!);
-      const archivedFiles = await listMarkdownFiles({ ...sync.config!, basePath: `${sync.config!.basePath}/_archived` }).catch(() => []);
+      const [mdFiles, jsonFiles, archivedMdFiles, archivedJsonFiles] = await Promise.all([
+        listFilesByExtension(sync.config!, '.md'),
+        listFilesByExtension(sync.config!, '.json'),
+        listFilesByExtension(sync.config!, '.md', '_archived').catch(() => []),
+        listFilesByExtension(sync.config!, '.json', '_archived').catch(() => []),
+      ]);
 
-      const allFiles = [...files, ...archivedFiles];
+      const allFiles = [...mdFiles, ...jsonFiles, ...archivedMdFiles, ...archivedJsonFiles];
+      const latestByName = new Map<string, { file: (typeof allFiles)[0]; isJson: boolean }>();
+
+      for (const file of allFiles) {
+        const name = fileNameToListName(file.name);
+        const isJson = file.name.endsWith(NEW_EXT);
+        const existing = latestByName.get(name);
+        if (!existing || (!existing.isJson && isJson)) {
+          latestByName.set(name, { file, isJson });
+        }
+      }
+
       const shaMap: Record<string, string> = {};
       const listMetas: ListMeta[] = [];
-
       const defaultCreated = new Date().toISOString().slice(0, 10);
-      for (const file of allFiles) {
+
+      for (const { file } of latestByName.values()) {
         shaMap[file.name] = file.sha;
         listMetas.push(buildListMeta(file, defaultCreated));
       }
 
       cacheShaMap(shaMap);
+
+      const pendingMigrations = [...mdFiles, ...archivedMdFiles]
+        .filter((f) => latestByName.get(fileNameToListName(f.name))?.isJson === false)
+        .map((f) => fileNameToListName(f.name));
+
       const nextActive = cleanupActiveList(listMetas, get().activeListName);
-      set({ lists: listMetas, activeListName: nextActive });
+      set({ lists: listMetas, activeListName: nextActive, pendingMigrations });
       sync.setSynced();
     } catch (err) {
       console.error('fetchLists failed', err);
@@ -206,13 +269,13 @@ export const useListsStore = create<ListsState>((set, get) => ({
     }
 
     const list = createEmptyList(name);
-    const content = serializeList(list);
+    const content = serializeListToJson(list);
     const path = filePath(sync.config!, name);
 
     try {
       sync.setSyncing();
       const sha = await writeFileContent(sync.config!, path, content);
-      const parsed = parseMarkdownToList(content, sha);
+      const parsed = parseJsonToList(content, sha);
       set((state) => ({
         lists: [...state.lists, { name, created: list.meta.created, archived: false }],
         fileCache: { ...state.fileCache, [name]: parsed },
@@ -222,7 +285,7 @@ export const useListsStore = create<ListsState>((set, get) => ({
       sync.setSynced();
     } catch (err) {
       console.error('createList failed', err);
-      addPendingWrite(listNameToFileName(name), serializeList(list));
+      addPendingWrite(listNameToFileName(name), serializeListToJson(list));
       sync.setUnsaved();
       throw err;
     }
@@ -232,12 +295,14 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const sync = useSyncStore.getState();
     if (!sync.ensureInitialized()) return;
 
-    const path = filePath(sync.config!, name);
     try {
       sync.setSyncing();
-      const sha = resolveListSha(name);
-      if (sha) {
-        await deleteFile(sync.config!, path, sha);
+      const shas = resolveListSha(name);
+      if (shas.json) {
+        await deleteRemoteList(sync.config!, name, shas.json);
+      }
+      if (shas.md) {
+        await deleteLegacyMdIfExists(sync.config!, name, shas.md);
       }
       set((state) => ({
         lists: state.lists.filter((l) => l.name !== name),
@@ -248,6 +313,8 @@ export const useListsStore = create<ListsState>((set, get) => ({
         cacheActiveList('');
       }
       clearCachedFile(name);
+      clearPendingWrite(listNameToFileName(name));
+      clearPendingWrite(`${name}${LEGACY_EXT}`);
       sync.setSynced();
     } catch (err) {
       console.error('deleteList failed', err);
@@ -263,14 +330,17 @@ export const useListsStore = create<ListsState>((set, get) => ({
       sync.setSyncing();
       const oldList = get().fileCache[oldName] ?? createEmptyList(oldName);
       const newList = { ...oldList, meta: { ...oldList.meta, name: newName } };
-      const content = serializeList(newList);
-      const oldSha = resolveListSha(oldName);
+      const content = serializeListToJson(newList);
+      const shas = resolveListSha(oldName);
 
       // 创建新文件
       const newSha = await createRemoteList(sync.config!, newName, content);
-      // 删除旧文件
-      if (oldSha) {
-        await deleteRemoteList(sync.config!, oldName, oldSha);
+      // 删除旧文件（.json 和 .md）
+      if (shas.json) {
+        await deleteRemoteList(sync.config!, oldName, shas.json);
+      }
+      if (shas.md) {
+        await deleteLegacyMdIfExists(sync.config!, oldName, shas.md);
       }
 
       set((state) => ({
@@ -294,20 +364,38 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const sync = useSyncStore.getState();
     if (!sync.ensureInitialized()) return null;
 
-    const path = filePath(sync.config!, name);
+    const jsonPath = filePath(sync.config!, name);
+    const mdPath = filePath(sync.config!, name, LEGACY_EXT);
+
     try {
       sync.setSyncing();
-      const file = await getFileContent(sync.config!, path);
-      const list = parseMarkdownToList(file.content, file.sha);
+
+      // 优先读取 .json
+      const jsonFile = await getFileContent(sync.config!, jsonPath).catch(() => null);
+      if (jsonFile) {
+        const list = parseJsonToList(jsonFile.content, jsonFile.sha);
+        set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
+        cacheFileContent(name, jsonFile.content, jsonFile.sha);
+        sync.setSynced();
+        return list;
+      }
+
+      // 回退读取旧 .md 并立即迁移
+      const mdFile = await getFileContent(sync.config!, mdPath);
+      const list = parseMarkdownToList(mdFile.content, mdFile.sha);
+      const newSha = await migrateListToJson(sync.config!, name, list, mdFile.sha);
+      const jsonContent = serializeListToJson(list);
       set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
-      cacheFileContent(name, file.content, file.sha);
+      cacheFileContent(name, jsonContent, newSha);
       sync.setSynced();
       return list;
     } catch {
       // 尝试本地缓存
       const cached = getCachedFileContent(name);
       if (cached) {
-        const list = parseMarkdownToList(cached.content, cached.sha);
+        const list = cached.content.trimStart().startsWith('{')
+          ? parseJsonToList(cached.content, cached.sha)
+          : parseMarkdownToList(cached.content, cached.sha);
         set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
         sync.setUnsaved();
         return list;
@@ -319,7 +407,7 @@ export const useListsStore = create<ListsState>((set, get) => ({
 
   saveListContent: async (name, list) => {
     const sync = useSyncStore.getState();
-    const content = serializeList(list);
+    const content = serializeListToJson(list);
     const fileName = listNameToFileName(name);
 
     // 1. 立即更新本地状态与待写入队列，UI 不阻塞

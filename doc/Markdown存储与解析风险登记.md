@@ -2,9 +2,11 @@
 
 ## 概述
 
-本项目（Dong Todo）将 Markdown 文件作为数据库，通过自定义的 scanner/serializer（`src/parser/scanner.ts`、`src/parser/serializer.ts`）解析任务结构。这种设计简单、可读、便于 GitHub 托管，但也存在一些结构解析与内容语义冲突的风险。本文档汇总目前已识别的风险点及对应优化措施，供后续迭代参考。
+本项目（Dong Todo）将 Markdown 文件作为数据库，通过自定义的 scanner/serializer（`src/parser/scanner.ts`、`src/parser/serializer.ts`）解析任务结构。这种设计简单、可读、便于 GitHub 托管，但也存在一些结构解析与内容语义冲突的风险。
 
-_最后更新：2026-07-10_
+**当前状态：已启动 JSON 存储迁移。** 新数据统一写入 `.json` 文件，旧 `.md` 文件在打开时自动迁移；`src/parser/scanner.ts` 与 `serializer.ts` 保留作为读取与迁移的 fallback。迁移完成后，Markdown 结构解析风险将大幅降低（备注中的 `###`、`##` 等不再破坏结构）。
+
+_最后更新：2026-07-11_
 
 ---
 

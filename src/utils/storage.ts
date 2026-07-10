@@ -1,6 +1,10 @@
 import type { GithubConfig } from '@/types';
+import { parseMarkdownToList } from '@/parser/scanner';
+import { serializeListToJson } from '@/parser/jsonSerializer';
 
 const CONFIG_KEY = 'dong-todo:github-config';
+const FORMAT_VERSION_KEY = 'dong-todo:format-version';
+const CURRENT_FORMAT_VERSION = 1;
 
 function getJson<T>(key: string, fallback: T): T {
   try {
@@ -41,6 +45,64 @@ export function saveConfig(config: GithubConfig): void {
 
 export function clearConfig(): void {
   localStorage.removeItem(CONFIG_KEY);
+}
+
+export function getStorageFormatVersion(): number {
+  return getJson<number>(FORMAT_VERSION_KEY, 0);
+}
+
+export function setStorageFormatVersion(version: number): void {
+  setJson(FORMAT_VERSION_KEY, version);
+}
+
+export function migrateLocalStorageCache(): void {
+  if (getStorageFormatVersion() >= CURRENT_FORMAT_VERSION) return;
+
+  // 清空旧的文件缓存（格式可能混合 .md/.json）
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('dong-todo:file:')) {
+      localStorage.removeItem(key);
+    }
+  }
+
+  // 清空 SHA 缓存
+  localStorage.removeItem('dong-todo:sha-map');
+
+  // 迁移 pending writes
+  migratePendingWrites();
+
+  setStorageFormatVersion(CURRENT_FORMAT_VERSION);
+}
+
+function migratePendingWrites(): void {
+  const raw = localStorage.getItem('dong-todo:pending-writes');
+  if (!raw) return;
+
+  let parsed: Record<string, string | { content: string; timestamp?: string }>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, string | { content: string; timestamp?: string }>;
+  } catch {
+    localStorage.removeItem('dong-todo:pending-writes');
+    return;
+  }
+
+  const migrated: Record<string, { content: string; timestamp: string }> = {};
+  for (const [fileName, value] of Object.entries(parsed)) {
+    const content = typeof value === 'string' ? value : value.content;
+    if (fileName.endsWith('.json')) {
+      migrated[fileName] = { content, timestamp: new Date().toISOString() };
+    } else if (fileName.endsWith('.md')) {
+      try {
+        const list = parseMarkdownToList(content);
+        const jsonName = fileName.replace(/\.md$/, '.json');
+        migrated[jsonName] = { content: serializeListToJson(list), timestamp: new Date().toISOString() };
+      } catch {
+        console.warn(`Dropping corrupt pending write during migration: ${fileName}`);
+      }
+    }
+  }
+
+  setJson('dong-todo:pending-writes', migrated);
 }
 
 export function isOffline(): boolean {
