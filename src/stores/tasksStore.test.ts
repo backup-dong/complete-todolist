@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
 import type { ParsedList, Task } from '@/types';
@@ -121,5 +121,39 @@ describe('tasksStore reorder', () => {
       filter: { status: ['done'], priority: 'all', timeRange: 'all' },
     });
     expect(useTasksStore.getState().getFilteredTasks()).toHaveLength(0);
+  });
+
+  it('overdue timeRange filter excludes completed tasks', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-10T12:00:00'));
+
+    const list = makeList();
+    list.groups[0].tasks = [
+      {
+        ...makeTask('t1', '逾期未完成', '项目Alpha', 1),
+        meta: { ...makeTask('t1', '逾期未完成', '项目Alpha', 1).meta, due: '2026-07-01' },
+      },
+      {
+        ...makeTask('t2', '逾期已完成', '项目Alpha', 2),
+        meta: { ...makeTask('t2', '逾期已完成', '项目Alpha', 2).meta, due: '2026-07-01', status: 'done' },
+      },
+      {
+        ...makeTask('t3', '今天截止', '项目Alpha', 3),
+        meta: { ...makeTask('t3', '今天截止', '项目Alpha', 3).meta, due: '2026-07-10' },
+      },
+    ];
+
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({
+      tasks: list.groups.flatMap((g) => g.tasks),
+      filter: { status: [], priority: 'all', timeRange: 'overdue' },
+    });
+
+    try {
+      const filtered = useTasksStore.getState().getFilteredTasks();
+      expect(filtered.map((t) => t.id)).toEqual(['t1']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

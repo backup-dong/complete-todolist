@@ -72,7 +72,7 @@ function matchesFilter(task: Task, filter: FilterState, query: string): boolean 
   if (filter.timeRange !== 'all') {
     if (filter.timeRange === 'today' && !isDueToday(task.meta.due)) return false;
     if (filter.timeRange === 'week' && !isDueThisWeek(task.meta.due)) return false;
-    if (filter.timeRange === 'overdue' && !isOverdue(task.meta.due)) return false;
+    if (filter.timeRange === 'overdue' && (!isOverdue(task.meta.due) || task.meta.status === 'done')) return false;
   }
   if (query) {
     const q = query.toLowerCase();
