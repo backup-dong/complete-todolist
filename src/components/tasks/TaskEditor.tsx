@@ -270,7 +270,7 @@ function SubtaskEditor({
 
       {expanded && (
         <div className="mt-3 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">开始时间</span>
               <input
@@ -579,7 +579,7 @@ function TaskMetaFields({
         </select>
       </label>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">优先级</span>
           <select
@@ -613,7 +613,7 @@ function TaskMetaFields({
 function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (action: DraftAction) => void }) {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">开始时间</span>
           <input
@@ -635,7 +635,7 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复规则</span>
           <select

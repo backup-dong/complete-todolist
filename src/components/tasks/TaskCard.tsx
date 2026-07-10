@@ -227,7 +227,7 @@ export function TaskCard({
     <div
       onClick={handleCardClick}
       className={[
-        'group relative cursor-pointer rounded-lg border p-4 shadow-sm transition-all duration-150 ease-out hover:shadow-md',
+        'group relative cursor-pointer rounded-lg border p-3 shadow-sm transition-all duration-150 ease-out hover:shadow-md md:p-4',
         selected
           ? 'border-[var(--color-primary)] bg-[var(--color-primary-subtle)]'
           : 'border-[var(--color-border-subtle)] bg-[var(--color-surface)] hover:border-[var(--color-border)]',
@@ -308,7 +308,7 @@ export function TaskCard({
           onPointerDown={(e) => e.stopPropagation()}
           data-testid="delete-task"
           aria-label="删除任务"
-          className="shrink-0 rounded-md p-1.5 text-[var(--color-text-muted)] opacity-0 transition-opacity duration-100 hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger)] focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[var(--color-text-muted)] opacity-0 transition-opacity duration-100 hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger)] focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
         >
           <Trash2 className="h-4 w-4" />
         </button>

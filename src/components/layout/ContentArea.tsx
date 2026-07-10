@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Copy, FolderPlus, Inbox, ListChecks, Plus, X } from 'lucide-react';
+import { Copy, FolderPlus, Inbox, ListChecks, Menu, Plus, X } from 'lucide-react';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
 import { confirm } from '@/stores/confirmStore';
@@ -25,6 +25,36 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
       <span className="text-xs tabular-nums font-medium text-[var(--color-text-secondary)]">
         {done}/{total}
       </span>
+    </div>
+  );
+}
+
+function MobileHeader({
+  title,
+  done,
+  total,
+  onOpenMenu,
+}: {
+  title: string;
+  done: number;
+  total: number;
+  onOpenMenu: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:hidden">
+      <button
+        type="button"
+        onClick={onOpenMenu}
+        className="btn-ghost p-1.5"
+        aria-label="打开导航"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-2">
+        <h1 className="truncate text-base font-semibold text-[var(--color-text)]">{title}</h1>
+        {total > 0 && <ProgressBar done={done} total={total} />}
+      </div>
+      <div className="w-9" />
     </div>
   );
 }
@@ -63,8 +93,8 @@ function ListHeader({
   onToggleBatchMode: () => void;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between">
-      <div className="flex items-center gap-3">
+    <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="hidden items-center gap-3 md:flex">
         <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text)]">{title}</h1>
         {total > 0 && <ProgressBar done={done} total={total} />}
         {activeGroup && (
@@ -73,17 +103,19 @@ function ListHeader({
           </span>
         )}
       </div>
-      <div className="flex items-center gap-2">
+
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
         <button
           type="button"
           onClick={onCopyWeeklyReport}
-          className="btn-secondary flex items-center gap-1.5 py-1.5 text-xs"
+          className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
         >
           <Copy className="h-3.5 w-3.5" />
-          导出周报
+          <span className="hidden sm:inline">导出周报</span>
+          <span className="sm:hidden">周报</span>
         </button>
         {showNewGroup ? (
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <input
               autoFocus
               value={newGroupName}
@@ -94,17 +126,18 @@ function ListHeader({
               }}
               onBlur={() => onCreateGroup()}
               placeholder="分组名称"
-              className="input w-36 py-1.5 text-xs"
+              className="input w-32 py-1.5 text-xs"
             />
           </div>
         ) : (
           <button
             type="button"
             onClick={onToggleNewGroup}
-            className="btn-secondary flex items-center gap-1.5 py-1.5 text-xs"
+            className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
           >
             <FolderPlus className="h-3.5 w-3.5" />
-            新建分组
+            <span className="hidden sm:inline">新建分组</span>
+            <span className="sm:hidden">分组</span>
           </button>
         )}
         <button
@@ -112,13 +145,13 @@ function ListHeader({
           onClick={onToggleBatchMode}
           title={batchMode ? '退出批量选择' : '批量选择'}
           className={[
-            'btn-secondary flex items-center gap-1.5 py-1.5 text-xs',
+            'btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs',
             batchMode ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : '',
           ].join(' ')}
           aria-pressed={batchMode}
         >
           <ListChecks className="h-3.5 w-3.5" />
-          {batchMode ? '退出选择' : '批量'}
+          {batchMode ? '退出' : '批量'}
         </button>
         <ViewToggle mode={sortMode} onChange={onSortModeChange} />
       </div>
@@ -139,7 +172,7 @@ function NewTaskBar({
 }) {
   return (
     <div className="flex gap-2">
-      <div className="flex items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]">
+      <div className="hidden items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] md:flex">
         {groupLabel}
       </div>
       <input
@@ -152,7 +185,7 @@ function NewTaskBar({
             onCreate();
           }
         }}
-        placeholder="新建任务..."
+        placeholder={`在 ${groupLabel} 中新建任务...`}
         className="input flex-1"
       />
       <button
@@ -161,7 +194,8 @@ function NewTaskBar({
         className="btn-primary px-3"
         aria-label="新建任务"
       >
-        <Plus className="h-4 w-4" />
+        <Plus className="h-4 w-4 md:mr-1" />
+        <span className="hidden md:inline">新建</span>
       </button>
     </div>
   );
@@ -177,34 +211,36 @@ function BatchActionBar({
   onCancel: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-sm text-[var(--color-text-secondary)]">
-        已选 <strong className="text-[var(--color-text)]">{count}</strong> 项
-      </span>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={count === 0}
-          className="btn-danger flex items-center gap-1.5 py-1.5 text-xs"
-        >
-          <ListChecks className="h-3.5 w-3.5" />
-          删除 {count} 项
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="btn-secondary flex items-center gap-1.5 py-1.5 text-xs"
-        >
-          <X className="h-3.5 w-3.5" />
-          取消
-        </button>
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:static md:z-auto md:border-t-0 md:bg-transparent md:p-0">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-[var(--color-text-secondary)]">
+          已选 <strong className="text-[var(--color-text)]">{count}</strong> 项
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={count === 0}
+            className="btn-danger flex items-center gap-1.5 py-1.5 text-xs"
+          >
+            <ListChecks className="h-3.5 w-3.5" />
+            删除 {count} 项
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="btn-secondary flex items-center gap-1.5 py-1.5 text-xs"
+          >
+            <X className="h-3.5 w-3.5" />
+            取消
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-export function ContentArea() {
+export function ContentArea({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { activeListName, activeGroup, fileCache, createGroup } = useListsStore();
   const {
     sortMode,
@@ -318,6 +354,13 @@ export function ContentArea() {
   return (
     <div className="flex h-full flex-1 overflow-hidden">
       <div className="flex flex-1 flex-col">
+        <MobileHeader
+          title={activeListName}
+          done={doneCount}
+          total={totalCount}
+          onOpenMenu={onOpenMenu}
+        />
+
         <ConflictBanner />
         <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <ListHeader
@@ -350,7 +393,7 @@ export function ContentArea() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className={`flex-1 overflow-y-auto ${batchMode ? 'pb-20 md:pb-0' : ''}`}>
           <TaskList
             tasks={displayTasks}
             sortMode={sortMode}

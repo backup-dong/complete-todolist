@@ -60,7 +60,7 @@ function SortableTaskCard({
       {sortMode === 'drag' && !selectable && (
         <button
           type="button"
-          className="absolute -left-7 top-4 rounded-md p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] cursor-grab active:cursor-grabbing"
+          className="absolute -left-7 top-3 flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] cursor-grab active:cursor-grabbing"
           onClick={(e) => e.stopPropagation()}
           {...attributes}
           {...listeners}

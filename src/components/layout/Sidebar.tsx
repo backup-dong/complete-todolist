@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Settings2,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
@@ -450,7 +451,7 @@ function ListsSection({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   const { lists, activeListName, activeGroup, selectList, selectGroup, createGroup, createList, deleteList, deleteGroup, fileCache } =
     useListsStore();
   const { setSearchQuery, setFilter } = useTasksStore();
@@ -479,6 +480,7 @@ export function Sidebar() {
     } else if (key === 'flagged') {
       setFilter({ priority: 'high' });
     }
+    onClose?.();
   };
 
   const handleCreateList = async () => {
@@ -545,6 +547,16 @@ export function Sidebar() {
           </div>
           <span className="text-lg font-semibold tracking-tight">Dong Todo</span>
         </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-ghost p-1.5 md:hidden"
+            aria-label="关闭导航"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
@@ -557,9 +569,15 @@ export function Sidebar() {
           activeGroup={activeGroup}
           showNewGroupForList={showNewGroupForList}
           newGroupName={newGroupName}
-          onSelectList={selectList}
+          onSelectList={(name) => {
+            selectList(name);
+            onClose?.();
+          }}
           onDeleteList={handleDeleteList}
-          onSelectGroup={selectGroup}
+          onSelectGroup={(name) => {
+            selectGroup(name);
+            onClose?.();
+          }}
           onDeleteGroup={handleDeleteGroup}
           onShowNewGroup={setShowNewGroupForList}
           onNewGroupNameChange={setNewGroupName}
