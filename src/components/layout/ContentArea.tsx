@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Copy, FolderPlus, Inbox, Plus } from 'lucide-react';
+import { Copy, FolderPlus, Inbox, ListChecks, Menu, Plus, X } from 'lucide-react';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
 import { confirm } from '@/stores/confirmStore';
@@ -7,7 +7,7 @@ import type { Task } from '@/types';
 import { copyWeeklyReport } from '@/utils/report';
 import { SearchBar, FilterDropdown, ViewToggle } from '../tasks/Toolbar';
 import { TaskList } from '../tasks/TaskList';
-import { TaskEditor } from '../tasks/TaskEditor';
+import { TaskEditorDialog } from '../tasks/TaskEditorDialog';
 import { ConflictBanner } from './ConflictBanner';
 
 function ProgressBar({ done, total }: { done: number; total: number }) {
@@ -29,6 +29,36 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
   );
 }
 
+function MobileHeader({
+  title,
+  done,
+  total,
+  onOpenMenu,
+}: {
+  title: string;
+  done: number;
+  total: number;
+  onOpenMenu: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:hidden">
+      <button
+        type="button"
+        onClick={onOpenMenu}
+        className="btn-ghost p-1.5"
+        aria-label="打开导航"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-2">
+        <h1 className="truncate text-base font-semibold text-[var(--color-text)]">{title}</h1>
+        {total > 0 && <ProgressBar done={done} total={total} />}
+      </div>
+      <div className="w-9" />
+    </div>
+  );
+}
+
 function ListHeader({
   title,
   done,
@@ -43,6 +73,8 @@ function ListHeader({
   onCancelNewGroup,
   sortMode,
   onSortModeChange,
+  batchMode,
+  onToggleBatchMode,
 }: {
   title: string;
   done: number;
@@ -57,10 +89,12 @@ function ListHeader({
   onCancelNewGroup: () => void;
   sortMode: 'drag' | 'due' | 'priority';
   onSortModeChange: (mode: 'drag' | 'due' | 'priority') => void;
+  batchMode: boolean;
+  onToggleBatchMode: () => void;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between">
-      <div className="flex items-center gap-3">
+    <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="hidden items-center gap-3 md:flex">
         <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text)]">{title}</h1>
         {total > 0 && <ProgressBar done={done} total={total} />}
         {activeGroup && (
@@ -69,17 +103,19 @@ function ListHeader({
           </span>
         )}
       </div>
-      <div className="flex items-center gap-2">
+
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
         <button
           type="button"
           onClick={onCopyWeeklyReport}
-          className="btn-secondary flex items-center gap-1.5 py-1.5 text-xs"
+          className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
         >
           <Copy className="h-3.5 w-3.5" />
-          导出周报
+          <span className="hidden sm:inline">导出周报</span>
+          <span className="sm:hidden">周报</span>
         </button>
         {showNewGroup ? (
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <input
               autoFocus
               value={newGroupName}
@@ -90,19 +126,33 @@ function ListHeader({
               }}
               onBlur={() => onCreateGroup()}
               placeholder="分组名称"
-              className="input w-36 py-1.5 text-xs"
+              className="input w-32 py-1.5 text-xs"
             />
           </div>
         ) : (
           <button
             type="button"
             onClick={onToggleNewGroup}
-            className="btn-secondary flex items-center gap-1.5 py-1.5 text-xs"
+            className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
           >
             <FolderPlus className="h-3.5 w-3.5" />
-            新建分组
+            <span className="hidden sm:inline">新建分组</span>
+            <span className="sm:hidden">分组</span>
           </button>
         )}
+        <button
+          type="button"
+          onClick={onToggleBatchMode}
+          title={batchMode ? '退出批量选择' : '批量选择'}
+          className={[
+            'btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs',
+            batchMode ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : '',
+          ].join(' ')}
+          aria-pressed={batchMode}
+        >
+          <ListChecks className="h-3.5 w-3.5" />
+          {batchMode ? '退出' : '批量'}
+        </button>
         <ViewToggle mode={sortMode} onChange={onSortModeChange} />
       </div>
     </div>
@@ -122,7 +172,7 @@ function NewTaskBar({
 }) {
   return (
     <div className="flex gap-2">
-      <div className="flex items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]">
+      <div className="hidden items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] md:flex">
         {groupLabel}
       </div>
       <input
@@ -130,9 +180,12 @@ function NewTaskBar({
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') onCreate();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onCreate();
+          }
         }}
-        placeholder="新建任务..."
+        placeholder={`在 ${groupLabel} 中新建任务...`}
         className="input flex-1"
       />
       <button
@@ -141,37 +194,53 @@ function NewTaskBar({
         className="btn-primary px-3"
         aria-label="新建任务"
       >
-        <Plus className="h-4 w-4" />
+        <Plus className="h-4 w-4 md:mr-1" />
+        <span className="hidden md:inline">新建</span>
       </button>
     </div>
   );
 }
 
-function TaskEditorPanel({
-  task,
-  groups,
-  onSave,
-  onClose,
+function BatchActionBar({
+  count,
+  onDelete,
+  onCancel,
 }: {
-  task: Task;
-  groups: string[];
-  onSave: (updated: Task) => void;
-  onClose: () => void;
+  count: number;
+  onDelete: () => void;
+  onCancel: () => void;
 }) {
   return (
-    <div className="w-[360px] shrink-0">
-      <TaskEditor
-        key={task.id}
-        task={task}
-        groups={groups}
-        onSave={onSave}
-        onClose={onClose}
-      />
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:static md:z-auto md:border-t-0 md:bg-transparent md:p-0">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-[var(--color-text-secondary)]">
+          已选 <strong className="text-[var(--color-text)]">{count}</strong> 项
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={count === 0}
+            className="btn-danger flex items-center gap-1.5 py-1.5 text-xs"
+          >
+            <ListChecks className="h-3.5 w-3.5" />
+            删除 {count} 项
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="btn-secondary flex items-center gap-1.5 py-1.5 text-xs"
+          >
+            <X className="h-3.5 w-3.5" />
+            取消
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-export function ContentArea() {
+export function ContentArea({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { activeListName, activeGroup, fileCache, createGroup } = useListsStore();
   const {
     sortMode,
@@ -183,6 +252,7 @@ export function ContentArea() {
     setSearchQuery,
     toggleSubtask,
     deleteTask,
+    deleteTasks,
     reorderTasks,
     reorderTasksInGroup,
     selectTask,
@@ -194,7 +264,8 @@ export function ContentArea() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
-  const [showEditor, setShowEditor] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const activeList = activeListName ? fileCache[activeListName] : null;
   const groups = useMemo(() => activeList?.groups.map((g) => g.name) ?? [], [activeList]);
@@ -209,12 +280,11 @@ export function ContentArea() {
 
   const selectedTask = displayTasks.find((t) => t.id === selectedTaskId) ?? null;
 
-  const handleCreateTask = () => {
+  const handleCreateTask = async () => {
     const title = newTaskTitle.trim();
     if (!title) return;
-    createTask(title, effectiveNewTaskGroup);
+    await createTask(title, effectiveNewTaskGroup);
     setNewTaskTitle('');
-    setShowEditor(true);
   };
 
   const handleSaveTask = (updated: Task) => {
@@ -245,6 +315,32 @@ export function ContentArea() {
     }
   };
 
+  const toggleSelectedId = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleBatchMode = () => {
+    setBatchMode((v) => !v);
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (await confirm(`确定删除选中的 ${selectedIds.size} 个任务？`)) {
+      await deleteTasks(Array.from(selectedIds));
+      setBatchMode(false);
+      setSelectedIds(new Set());
+    }
+  };
+
   if (!activeListName) {
     return (
       <div className="flex h-full flex-1 flex-col items-center justify-center text-[var(--color-text-muted)]">
@@ -258,6 +354,13 @@ export function ContentArea() {
   return (
     <div className="flex h-full flex-1 overflow-hidden">
       <div className="flex flex-1 flex-col">
+        <MobileHeader
+          title={activeListName}
+          done={doneCount}
+          total={totalCount}
+          onOpenMenu={onOpenMenu}
+        />
+
         <ConflictBanner />
         <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <ListHeader
@@ -281,6 +384,8 @@ export function ContentArea() {
             }}
             sortMode={sortMode}
             onSortModeChange={setSortMode}
+            batchMode={batchMode}
+            onToggleBatchMode={handleToggleBatchMode}
           />
           <div className="flex flex-col gap-3">
             <SearchBar value={searchQuery} onChange={setSearchQuery} />
@@ -288,46 +393,60 @@ export function ContentArea() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className={`flex-1 overflow-y-auto ${batchMode ? 'pb-20 md:pb-0' : ''}`}>
           <TaskList
             tasks={displayTasks}
             sortMode={sortMode}
             groupBy={sortMode === 'drag' && !activeGroup}
+            selectable={batchMode}
+            selectedIds={selectedIds}
             onReorder={reorderTasks}
             onReorderInGroup={reorderTasksInGroup}
             onToggle={toggleSubtask}
             onSelect={(id) => {
-              selectTask(id);
-              setShowEditor(true);
+              if (batchMode) {
+                toggleSelectedId(id);
+              } else {
+                selectTask(id);
+              }
             }}
             onDelete={async (id) => {
               if (await confirm('确定删除该任务？')) deleteTask(id);
             }}
             onComplete={handleCompleteTask}
+            onToggleSelect={toggleSelectedId}
           />
         </div>
 
         <div className="border-t border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-          <NewTaskBar
-            groupLabel={effectiveNewTaskGroup}
-            title={newTaskTitle}
-            onTitleChange={setNewTaskTitle}
-            onCreate={handleCreateTask}
-          />
+          {batchMode ? (
+            <BatchActionBar
+              count={selectedIds.size}
+              onDelete={handleBatchDelete}
+              onCancel={() => {
+                setBatchMode(false);
+                setSelectedIds(new Set());
+              }}
+            />
+          ) : (
+            <NewTaskBar
+              groupLabel={effectiveNewTaskGroup}
+              title={newTaskTitle}
+              onTitleChange={setNewTaskTitle}
+              onCreate={handleCreateTask}
+            />
+          )}
         </div>
       </div>
 
-      {showEditor && selectedTask && (
-        <TaskEditorPanel
-          task={selectedTask}
-          groups={groups}
-          onSave={handleSaveTask}
-          onClose={() => {
-            setShowEditor(false);
-            selectTask(null);
-          }}
-        />
-      )}
+      <TaskEditorDialog
+        task={selectedTask}
+        groups={groups}
+        onSave={handleSaveTask}
+        onClose={() => {
+          selectTask(null);
+        }}
+      />
     </div>
   );
 }

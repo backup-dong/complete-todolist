@@ -1,6 +1,17 @@
-import { endOfWeek, format, isWithinInterval, parseISO, startOfWeek } from 'date-fns';
+import {
+  addDays,
+  compareAsc,
+  endOfWeek,
+  format,
+  isWithinInterval,
+  max,
+  parseISO,
+  startOfDay,
+  startOfWeek,
+} from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import type { ParsedList, Subtask, Task } from '@/types';
+import { isOverdue } from '@/utils/date';
 import { toast } from '@/utils/toast';
 
 const DIGITS = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
@@ -11,6 +22,50 @@ export function getCurrentWeekRange(): { start: Date; end: Date } {
     start: startOfWeek(now, { weekStartsOn: 1 }),
     end: endOfWeek(now, { weekStartsOn: 1 }),
   };
+}
+
+function getNextWeekRange(): { start: Date; end: Date } {
+  const { end } = getCurrentWeekRange();
+  const start = addDays(end, 1);
+  return {
+    start,
+    end: endOfWeek(start, { weekStartsOn: 1 }),
+  };
+}
+
+function isDueNextWeek(due?: string): boolean {
+  if (!due) return false;
+  try {
+    const date = parseISO(due);
+    const { start, end } = getNextWeekRange();
+    return isWithinInterval(date, { start, end });
+  } catch {
+    return false;
+  }
+}
+
+function getOverdueDays(due?: string): number {
+  if (!due) return 0;
+  try {
+    const dueDay = startOfDay(parseISO(due));
+    const today = startOfDay(new Date());
+    const diff = Math.floor((today.getTime() - dueDay.getTime()) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function shouldIncludeInPlan(task: Task): boolean {
+  return task.meta.status !== 'done' && (isOverdue(task.meta.due) || isDueNextWeek(task.meta.due));
+}
+
+function buildPlanTaskTitle(task: Task): string {
+  const due = task.meta.due;
+  if (isOverdue(due)) {
+    return `${task.title}（逾期 ${getOverdueDays(due)} 天）`;
+  }
+  return task.title;
 }
 
 export function isCompletedThisWeek(completedAt?: string): boolean {
@@ -30,13 +85,52 @@ function hasSubtaskCompletedThisWeek(subtasks: Subtask[]): boolean {
   );
 }
 
-function collectCompletedSubtasks(subtasks: Subtask[], indent = '  '): string[] {
+function getLatestSubtaskCompletionTime(subtasks: Subtask[]): Date | null {
+  const dates: Date[] = [];
+  for (const s of subtasks) {
+    const completedAt = s.completed_at;
+    if (completedAt && isCompletedThisWeek(completedAt)) {
+      dates.push(parseISO(completedAt));
+    }
+    const childLatest = getLatestSubtaskCompletionTime(s.children);
+    if (childLatest) {
+      dates.push(childLatest);
+    }
+  }
+  return dates.length > 0 ? max(dates) : null;
+}
+
+function getEffectiveCompletionTime(task: Task): Date | null {
+  const dates: Date[] = [];
+  const completedAt = task.completed_at;
+  if (completedAt && isCompletedThisWeek(completedAt)) {
+    dates.push(parseISO(completedAt));
+  }
+  const subtaskLatest = getLatestSubtaskCompletionTime(task.subtasks);
+  if (subtaskLatest) {
+    dates.push(subtaskLatest);
+  }
+  return dates.length > 0 ? max(dates) : null;
+}
+
+function collectCompletedSubtasks(
+  subtasks: Subtask[],
+  indent = '  ',
+  includeAllCompleted = false,
+): string[] {
   const lines: string[] = [];
   for (const s of subtasks) {
-    if (isCompletedThisWeek(s.completed_at)) {
+    const completedThisWeek = isCompletedThisWeek(s.completed_at);
+    if (completedThisWeek || (includeAllCompleted && s.completed)) {
       lines.push(`${indent}- ${s.text}`);
     }
-    lines.push(...collectCompletedSubtasks(s.children, `${indent}  `));
+    lines.push(
+      ...collectCompletedSubtasks(
+        s.children,
+        `${indent}  `,
+        includeAllCompleted || completedThisWeek,
+      ),
+    );
   }
   return lines;
 }
@@ -62,15 +156,38 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
   const groupsWithTasks = list.groups
     .map((group) => ({
       name: group.name,
-      tasks: group.tasks.filter(shouldIncludeTask),
+      tasks: group.tasks
+        .filter(shouldIncludeTask)
+        .sort((a, b) => {
+          const timeA = getEffectiveCompletionTime(a);
+          const timeB = getEffectiveCompletionTime(b);
+          if (!timeA || !timeB) return 0;
+          return compareAsc(timeA, timeB);
+        }),
     }))
     .filter((group) => group.tasks.length > 0);
 
-  if (groupsWithTasks.length === 0) return '';
+  const groupsWithPlan = list.groups
+    .map((group) => ({
+      name: group.name,
+      tasks: group.tasks.filter(shouldIncludeInPlan).sort((a, b) => {
+        const aOverdue = isOverdue(a.meta.due);
+        const bOverdue = isOverdue(b.meta.due);
+        if (aOverdue && !bOverdue) return -1;
+        if (!aOverdue && bOverdue) return 1;
+        const dueA = a.meta.due ? parseISO(a.meta.due).getTime() : Infinity;
+        const dueB = b.meta.due ? parseISO(b.meta.due).getTime() : Infinity;
+        return dueA - dueB;
+      }),
+    }))
+    .filter((group) => group.tasks.length > 0);
+
+  if (groupsWithTasks.length === 0 && groupsWithPlan.length === 0) return '';
 
   const lines: string[] = [];
+  const headerTitle = groupsWithTasks.length > 0 ? '本周完成事项' : '工作周报';
   lines.push(
-    `${listName} 本周完成事项（${format(start, 'MM/dd', { locale: zhCN })} - ${format(end, 'MM/dd', { locale: zhCN })}）`,
+    `${listName} ${headerTitle}（${format(start, 'MM/dd', { locale: zhCN })} - ${format(end, 'MM/dd', { locale: zhCN })}）`,
   );
   lines.push('');
 
@@ -80,9 +197,35 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
     for (let j = 0; j < group.tasks.length; j++) {
       const task = group.tasks[j];
       lines.push(`${j + 1}. ${task.title}`);
-      lines.push(...collectCompletedSubtasks(task.subtasks));
+      lines.push(
+        ...collectCompletedSubtasks(
+          task.subtasks,
+          '  ',
+          isCompletedThisWeek(task.completed_at),
+        ),
+      );
     }
     lines.push('');
+  }
+
+  if (groupsWithPlan.length > 0) {
+    lines.push('下周计划');
+    lines.push('');
+    for (let i = 0; i < groupsWithPlan.length; i++) {
+      const group = groupsWithPlan[i];
+      lines.push(`${toChineseNumeral(i + 1)}、${group.name}`);
+      for (let j = 0; j < group.tasks.length; j++) {
+        const task = group.tasks[j];
+        lines.push(`${j + 1}. ${buildPlanTaskTitle(task)}`);
+        if (task.note) {
+          const noteText = task.note.replace(/\n/g, ' ').trim();
+          if (noteText) {
+            lines.push(`  备注：${noteText}`);
+          }
+        }
+      }
+      lines.push('');
+    }
   }
 
   return lines.join('\n').trimEnd() + '\n';
@@ -91,7 +234,7 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
 export async function copyWeeklyReport(listName: string, list: ParsedList): Promise<boolean> {
   const report = generateWeeklyReport(listName, list);
   if (!report) {
-    toast.info('本周暂无已完成事项');
+    toast.info('本周暂无可导出内容');
     return false;
   }
 

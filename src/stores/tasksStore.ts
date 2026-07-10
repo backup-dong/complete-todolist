@@ -18,6 +18,7 @@ interface TasksState {
   createTask: (title: string, group?: string) => Promise<void>;
   updateTask: (id: string, patch: Omit<Partial<Task>, 'meta'> & { meta?: Partial<TaskMeta> }) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
+  deleteTasks: (ids: string[]) => Promise<void>;
   toggleSubtask: (taskId: string, path: number[]) => Promise<void>;
   completeTaskWithoutSubtasks: (taskId: string) => Promise<void>;
   reorderTasks: (fromIdx: number, toIdx: number) => Promise<void>;
@@ -66,12 +67,12 @@ function findTaskInList(listName: string, taskId: string): { task: Task; groupIn
 }
 
 function matchesFilter(task: Task, filter: FilterState, query: string): boolean {
-  if (filter.status !== 'all' && task.meta.status !== filter.status) return false;
+  if (filter.status.length > 0 && !filter.status.includes(task.meta.status ?? 'pending')) return false;
   if (filter.priority !== 'all' && task.meta.priority !== filter.priority) return false;
   if (filter.timeRange !== 'all') {
     if (filter.timeRange === 'today' && !isDueToday(task.meta.due)) return false;
     if (filter.timeRange === 'week' && !isDueThisWeek(task.meta.due)) return false;
-    if (filter.timeRange === 'overdue' && !isOverdue(task.meta.due)) return false;
+    if (filter.timeRange === 'overdue' && (!isOverdue(task.meta.due) || task.meta.status === 'done')) return false;
   }
   if (query) {
     const q = query.toLowerCase();
@@ -125,7 +126,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   tasks: [],
   selectedTaskId: null,
   sortMode: 'drag',
-  filter: { status: 'all', priority: 'all', timeRange: 'all' },
+  filter: { status: [], priority: 'all', timeRange: 'all' },
   searchQuery: '',
 
   loadTasks: async (listName) => {
@@ -145,8 +146,10 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const { activeListName, list, saveListContent } = ctx;
 
     const created = todayIso();
-    const maxOrder = Math.max(0, ...list.groups.flatMap((g) => g.tasks.map((t) => t.meta.order ?? 0)));
     const targetGroup = group ?? list.groups[0]?.name ?? '默认分组';
+    const existingGroup = list.groups.find((g) => g.name === targetGroup);
+    const groupTasks = existingGroup?.tasks ?? [];
+    const minOrder = groupTasks.length > 0 ? Math.min(...groupTasks.map((t) => t.meta.order ?? 0)) : 1;
 
     const newTask: Task = {
       id: generateTaskId(title, created),
@@ -155,7 +158,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       meta: {
         priority: 'med',
         created,
-        order: maxOrder + 1,
+        order: groupTasks.length > 0 ? minOrder - 1 : 1,
       },
       subtasks: [],
     };
@@ -163,7 +166,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const groupIndex = list.groups.findIndex((g) => g.name === targetGroup);
     const nextList = { ...list };
     if (groupIndex >= 0) {
-      nextList.groups = nextList.groups.map((g, i) => (i === groupIndex ? { ...g, tasks: [...g.tasks, newTask] } : g));
+      nextList.groups = nextList.groups.map((g, i) => (i === groupIndex ? { ...g, tasks: [newTask, ...g.tasks] } : g));
     } else {
       nextList.groups = [...nextList.groups, { name: targetGroup, tasks: [newTask] }];
     }
@@ -234,6 +237,22 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     nextList.groups = nextList.groups.map((g) => ({
       ...g,
       tasks: g.tasks.filter((t) => t.id !== id),
+    }));
+
+    await saveListContent(activeListName, nextList);
+    set({ tasks: flattenTasks(activeListName), selectedTaskId: null });
+  },
+
+  deleteTasks: async (ids) => {
+    const ctx = requireActiveList();
+    if (!ctx) return;
+    const { activeListName, list, saveListContent } = ctx;
+    const idSet = new Set(ids);
+
+    const nextList = { ...list };
+    nextList.groups = nextList.groups.map((g) => ({
+      ...g,
+      tasks: g.tasks.filter((t) => !idSet.has(t.id)),
     }));
 
     await saveListContent(activeListName, nextList);

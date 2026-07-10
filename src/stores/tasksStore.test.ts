@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
 import type { ParsedList, Task } from '@/types';
@@ -46,7 +46,7 @@ describe('tasksStore reorder', () => {
       tasks: [],
       selectedTaskId: null,
       sortMode: 'drag',
-      filter: { status: 'all', priority: 'all', timeRange: 'all' },
+      filter: { status: [], priority: 'all', timeRange: 'all' },
       searchQuery: '',
     });
   });
@@ -91,5 +91,69 @@ describe('tasksStore reorder', () => {
     expect(updated!.groups[0].tasks.map((t) => t.id)).toEqual(['t2', 't3']);
     expect(updated!.groups[1].tasks.map((t) => t.id)).toEqual(['t4', 't1']);
     expect(updated!.groups[1].tasks.find((t) => t.id === 't1')?.group).toBe('项目Beta');
+  });
+
+  it('deleteTasks removes multiple tasks across groups', async () => {
+    const list = makeList();
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({ tasks: list.groups.flatMap((g) => g.tasks), selectedTaskId: 't1' });
+
+    await useTasksStore.getState().deleteTasks(['t1', 't4']);
+
+    const updated = useListsStore.getState().fileCache['工作'];
+    expect(updated!.groups[0].tasks.map((t) => t.id)).toEqual(['t2', 't3']);
+    expect(updated!.groups[1].tasks.map((t) => t.id)).toEqual([]);
+    expect(useTasksStore.getState().selectedTaskId).toBeNull();
+  });
+
+  it('getFilteredTasks supports multi-select status filter', () => {
+    const list = makeList();
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({
+      tasks: list.groups.flatMap((g) => g.tasks),
+      filter: { status: ['pending', 'active'], priority: 'all', timeRange: 'all' },
+    });
+
+    const filtered = useTasksStore.getState().getFilteredTasks();
+    expect(filtered).toHaveLength(4);
+
+    useTasksStore.setState({
+      filter: { status: ['done'], priority: 'all', timeRange: 'all' },
+    });
+    expect(useTasksStore.getState().getFilteredTasks()).toHaveLength(0);
+  });
+
+  it('overdue timeRange filter excludes completed tasks', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-10T12:00:00'));
+
+    const list = makeList();
+    list.groups[0].tasks = [
+      {
+        ...makeTask('t1', '逾期未完成', '项目Alpha', 1),
+        meta: { ...makeTask('t1', '逾期未完成', '项目Alpha', 1).meta, due: '2026-07-01' },
+      },
+      {
+        ...makeTask('t2', '逾期已完成', '项目Alpha', 2),
+        meta: { ...makeTask('t2', '逾期已完成', '项目Alpha', 2).meta, due: '2026-07-01', status: 'done' },
+      },
+      {
+        ...makeTask('t3', '今天截止', '项目Alpha', 3),
+        meta: { ...makeTask('t3', '今天截止', '项目Alpha', 3).meta, due: '2026-07-10' },
+      },
+    ];
+
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({
+      tasks: list.groups.flatMap((g) => g.tasks),
+      filter: { status: [], priority: 'all', timeRange: 'overdue' },
+    });
+
+    try {
+      const filtered = useTasksStore.getState().getFilteredTasks();
+      expect(filtered.map((t) => t.id)).toEqual(['t1']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

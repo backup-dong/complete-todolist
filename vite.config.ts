@@ -22,6 +22,8 @@ export default defineConfig({
         description: '基于 Markdown + GitHub 的待办系统',
         theme_color: '#2563EB',
         background_color: '#FDFCFA',
+        orientation: 'portrait',
+        lang: 'zh-CN',
         icons: [
           {
             src: 'icon-192.png',

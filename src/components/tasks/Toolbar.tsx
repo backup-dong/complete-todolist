@@ -1,5 +1,6 @@
-import { Search, ChevronDown, GripVertical, CalendarArrowDown, ArrowUpDown } from 'lucide-react';
-import type { FilterState, SortMode } from '@/types';
+import { Search, ChevronDown, GripVertical, CalendarArrowDown, ArrowUpDown, Check } from 'lucide-react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import type { FilterState, SortMode, TaskStatus } from '@/types';
 
 export function SearchBar({
   value,
@@ -50,19 +51,78 @@ function StyledSelect({
   );
 }
 
+function StatusFilterDropdown({
+  value,
+  onChange,
+}: {
+  value: TaskStatus[];
+  onChange: (value: TaskStatus[]) => void;
+}) {
+  const options: { value: TaskStatus; label: string }[] = [
+    { value: 'pending', label: '待处理' },
+    { value: 'active', label: '进行中' },
+    { value: 'done', label: '已完成' },
+  ];
+
+  const toggle = (v: TaskStatus) => {
+    onChange(value.includes(v) ? value.filter((s) => s !== v) : [...value, v]);
+  };
+
+  const label = value.length === 0 ? '全部状态' : value.map((v) => options.find((o) => o.value === v)?.label).join(' + ');
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className="relative inline-flex min-w-[120px] items-center justify-between gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 pr-8 text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]"
+          aria-label="状态过滤"
+        >
+          <span className="truncate">{label}</span>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-text-muted)]" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          className="z-50 min-w-[140px] rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-md"
+          sideOffset={4}
+        >
+          {options.map((opt) => (
+            <DropdownMenu.CheckboxItem
+              key={opt.value}
+              checked={value.includes(opt.value)}
+              onCheckedChange={() => toggle(opt.value)}
+              className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[var(--color-text)] outline-none hover:bg-[var(--color-surface-hover)] focus:bg-[var(--color-surface-hover)] focus:outline-none"
+            >
+              <span className="flex h-4 w-4 items-center justify-center rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-primary)]">
+                <DropdownMenu.ItemIndicator>
+                  <Check className="h-3.5 w-3.5" />
+                </DropdownMenu.ItemIndicator>
+              </span>
+              {opt.label}
+            </DropdownMenu.CheckboxItem>
+          ))}
+          <DropdownMenu.Separator className="my-1 h-px bg-[var(--color-border)]" />
+          <DropdownMenu.Item
+            disabled={value.length === 0}
+            onSelect={() => onChange([])}
+            className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm text-[var(--color-text)] outline-none hover:bg-[var(--color-surface-hover)] focus:bg-[var(--color-surface-hover)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            清除选择
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
 export function FilterDropdown({ filter, onChange }: { filter: FilterState; onChange: (f: FilterState) => void }) {
   return (
     <div className="flex flex-wrap gap-2">
-      <StyledSelect
+      <StatusFilterDropdown
         value={filter.status}
-        onChange={(v) => onChange({ ...filter, status: v as FilterState['status'] })}
-        ariaLabel="状态过滤"
-      >
-        <option value="all">全部状态</option>
-        <option value="pending">待处理</option>
-        <option value="active">进行中</option>
-        <option value="done">已完成</option>
-      </StyledSelect>
+        onChange={(status) => onChange({ ...filter, status })}
+      />
 
       <StyledSelect
         value={filter.priority}

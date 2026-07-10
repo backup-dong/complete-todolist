@@ -24,17 +24,23 @@ import { TaskCard } from './TaskCard';
 function SortableTaskCard({
   task,
   sortMode,
+  selected,
+  selectable,
   onToggle,
   onSelect,
   onDelete,
   onComplete,
+  onToggleSelect,
 }: {
   task: Task;
   sortMode: 'drag' | 'due' | 'priority';
+  selected?: boolean;
+  selectable?: boolean;
   onToggle: (path: number[]) => void;
   onSelect: () => void;
   onDelete: () => void;
   onComplete?: () => void;
+  onToggleSelect?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -51,10 +57,10 @@ function SortableTaskCard({
 
   return (
     <div ref={setNodeRef} style={style} className="relative">
-      {sortMode === 'drag' && (
+      {sortMode === 'drag' && !selectable && (
         <button
           type="button"
-          className="absolute -left-7 top-4 rounded-md p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] cursor-grab active:cursor-grabbing"
+          className="absolute -left-7 top-3 flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] cursor-grab active:cursor-grabbing"
           onClick={(e) => e.stopPropagation()}
           {...attributes}
           {...listeners}
@@ -63,7 +69,16 @@ function SortableTaskCard({
           <GripVertical className="h-4 w-4" />
         </button>
       )}
-      <TaskCard task={task} onToggle={onToggle} onStartEdit={onSelect} onDelete={onDelete} onComplete={onComplete} />
+      <TaskCard
+        task={task}
+        selected={selected}
+        selectable={selectable}
+        onToggleSelect={onToggleSelect}
+        onToggle={onToggle}
+        onStartEdit={onSelect}
+        onDelete={onDelete}
+        onComplete={onComplete}
+      />
     </div>
   );
 }
@@ -72,18 +87,24 @@ function GroupSection({
   name,
   tasks,
   sortMode,
+  selectedIds,
+  selectable,
   onToggle,
   onSelect,
   onDelete,
   onComplete,
+  onToggleSelect,
 }: {
   name: string;
   tasks: Task[];
   sortMode: 'drag' | 'due' | 'priority';
+  selectedIds: Set<string>;
+  selectable?: boolean;
   onToggle: (taskId: string, path: number[]) => void;
   onSelect: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onComplete?: (taskId: string) => void;
+  onToggleSelect?: (taskId: string) => void;
 }) {
   const done = tasks.filter((t) => t.meta.status === 'done').length;
   const total = tasks.length;
@@ -116,10 +137,13 @@ function GroupSection({
                 key={task.id}
                 task={task}
                 sortMode={sortMode}
+                selected={selectedIds.has(task.id)}
+                selectable={selectable}
                 onToggle={(path) => onToggle(task.id, path)}
                 onSelect={() => onSelect(task.id)}
                 onDelete={() => onDelete(task.id)}
                 onComplete={() => onComplete?.(task.id)}
+                onToggleSelect={() => onToggleSelect?.(task.id)}
               />
             ))}
           </div>
@@ -133,22 +157,28 @@ export function TaskList({
   tasks,
   sortMode,
   groupBy = false,
+  selectable = false,
+  selectedIds = new Set(),
   onReorder,
   onReorderInGroup,
   onToggle,
   onSelect,
   onDelete,
   onComplete,
+  onToggleSelect,
 }: {
   tasks: Task[];
   sortMode: 'drag' | 'due' | 'priority';
   groupBy?: boolean;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
   onReorder: (from: number, to: number) => void;
   onReorderInGroup?: (groupName: string, from: number, to: number) => void;
   onToggle: (taskId: string, path: number[]) => void;
   onSelect: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onComplete?: (taskId: string) => void;
+  onToggleSelect?: (taskId: string) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeTask = useMemo(() => tasks.find((t) => t.id === activeId), [tasks, activeId]);
@@ -240,10 +270,13 @@ export function TaskList({
                 name={group.name}
                 tasks={group.tasks}
                 sortMode={sortMode}
+                selectedIds={selectedIds}
+                selectable={selectable}
                 onToggle={onToggle}
                 onSelect={onSelect}
                 onDelete={onDelete}
                 onComplete={onComplete}
+                onToggleSelect={onToggleSelect}
               />
             </SortableContext>
           ))}
@@ -256,10 +289,13 @@ export function TaskList({
                 key={task.id}
                 task={task}
                 sortMode={sortMode}
+                selected={selectedIds.has(task.id)}
+                selectable={selectable}
                 onToggle={(path) => onToggle(task.id, path)}
                 onSelect={() => onSelect(task.id)}
                 onDelete={() => onDelete(task.id)}
                 onComplete={() => onComplete?.(task.id)}
+                onToggleSelect={() => onToggleSelect?.(task.id)}
               />
             ))}
           </div>

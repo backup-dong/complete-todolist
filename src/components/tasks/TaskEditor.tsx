@@ -1,14 +1,32 @@
-import { useCallback, useEffect, useRef, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useReducer, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
+  GripVertical,
   Plus,
   Trash2,
   X,
 } from 'lucide-react';
+import type { DraggableAttributes, DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { Link, Subtask, Task } from '@/types';
 import { NoteEditor } from '@/components/common/NoteEditor';
-import { deleteSubtaskAtPath, emptySubtask, updateSubtaskAtPath } from '@/utils/subtasks';
+import { deleteSubtaskAtPath, emptySubtask, reorderSubtasksAtPath, updateSubtaskAtPath } from '@/utils/subtasks';
 
 function detectSubtaskToggle(prev: Subtask[], curr: Subtask[]): boolean {
   if (prev.length !== curr.length) return false;
@@ -154,14 +172,22 @@ function SubtaskEditor({
   onChange,
   onDelete,
   depth,
+  expandedPath,
+  onExpand,
+  dragHandleAttributes,
+  dragHandleListeners,
 }: {
   subtask: Subtask;
   path: number[];
   onChange: (path: number[], updated: Subtask) => void;
   onDelete: (path: number[]) => void;
   depth: number;
+  expandedPath: number[] | null;
+  onExpand: (path: number[] | null) => void;
+  dragHandleAttributes?: DraggableAttributes;
+  dragHandleListeners?: ReturnType<typeof useSortable>['listeners'];
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const expanded = pathsEqual(expandedPath, path);
 
   const handleChange = (patch: Partial<Subtask>) => {
     onChange(path, { ...subtask, ...patch });
@@ -173,6 +199,17 @@ function SubtaskEditor({
       className="mt-2 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3 shadow-sm"
     >
       <div className="flex items-center gap-2">
+        {dragHandleAttributes && (
+          <button
+            type="button"
+            className="shrink-0 cursor-grab rounded-md p-1 text-[var(--color-text-muted)] opacity-0 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus:opacity-100 active:cursor-grabbing group-hover:opacity-100"
+            aria-label="拖拽排序"
+            {...dragHandleAttributes}
+            {...dragHandleListeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
         <input
           type="checkbox"
           checked={subtask.completed}
@@ -205,7 +242,7 @@ function SubtaskEditor({
         )}
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => onExpand(expanded ? null : path)}
           title="备注/链接"
           className={[
             'btn-ghost p-1.5',
@@ -217,7 +254,12 @@ function SubtaskEditor({
         </button>
         <button
           type="button"
-          onClick={() => onDelete(path)}
+          onClick={() => {
+            if (expanded || pathStartsWith(expandedPath, path)) {
+              onExpand(null);
+            }
+            onDelete(path);
+          }}
           title="删除"
           className="btn-ghost p-1.5 text-[var(--color-danger)] hover:bg-[var(--color-danger-subtle)]"
           aria-label="删除子任务"
@@ -228,7 +270,7 @@ function SubtaskEditor({
 
       {expanded && (
         <div className="mt-3 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">开始时间</span>
               <input
@@ -259,19 +301,133 @@ function SubtaskEditor({
       )}
 
       <div className="mt-2">
-        {subtask.children.map((child, i) => (
-          <SubtaskEditor
-            key={`${path.join('-')}-${i}`}
-            subtask={child}
-            path={[...path, i]}
-            onChange={onChange}
-            onDelete={onDelete}
-            depth={depth + 1}
-          />
-        ))}
+        <SubtaskList
+          subtasks={subtask.children}
+          parentPath={path}
+          onChange={onChange}
+          onDelete={onDelete}
+          depth={depth + 1}
+          expandedPath={expandedPath}
+          onExpand={onExpand}
+        />
       </div>
     </div>
   );
+}
+
+function SortableSubtaskEditor({
+  subtask,
+  path,
+  onChange,
+  onDelete,
+  depth,
+  expandedPath,
+  onExpand,
+}: {
+  subtask: Subtask;
+  path: number[];
+  onChange: (path: number[], updated: Subtask) => void;
+  onDelete: (path: number[]) => void;
+  depth: number;
+  expandedPath: number[] | null;
+  onExpand: (path: number[] | null) => void;
+}) {
+  const id = path.join('.');
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: isDragging ? transition : undefined,
+    opacity: isDragging ? 0.4 : 1,
+    scale: isDragging ? '0.98' : '1',
+    zIndex: isDragging ? 10 : 'auto',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="group">
+      <SubtaskEditor
+        subtask={subtask}
+        path={path}
+        onChange={onChange}
+        onDelete={onDelete}
+        depth={depth}
+        expandedPath={expandedPath}
+        onExpand={onExpand}
+        dragHandleAttributes={attributes}
+        dragHandleListeners={listeners}
+      />
+    </div>
+  );
+}
+
+function SubtaskList({
+  subtasks,
+  parentPath,
+  onChange,
+  onDelete,
+  depth,
+  expandedPath,
+  onExpand,
+}: {
+  subtasks: Subtask[];
+  parentPath: number[];
+  onChange: (path: number[], updated: Subtask) => void;
+  onDelete: (path: number[]) => void;
+  depth: number;
+  expandedPath: number[] | null;
+  onExpand: (path: number[] | null) => void;
+}) {
+  const ids = useMemo(() => subtasks.map((_, i) => [...parentPath, i].join('.')), [subtasks, parentPath]);
+
+  return (
+    <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+      <div>
+        {subtasks.map((s, i) => (
+          <SortableSubtaskEditor
+            key={[...parentPath, i].join('.')}
+            subtask={s}
+            path={[...parentPath, i]}
+            onChange={onChange}
+            onDelete={onDelete}
+            depth={depth}
+            expandedPath={expandedPath}
+            onExpand={onExpand}
+          />
+        ))}
+      </div>
+    </SortableContext>
+  );
+}
+
+function idToPath(id: string): number[] {
+  return id.split('.').map(Number);
+}
+
+function areSiblings(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length - 1; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function getChildrenAtPath(subtasks: Subtask[], path: number[]): Subtask[] {
+  let current = subtasks;
+  for (const idx of path) {
+    current = current[idx]?.children ?? [];
+  }
+  return current;
+}
+
+function pathsEqual(a: number[] | null, b: number[] | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.length !== b.length) return false;
+  return a.every((v, i) => v === b[i]);
+}
+
+function pathStartsWith(path: number[] | null, prefix: number[]): boolean {
+  if (!path || path.length < prefix.length) return false;
+  return prefix.every((v, i) => path[i] === v);
 }
 
 function TaskSubtasksEditor({
@@ -281,11 +437,16 @@ function TaskSubtasksEditor({
   subtasks: Subtask[];
   onChange: (subtasks: Subtask[]) => void;
 }) {
+  const [expandedPath, setExpandedPath] = useState<number[] | null>(null);
+
   const handleChange = (path: number[], updated: Subtask) => {
     onChange(updateSubtaskAtPath(subtasks, path, () => updated));
   };
 
   const handleDelete = (path: number[]) => {
+    if (pathsEqual(expandedPath, path) || pathStartsWith(expandedPath, path)) {
+      setExpandedPath(null);
+    }
     onChange(deleteSubtaskAtPath(subtasks, path));
   };
 
@@ -293,27 +454,93 @@ function TaskSubtasksEditor({
     onChange([...subtasks, emptySubtask()]);
   };
 
+  const handleReorder = (parentPath: number[], fromIndex: number, toIndex: number) => {
+    setExpandedPath(null);
+    onChange(reorderSubtasksAtPath(subtasks, parentPath, fromIndex, toIndex));
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+
+    const fromPath = idToPath(active.id as string);
+    const toPath = idToPath(over.id as string);
+    if (!areSiblings(fromPath, toPath)) return;
+
+    const parentPath = fromPath.slice(0, -1);
+    const ids = getChildrenAtPath(subtasks, parentPath).map((_, i) => [...parentPath, i].join('.'));
+    const from = ids.indexOf(active.id as string);
+    const to = ids.indexOf(over.id as string);
+    if (from < 0 || to < 0) return;
+
+    handleReorder(parentPath, from, to);
+  };
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setExpandedPath(null);
+    setActiveId(event.active.id as string);
+  };
+
+  const activeSubtask = useMemo(() => {
+    if (!activeId) return null;
+    const path = idToPath(activeId);
+    let current: Subtask | null = null;
+    let list = subtasks;
+    for (let i = 0; i < path.length; i++) {
+      current = list[path[i]] ?? null;
+      if (!current) return null;
+      list = current.children;
+    }
+    return current;
+  }, [activeId, subtasks]);
+
   return (
-    <div className="space-y-2">
-      {subtasks.map((s, i) => (
-        <SubtaskEditor
-          key={`root-${i}`}
-          subtask={s}
-          path={[i]}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="space-y-2">
+        <SubtaskList
+          subtasks={subtasks}
+          parentPath={[]}
           onChange={handleChange}
           onDelete={handleDelete}
           depth={0}
+          expandedPath={expandedPath}
+          onExpand={setExpandedPath}
         />
-      ))}
-      <button
-        type="button"
-        onClick={handleAddRoot}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors duration-100"
-      >
-        <Plus className="h-4 w-4" />
-        添加子任务
-      </button>
-    </div>
+        <button
+          type="button"
+          onClick={handleAddRoot}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors duration-100"
+        >
+          <Plus className="h-4 w-4" />
+          添加子任务
+        </button>
+      </div>
+      <DragOverlay dropAnimation={null}>
+        {activeSubtask ? (
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg opacity-90 rotate-1">
+            <div className="flex items-center gap-2">
+              <GripVertical className="h-4 w-4 text-[var(--color-text-muted)]" />
+              <span className="text-sm text-[var(--color-text)]">{activeSubtask.text}</span>
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
 
@@ -352,7 +579,7 @@ function TaskMetaFields({
         </select>
       </label>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">优先级</span>
           <select
@@ -386,7 +613,7 @@ function TaskMetaFields({
 function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (action: DraftAction) => void }) {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">开始时间</span>
           <input
@@ -408,7 +635,7 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复规则</span>
           <select
@@ -486,7 +713,7 @@ export function TaskEditor({
 
   return (
     <div
-      className="flex h-full flex-col border-l border-[var(--color-border)] bg-[var(--color-surface-raised)]"
+      className="flex h-full flex-col bg-[var(--color-surface-raised)]"
       data-testid="task-editor"
     >
       <div className="flex items-center justify-between border-b border-[var(--color-border)] p-4">
