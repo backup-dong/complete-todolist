@@ -1,14 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, formatISO, startOfWeek } from 'date-fns';
-import type { ParsedList, Task } from '@/types';
+import type { ParsedList, Task, TaskMeta } from '@/types';
 import { generateWeeklyReport } from './report';
 
 function thisWeekDay(offsetDays: number): string {
   const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
-  return formatISO(addDays(monday, offsetDays));
+  return formatISO(addDays(monday, offsetDays), { representation: 'date' });
 }
 
-function buildTask(title: string, overrides: Partial<Task> = {}): Task {
+function nextWeekDay(offsetDays: number): string {
+  const nextMonday = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 7);
+  return formatISO(addDays(nextMonday, offsetDays), { representation: 'date' });
+}
+
+function daysAgo(days: number): string {
+  return formatISO(addDays(new Date(), -days), { representation: 'date' });
+}
+
+function buildTask(
+  title: string,
+  overrides: Partial<Omit<Task, 'meta'>> & { meta?: Partial<TaskMeta> } = {},
+): Task {
+  const { meta, ...rest } = overrides;
   return {
     id: `id-${title}`,
     title,
@@ -17,11 +30,11 @@ function buildTask(title: string, overrides: Partial<Task> = {}): Task {
       priority: 'med',
       created: thisWeekDay(0),
       status: overrides.completed_at ? 'done' : 'pending',
-      ...overrides.meta,
+      ...meta,
     },
     subtasks: overrides.subtasks ?? [],
     completed_at: overrides.completed_at,
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -172,5 +185,73 @@ describe('generateWeeklyReport', () => {
   it('本周无完成事项时返回空字符串', () => {
     const list = buildList([buildTask('未完成任务')]);
     expect(generateWeeklyReport('测试清单', list)).toBe('');
+  });
+
+  it('下周计划包含逾期任务与下周到期任务', () => {
+    const list = buildList([
+      buildTask('逾期任务', { meta: { due: daysAgo(3) } }),
+      buildTask('下周任务', { meta: { due: nextWeekDay(2) } }),
+    ]);
+
+    const report = generateWeeklyReport('测试清单', list);
+    expect(report).toContain('下周计划');
+    expect(report).toContain('1. 逾期任务');
+    expect(report).toContain('2. 下周任务');
+  });
+
+  it('逾期任务显示逾期天数与备注提醒', () => {
+    const list = buildList([
+      buildTask('逾期任务', {
+        meta: { due: daysAgo(5) },
+        note: '需要尽快处理',
+      }),
+    ]);
+
+    const report = generateWeeklyReport('测试清单', list);
+    expect(report).toContain('逾期任务（逾期 5 天）');
+    expect(report).toContain('备注：需要尽快处理');
+  });
+
+  it('无完成事项但有下周计划时仍生成周报', () => {
+    const list = buildList([
+      buildTask('下周任务', { meta: { due: nextWeekDay(1) } }),
+    ]);
+
+    const report = generateWeeklyReport('测试清单', list);
+    expect(report).not.toBe('');
+    expect(report).toContain('测试清单 工作周报');
+    expect(report).toContain('下周计划');
+  });
+
+  it('下周计划按逾期优先、到期日升序排列', () => {
+    const list = buildList([
+      buildTask('下周三到期', { meta: { due: nextWeekDay(2) } }),
+      buildTask('逾期两天', { meta: { due: daysAgo(2) } }),
+      buildTask('下周二到期', { meta: { due: nextWeekDay(1) } }),
+      buildTask('逾期五天', { meta: { due: daysAgo(5) } }),
+    ]);
+
+    const report = generateWeeklyReport('测试清单', list);
+    const idxOverdue5 = report.indexOf('逾期五天');
+    const idxOverdue2 = report.indexOf('逾期两天');
+    const idxNextTue = report.indexOf('下周二到期');
+    const idxNextWed = report.indexOf('下周三到期');
+
+    expect(idxOverdue5).toBeLessThan(idxOverdue2);
+    expect(idxOverdue2).toBeLessThan(idxNextTue);
+    expect(idxNextTue).toBeLessThan(idxNextWed);
+  });
+
+  it('已完成的任务不进入下周计划', () => {
+    const list = buildList([
+      buildTask('已完成逾期任务', {
+        completed_at: thisWeekDay(1),
+        meta: { due: daysAgo(3) },
+      }),
+    ]);
+
+    const report = generateWeeklyReport('测试清单', list);
+    expect(report).toContain('1. 已完成逾期任务');
+    expect(report).not.toContain('下周计划');
   });
 });
