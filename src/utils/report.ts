@@ -1,4 +1,4 @@
-import { endOfWeek, format, isWithinInterval, parseISO, startOfWeek } from 'date-fns';
+import { compareAsc, endOfWeek, format, isWithinInterval, max, parseISO, startOfWeek } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import type { ParsedList, Subtask, Task } from '@/types';
 import { toast } from '@/utils/toast';
@@ -28,6 +28,34 @@ function hasSubtaskCompletedThisWeek(subtasks: Subtask[]): boolean {
   return subtasks.some(
     (s) => isCompletedThisWeek(s.completed_at) || hasSubtaskCompletedThisWeek(s.children),
   );
+}
+
+function getLatestSubtaskCompletionTime(subtasks: Subtask[]): Date | null {
+  const dates: Date[] = [];
+  for (const s of subtasks) {
+    const completedAt = s.completed_at;
+    if (completedAt && isCompletedThisWeek(completedAt)) {
+      dates.push(parseISO(completedAt));
+    }
+    const childLatest = getLatestSubtaskCompletionTime(s.children);
+    if (childLatest) {
+      dates.push(childLatest);
+    }
+  }
+  return dates.length > 0 ? max(dates) : null;
+}
+
+function getEffectiveCompletionTime(task: Task): Date | null {
+  const dates: Date[] = [];
+  const completedAt = task.completed_at;
+  if (completedAt && isCompletedThisWeek(completedAt)) {
+    dates.push(parseISO(completedAt));
+  }
+  const subtaskLatest = getLatestSubtaskCompletionTime(task.subtasks);
+  if (subtaskLatest) {
+    dates.push(subtaskLatest);
+  }
+  return dates.length > 0 ? max(dates) : null;
 }
 
 function collectCompletedSubtasks(subtasks: Subtask[], indent = '  '): string[] {
@@ -62,7 +90,14 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
   const groupsWithTasks = list.groups
     .map((group) => ({
       name: group.name,
-      tasks: group.tasks.filter(shouldIncludeTask),
+      tasks: group.tasks
+        .filter(shouldIncludeTask)
+        .sort((a, b) => {
+          const timeA = getEffectiveCompletionTime(a);
+          const timeB = getEffectiveCompletionTime(b);
+          if (!timeA || !timeB) return 0;
+          return compareAsc(timeA, timeB);
+        }),
     }))
     .filter((group) => group.tasks.length > 0);
 

@@ -146,8 +146,10 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const { activeListName, list, saveListContent } = ctx;
 
     const created = todayIso();
-    const maxOrder = Math.max(0, ...list.groups.flatMap((g) => g.tasks.map((t) => t.meta.order ?? 0)));
     const targetGroup = group ?? list.groups[0]?.name ?? '默认分组';
+    const existingGroup = list.groups.find((g) => g.name === targetGroup);
+    const groupTasks = existingGroup?.tasks ?? [];
+    const minOrder = groupTasks.length > 0 ? Math.min(...groupTasks.map((t) => t.meta.order ?? 0)) : 1;
 
     const newTask: Task = {
       id: generateTaskId(title, created),
@@ -156,7 +158,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       meta: {
         priority: 'med',
         created,
-        order: maxOrder + 1,
+        order: groupTasks.length > 0 ? minOrder - 1 : 1,
       },
       subtasks: [],
     };
@@ -164,7 +166,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const groupIndex = list.groups.findIndex((g) => g.name === targetGroup);
     const nextList = { ...list };
     if (groupIndex >= 0) {
-      nextList.groups = nextList.groups.map((g, i) => (i === groupIndex ? { ...g, tasks: [...g.tasks, newTask] } : g));
+      nextList.groups = nextList.groups.map((g, i) => (i === groupIndex ? { ...g, tasks: [newTask, ...g.tasks] } : g));
     } else {
       nextList.groups = [...nextList.groups, { name: targetGroup, tasks: [newTask] }];
     }
