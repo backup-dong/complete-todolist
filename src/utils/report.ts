@@ -1,4 +1,4 @@
-import { endOfWeek, format, isWithinInterval, parseISO, startOfWeek } from 'date-fns';
+import { compareAsc, endOfWeek, format, isWithinInterval, max, parseISO, startOfWeek } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import type { ParsedList, Subtask, Task } from '@/types';
 import { toast } from '@/utils/toast';
@@ -30,13 +30,52 @@ function hasSubtaskCompletedThisWeek(subtasks: Subtask[]): boolean {
   );
 }
 
-function collectCompletedSubtasks(subtasks: Subtask[], indent = '  '): string[] {
+function getLatestSubtaskCompletionTime(subtasks: Subtask[]): Date | null {
+  const dates: Date[] = [];
+  for (const s of subtasks) {
+    const completedAt = s.completed_at;
+    if (completedAt && isCompletedThisWeek(completedAt)) {
+      dates.push(parseISO(completedAt));
+    }
+    const childLatest = getLatestSubtaskCompletionTime(s.children);
+    if (childLatest) {
+      dates.push(childLatest);
+    }
+  }
+  return dates.length > 0 ? max(dates) : null;
+}
+
+function getEffectiveCompletionTime(task: Task): Date | null {
+  const dates: Date[] = [];
+  const completedAt = task.completed_at;
+  if (completedAt && isCompletedThisWeek(completedAt)) {
+    dates.push(parseISO(completedAt));
+  }
+  const subtaskLatest = getLatestSubtaskCompletionTime(task.subtasks);
+  if (subtaskLatest) {
+    dates.push(subtaskLatest);
+  }
+  return dates.length > 0 ? max(dates) : null;
+}
+
+function collectCompletedSubtasks(
+  subtasks: Subtask[],
+  indent = '  ',
+  includeAllCompleted = false,
+): string[] {
   const lines: string[] = [];
   for (const s of subtasks) {
-    if (isCompletedThisWeek(s.completed_at)) {
+    const completedThisWeek = isCompletedThisWeek(s.completed_at);
+    if (completedThisWeek || (includeAllCompleted && s.completed)) {
       lines.push(`${indent}- ${s.text}`);
     }
-    lines.push(...collectCompletedSubtasks(s.children, `${indent}  `));
+    lines.push(
+      ...collectCompletedSubtasks(
+        s.children,
+        `${indent}  `,
+        includeAllCompleted || completedThisWeek,
+      ),
+    );
   }
   return lines;
 }
@@ -62,7 +101,14 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
   const groupsWithTasks = list.groups
     .map((group) => ({
       name: group.name,
-      tasks: group.tasks.filter(shouldIncludeTask),
+      tasks: group.tasks
+        .filter(shouldIncludeTask)
+        .sort((a, b) => {
+          const timeA = getEffectiveCompletionTime(a);
+          const timeB = getEffectiveCompletionTime(b);
+          if (!timeA || !timeB) return 0;
+          return compareAsc(timeA, timeB);
+        }),
     }))
     .filter((group) => group.tasks.length > 0);
 
@@ -80,7 +126,13 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
     for (let j = 0; j < group.tasks.length; j++) {
       const task = group.tasks[j];
       lines.push(`${j + 1}. ${task.title}`);
-      lines.push(...collectCompletedSubtasks(task.subtasks));
+      lines.push(
+        ...collectCompletedSubtasks(
+          task.subtasks,
+          '  ',
+          isCompletedThisWeek(task.completed_at),
+        ),
+      );
     }
     lines.push('');
   }

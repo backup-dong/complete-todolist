@@ -172,6 +172,8 @@ function SubtaskEditor({
   onChange,
   onDelete,
   depth,
+  expandedPath,
+  onExpand,
   dragHandleAttributes,
   dragHandleListeners,
 }: {
@@ -180,10 +182,12 @@ function SubtaskEditor({
   onChange: (path: number[], updated: Subtask) => void;
   onDelete: (path: number[]) => void;
   depth: number;
+  expandedPath: number[] | null;
+  onExpand: (path: number[] | null) => void;
   dragHandleAttributes?: DraggableAttributes;
   dragHandleListeners?: ReturnType<typeof useSortable>['listeners'];
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const expanded = pathsEqual(expandedPath, path);
 
   const handleChange = (patch: Partial<Subtask>) => {
     onChange(path, { ...subtask, ...patch });
@@ -238,7 +242,7 @@ function SubtaskEditor({
         )}
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => onExpand(expanded ? null : path)}
           title="备注/链接"
           className={[
             'btn-ghost p-1.5',
@@ -250,7 +254,12 @@ function SubtaskEditor({
         </button>
         <button
           type="button"
-          onClick={() => onDelete(path)}
+          onClick={() => {
+            if (expanded || pathStartsWith(expandedPath, path)) {
+              onExpand(null);
+            }
+            onDelete(path);
+          }}
           title="删除"
           className="btn-ghost p-1.5 text-[var(--color-danger)] hover:bg-[var(--color-danger-subtle)]"
           aria-label="删除子任务"
@@ -298,6 +307,8 @@ function SubtaskEditor({
           onChange={onChange}
           onDelete={onDelete}
           depth={depth + 1}
+          expandedPath={expandedPath}
+          onExpand={onExpand}
         />
       </div>
     </div>
@@ -310,12 +321,16 @@ function SortableSubtaskEditor({
   onChange,
   onDelete,
   depth,
+  expandedPath,
+  onExpand,
 }: {
   subtask: Subtask;
   path: number[];
   onChange: (path: number[], updated: Subtask) => void;
   onDelete: (path: number[]) => void;
   depth: number;
+  expandedPath: number[] | null;
+  onExpand: (path: number[] | null) => void;
 }) {
   const id = path.join('.');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -336,6 +351,8 @@ function SortableSubtaskEditor({
         onChange={onChange}
         onDelete={onDelete}
         depth={depth}
+        expandedPath={expandedPath}
+        onExpand={onExpand}
         dragHandleAttributes={attributes}
         dragHandleListeners={listeners}
       />
@@ -349,12 +366,16 @@ function SubtaskList({
   onChange,
   onDelete,
   depth,
+  expandedPath,
+  onExpand,
 }: {
   subtasks: Subtask[];
   parentPath: number[];
   onChange: (path: number[], updated: Subtask) => void;
   onDelete: (path: number[]) => void;
   depth: number;
+  expandedPath: number[] | null;
+  onExpand: (path: number[] | null) => void;
 }) {
   const ids = useMemo(() => subtasks.map((_, i) => [...parentPath, i].join('.')), [subtasks, parentPath]);
 
@@ -369,6 +390,8 @@ function SubtaskList({
             onChange={onChange}
             onDelete={onDelete}
             depth={depth}
+            expandedPath={expandedPath}
+            onExpand={onExpand}
           />
         ))}
       </div>
@@ -396,6 +419,17 @@ function getChildrenAtPath(subtasks: Subtask[], path: number[]): Subtask[] {
   return current;
 }
 
+function pathsEqual(a: number[] | null, b: number[] | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.length !== b.length) return false;
+  return a.every((v, i) => v === b[i]);
+}
+
+function pathStartsWith(path: number[] | null, prefix: number[]): boolean {
+  if (!path || path.length < prefix.length) return false;
+  return prefix.every((v, i) => path[i] === v);
+}
+
 function TaskSubtasksEditor({
   subtasks,
   onChange,
@@ -403,11 +437,16 @@ function TaskSubtasksEditor({
   subtasks: Subtask[];
   onChange: (subtasks: Subtask[]) => void;
 }) {
+  const [expandedPath, setExpandedPath] = useState<number[] | null>(null);
+
   const handleChange = (path: number[], updated: Subtask) => {
     onChange(updateSubtaskAtPath(subtasks, path, () => updated));
   };
 
   const handleDelete = (path: number[]) => {
+    if (pathsEqual(expandedPath, path) || pathStartsWith(expandedPath, path)) {
+      setExpandedPath(null);
+    }
     onChange(deleteSubtaskAtPath(subtasks, path));
   };
 
@@ -416,6 +455,7 @@ function TaskSubtasksEditor({
   };
 
   const handleReorder = (parentPath: number[], fromIndex: number, toIndex: number) => {
+    setExpandedPath(null);
     onChange(reorderSubtasksAtPath(subtasks, parentPath, fromIndex, toIndex));
   };
 
@@ -447,6 +487,7 @@ function TaskSubtasksEditor({
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const handleDragStart = (event: DragStartEvent) => {
+    setExpandedPath(null);
     setActiveId(event.active.id as string);
   };
 
@@ -477,6 +518,8 @@ function TaskSubtasksEditor({
           onChange={handleChange}
           onDelete={handleDelete}
           depth={0}
+          expandedPath={expandedPath}
+          onExpand={setExpandedPath}
         />
         <button
           type="button"

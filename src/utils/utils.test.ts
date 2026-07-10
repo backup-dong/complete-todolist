@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { isDueToday, isOverdue, isDueThisWeek, formatDate, durationDays } from '@/utils/date';
 import {
   getCurrentWeekRange,
@@ -23,10 +23,18 @@ describe('date utils', () => {
     expect(isOverdue(today)).toBe(false);
   });
 
-  it('detects dates due within a week', () => {
-    const today = new Date();
-    const inThreeDays = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    expect(isDueThisWeek(inThreeDays)).toBe(true);
+  it('detects dates due this week (Mon-Sun)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-08T12:00:00'));
+    try {
+      expect(isDueThisWeek('2026-07-06')).toBe(true); // 本周一
+      expect(isDueThisWeek('2026-07-08')).toBe(true); // 今天（周三）
+      expect(isDueThisWeek('2026-07-12')).toBe(true); // 本周日
+      expect(isDueThisWeek('2026-07-05')).toBe(false); // 上周日
+      expect(isDueThisWeek('2026-07-13')).toBe(false); // 下周一
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('formats relative dates', () => {
