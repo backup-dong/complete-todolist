@@ -1,4 +1,4 @@
-import { format, isSameDay, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns';
+import { format, isSameDay, isToday, isTomorrow, isYesterday, isWithinInterval, parseISO, startOfWeek, endOfWeek } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 export function nowIso(): string {
@@ -48,10 +48,10 @@ export function isDueThisWeek(iso?: string): boolean {
   if (!iso) return false;
   try {
     const date = parseISO(iso);
-    const today = new Date();
-    const diffTime = date.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 && diffDays <= 7;
+    const now = new Date();
+    const start = startOfWeek(now, { weekStartsOn: 1 });
+    const end = endOfWeek(now, { weekStartsOn: 1 });
+    return isWithinInterval(date, { start, end });
   } catch {
     return false;
   }

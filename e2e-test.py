@@ -121,13 +121,16 @@ def run_tests():
         if not page.locator('h1:has-text("工作")').is_visible():
             log_failure('Active list heading "工作" not visible')
 
-        # 4. Create a task
+        # 4. Create a task by pressing Enter and verify the editor dialog opens
         page.locator('input[placeholder="新建任务..."]').fill('测试任务')
-        page.locator('input[placeholder="新建任务..."] + button').click()
+        page.keyboard.press('Enter')
         page.wait_for_timeout(800)
 
         if not page.locator('text=测试任务').is_visible():
             log_failure('Newly created task "测试任务" not visible')
+
+        if not page.locator('[data-testid="task-editor"]').is_visible():
+            log_failure('Task editor did not open after pressing Enter to create task')
 
         # 创建任务后会自动打开编辑器弹窗，先关闭它再继续列表操作
         page.click('button[aria-label="关闭"]')

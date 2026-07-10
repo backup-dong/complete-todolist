@@ -147,7 +147,10 @@ function NewTaskBar({
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') onCreate();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onCreate();
+          }
         }}
         placeholder="新建任务..."
         className="input flex-1"
@@ -241,10 +244,10 @@ export function ContentArea() {
 
   const selectedTask = displayTasks.find((t) => t.id === selectedTaskId) ?? null;
 
-  const handleCreateTask = () => {
+  const handleCreateTask = async () => {
     const title = newTaskTitle.trim();
     if (!title) return;
-    createTask(title, effectiveNewTaskGroup);
+    await createTask(title, effectiveNewTaskGroup);
     setNewTaskTitle('');
   };
 
