@@ -58,13 +58,24 @@ function getEffectiveCompletionTime(task: Task): Date | null {
   return dates.length > 0 ? max(dates) : null;
 }
 
-function collectCompletedSubtasks(subtasks: Subtask[], indent = '  '): string[] {
+function collectCompletedSubtasks(
+  subtasks: Subtask[],
+  indent = '  ',
+  includeAllCompleted = false,
+): string[] {
   const lines: string[] = [];
   for (const s of subtasks) {
-    if (isCompletedThisWeek(s.completed_at)) {
+    const completedThisWeek = isCompletedThisWeek(s.completed_at);
+    if (completedThisWeek || (includeAllCompleted && s.completed)) {
       lines.push(`${indent}- ${s.text}`);
     }
-    lines.push(...collectCompletedSubtasks(s.children, `${indent}  `));
+    lines.push(
+      ...collectCompletedSubtasks(
+        s.children,
+        `${indent}  `,
+        includeAllCompleted || completedThisWeek,
+      ),
+    );
   }
   return lines;
 }
@@ -115,7 +126,13 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
     for (let j = 0; j < group.tasks.length; j++) {
       const task = group.tasks[j];
       lines.push(`${j + 1}. ${task.title}`);
-      lines.push(...collectCompletedSubtasks(task.subtasks));
+      lines.push(
+        ...collectCompletedSubtasks(
+          task.subtasks,
+          '  ',
+          isCompletedThisWeek(task.completed_at),
+        ),
+      );
     }
     lines.push('');
   }

@@ -133,6 +133,42 @@ describe('generateWeeklyReport', () => {
     expect(report.indexOf('任务 A')).toBeLessThan(report.indexOf('任务 B'));
   });
 
+  it('父任务本周完成时，列出所有已完成的子任务（不仅限于本周完成的）', () => {
+    const list = buildList([
+      buildTask('父任务本周完成', {
+        completed_at: thisWeekDay(2),
+        subtasks: [
+          {
+            text: '本周子任务',
+            level: 1,
+            completed: true,
+            completed_at: thisWeekDay(1),
+            children: [],
+          },
+          {
+            text: '上周子任务',
+            level: 1,
+            completed: true,
+            completed_at: '2026-06-30T10:00:00+08:00',
+            children: [],
+          },
+          {
+            text: '未完成子任务',
+            level: 1,
+            completed: false,
+            children: [],
+          },
+        ],
+      }),
+    ]);
+
+    const report = generateWeeklyReport('测试清单', list);
+    expect(report).toContain('1. 父任务本周完成');
+    expect(report).toContain('  - 本周子任务');
+    expect(report).toContain('  - 上周子任务');
+    expect(report).not.toContain('未完成子任务');
+  });
+
   it('本周无完成事项时返回空字符串', () => {
     const list = buildList([buildTask('未完成任务')]);
     expect(generateWeeklyReport('测试清单', list)).toBe('');
