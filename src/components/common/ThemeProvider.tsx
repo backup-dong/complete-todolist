@@ -8,6 +8,14 @@ function applyThemeClass(theme: 'light' | 'dark') {
   } else {
     root.classList.remove('dark');
   }
+  updateThemeColor(theme);
+}
+
+function updateThemeColor(theme: 'light' | 'dark') {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute('content', theme === 'dark' ? '#121212' : '#FDFCFA');
+  }
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {

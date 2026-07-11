@@ -12,5 +12,6 @@
 | 详情弹框，既有尖角，又有圆角 | 是 | 给 `Dialog.Content` 增加 `overflow-hidden`，让内部直角被外层圆角裁剪 |
 | 筛选条件，已逾期应该是到时间了没完成，而不是过去全部待办 | 是 | `matchesFilter` 的 overdue 条件增加 `task.meta.status !== 'done'`，已完成的逾期任务不再出现在已逾期筛选中 |
 | 导出周报，有些子任务会没有导出 | 是 | `collectCompletedSubtasks` 增加 `includeAllCompleted` 参数；父任务本周完成时，列出其下所有已完成的子任务 |
+| 移动端打开侧边栏后关闭，顶部和底部也就是手机导航栏还是灰色的 | 是 | 补充 `viewport-fit=cover` 与 `black-translucent` 状态栏配置，`ThemeProvider` 动态同步 `theme-color`，并在移动端头部/底部/抽屉/弹窗添加 `env(safe-area-inset-*)` 内边距 |
 
-_最后更新：2026-07-10_
+_最后更新：2026-07-11_

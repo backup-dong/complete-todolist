@@ -539,7 +539,12 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   };
 
   return (
-    <aside className="flex h-full w-60 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-raised)]">
+    <aside
+      className={[
+        'flex h-full w-60 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-raised)]',
+        onClose ? 'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : '',
+      ].join(' ')}
+    >
       <div className="flex items-center justify-between border-b border-[var(--color-border)] p-4">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--color-primary)] text-white">
