@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { initGitHub, clearGitHub, listMarkdownFiles, getFileContent, writeFileContent } from '@/github/client';
+import { initGitHub, clearGitHub, listFilesByExtension, getFileContent, writeFileContent } from '@/github/client';
 import type { GithubConfig, SyncStatusState } from '@/types';
 import {
   loadConfig,
@@ -10,7 +10,11 @@ import {
   getCachedShaMap,
   getPendingWrites,
   clearPendingWrite,
+  migrateLocalStorageCache,
 } from '@/utils/storage';
+
+// 启动时先迁移本地缓存格式
+migrateLocalStorageCache();
 
 interface SyncStore extends SyncStatusState {
   config: GithubConfig | null;
@@ -120,7 +124,7 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
     }
 
     try {
-      const remoteFiles = await listMarkdownFiles(config);
+      const remoteFiles = await listFilesByExtension(config, '.json');
       const remoteMap: Record<string, string> = {};
       remoteFiles.forEach((f) => {
         remoteMap[f.name] = f.sha;

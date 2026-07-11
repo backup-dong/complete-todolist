@@ -5,7 +5,7 @@ import { isDueToday, isDueThisWeek, isOverdue, nowIso, todayIso, durationDays } 
 import { computeNextDue } from '@/utils/repeat';
 import { cloneSubtasks, resetSubtasks, toggleSubtaskAtPath } from '@/utils/subtasks';
 import { useListsStore } from './listsStore';
-import { normalizeTask } from '@/parser/serializer';
+import { normalizeTask } from '@/parser';
 
 interface TasksState {
   tasks: Task[];

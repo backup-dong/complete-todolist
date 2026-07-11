@@ -62,6 +62,12 @@ export interface Group {
   tasks: Task[];
 }
 
+export interface JsonListFile {
+  version: number;
+  meta: ListMeta;
+  groups: Group[];
+}
+
 // ========== 组件 Props ==========
 
 export type SortMode = 'drag' | 'due' | 'priority';

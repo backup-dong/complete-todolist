@@ -110,7 +110,84 @@
 | `tasks.subtasks` | 嵌套子任务数组，`children` 支持递归。 |
 | `tasks.completed_at` / `duration` | 显式记录完成时间和耗时，不再依赖 `🏁` 行解析。 |
 
-### 3.4 与现有类型的映射
+### 3.4 JSON 表（对象）设计
+
+下表给出 V1 格式中各层级对象的字段、类型、约束与默认值。JSON 文件在物理上是嵌套对象，但逻辑上可视为以下几张“表”。
+
+#### 清单文件顶层 (`JsonListFile`)
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `version` | `integer` | 是 | `1` | 文件格式版本，当前固定为 `1`。 |
+| `meta` | `object` (`ListMeta`) | 是 | - | 清单级元数据。 |
+| `groups` | `array` (`Group[]`) | 是 | `[]` | 分组数组。 |
+
+#### 清单元数据 (`ListMeta`)
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `name` | `string` | 是 | `"未命名清单"` | 清单显示名称，对应 Markdown 中的 `# 标题`。 |
+| `created` | `string` (ISO 8601 date) | 是 | 当前日期 | 清单创建日期，格式 `yyyy-MM-dd`。 |
+| `archived` | `boolean` | 是 | `false` | 是否归档。归档清单应存放在 `_archived/` 目录。 |
+
+#### 分组 (`Group`)
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `name` | `string` | 是 | `"默认分组"` | 分组名称。当文件中没有分组时，解析器会自动注入一个默认分组。 |
+| `tasks` | `array` (`Task[]`) | 是 | `[]` | 该分组下的任务数组。 |
+
+#### 任务 (`Task`)
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `id` | `string` | 是 | 自动生成 | 稳定任务标识。旧 `.md` 迁移时保留 `generateTaskId(title, created)` 的 hash；新增任务建议使用 UUIDv4。 |
+| `title` | `string` | 是 | `""` | 任务标题。 |
+| `group` | `string` | 是 | 所属分组名 | 冗余记录任务所属分组，便于扁平化查询与移动分组后定位。 |
+| `meta` | `object` (`TaskMeta`) | 是 | - | 任务级元数据。 |
+| `subtasks` | `array` (`Subtask[]`) | 是 | `[]` | 子任务数组，支持递归嵌套。 |
+| `note` | `string` / `null` | 否 | `null` | 任务备注，允许是任意 Markdown 字符串，**不再参与结构解析**。 |
+| `links` | `array` (`Link[]`) / `null` | 否 | `null` | 任务链接数组。 |
+| `completed_at` | `string` (ISO 8601) / `null` | 否 | `null` | 任务完成时间。由 `normalizeTask` 在状态变为 `done` 时自动填充。 |
+| `duration` | `string` / `null` | 否 | `null` | 耗时文字，例如 `"3d"`。由 `normalizeTask` 自动计算。 |
+
+#### 任务元数据 (`TaskMeta`)
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `status` | `string` enum | 否 | 由子任务推断 | 取值：`pending`、`active`、`done`。 |
+| `priority` | `string` enum | 是 | `"med"` | 取值：`high`、`med`、`low`。 |
+| `created` | `string` (ISO 8601 date) | 是 | 当前日期 | 任务创建日期。 |
+| `start` | `string` (ISO 8601 date) | 否 | - | 计划开始日期。 |
+| `due` | `string` (ISO 8601 date) | 否 | - | 截止日期。 |
+| `repeat` | `string` | 否 | - | 重复规则：`daily`、`weekly`、`monthly`、`weekdays` 或自定义逗号分隔的星期/日期。 |
+| `repeat_until` | `string` (ISO 8601 date) | 否 | - | 重复截止日期。 |
+| `repeat_count` | `integer` | 否 | - | 最大重复次数。 |
+| `order` | `integer` | 否 | - | 同组内排序权重。 |
+| `tags` | `array` (`string[]`) | 否 | - | 标签数组。 |
+
+#### 子任务 (`Subtask`)
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `text` | `string` | 是 | `""` | 子任务文本。 |
+| `level` | `integer` | 是 | `1` | 层级，取值 `1`、`2`、`3`，对应不同缩进。 |
+| `completed` | `boolean` | 是 | `false` | 是否完成。 |
+| `completed_at` | `string` (ISO 8601) / `null` | 否 | `null` | 完成时间。 |
+| `start` | `string` (ISO 8601 date) / `null` | 否 | `null` | 开始日期。 |
+| `due` | `string` (ISO 8601 date) / `null` | 否 | `null` | 截止日期。 |
+| `note` | `string` / `null` | 否 | `null` | 子任务备注，允许含 `###`、`- [ ]` 等 Markdown 而不会被误解为结构标记。 |
+| `links` | `array` (`Link[]`) / `null` | 否 | `null` | 子任务链接。 |
+| `children` | `array` (`Subtask[]`) | 是 | `[]` | 嵌套子任务，递归结构。 |
+
+#### 链接 (`Link`)
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `title` | `string` | 是 | - | 链接标题。 |
+| `url` | `string` (URL) | 是 | - | 链接地址。 |
+
+### 3.5 与现有类型的映射
 
 ```ts
 interface JsonListFile {
@@ -667,5 +744,5 @@ status: active | priority: high | due: 2026-07-10 | created: 2026-06-28
 
 ---
 
-_文档版本：v1.0_  
-_最后更新：2026-07-10_
+_文档版本：v1.1_  
+_最后更新：2026-07-11_

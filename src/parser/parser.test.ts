@@ -253,7 +253,7 @@ priority: med | created: 2026-07-01
     expect(parsed.groups[0].name).toBe('默认分组');
     expect(parsed.groups[0].tasks).toHaveLength(0);
   });
-});
+
 
   it('round-trips subtask notes containing multi-line unordered lists', () => {
     const markdown = `# 测试
@@ -306,6 +306,7 @@ priority: med | created: 2026-07-01
     expect(task.subtasks[0].start).toBe('2026-07-05');
     expect(task.subtasks[0].due).toBe('2026-07-10');
   });
+});
 
 describe('scanBlocks', () => {
   it('ignores visual separators between tasks', () => {

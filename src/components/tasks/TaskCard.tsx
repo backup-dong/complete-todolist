@@ -225,6 +225,7 @@ export function TaskCard({
 
   return (
     <div
+      data-testid="task-card"
       onClick={handleCardClick}
       className={[
         'group relative cursor-pointer rounded-lg border p-3 shadow-sm transition-all duration-150 ease-out hover:shadow-md md:p-4',
