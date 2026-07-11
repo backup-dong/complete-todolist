@@ -49,7 +49,7 @@ export function ToastContainer() {
 
   return (
     <div
-      className="fixed left-1/2 top-4 z-50 flex -translate-x-1/2 flex-col items-center gap-2"
+      className="fixed left-1/2 top-[calc(1rem+env(safe-area-inset-top))] z-50 flex -translate-x-1/2 flex-col items-center gap-2"
       aria-live="polite"
       aria-atomic="true"
     >
