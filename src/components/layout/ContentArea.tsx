@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Inbox, ListChecks, Menu, Plus, X } from 'lucide-react';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
@@ -226,6 +226,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
+  const taskListScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!highlightedTaskId) return;
@@ -274,10 +275,33 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
     const id = await createTask(title, effectiveNewTaskGroup);
     setNewTaskTitle('');
     if (!id) return;
-    setHighlightedTaskId(id);
+
     window.setTimeout(() => {
       const el = document.querySelector(`[data-task-id="${id}"]`);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const container = taskListScrollRef.current;
+      if (!el || !container) {
+        setHighlightedTaskId(id);
+        return;
+      }
+
+      // 先滚动到任务位置，等任务进入视野后再高亮
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) {
+            observer.disconnect();
+            setHighlightedTaskId(id);
+          }
+        },
+        { root: container, threshold: 0.5 },
+      );
+      observer.observe(el);
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // 兜底：滚动极短或 observer 未触发时仍要高亮
+      window.setTimeout(() => {
+        observer.disconnect();
+        setHighlightedTaskId(id);
+      }, 500);
     }, 0);
   };
 
@@ -389,7 +413,10 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
               </div>
             </div>
 
-            <div className={`flex-1 overflow-y-auto ${batchMode ? 'pb-20 md:pb-0' : ''}`}>
+            <div
+              ref={taskListScrollRef}
+              className={`flex-1 overflow-y-auto ${batchMode ? 'pb-20 md:pb-0' : ''}`}
+            >
               <TaskList
                 tasks={displayTasks}
                 sortMode={sortMode}

@@ -221,7 +221,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
 
     await saveListContent(activeListName, nextList);
-    set({ tasks: flattenTasks(activeListName), selectedTaskId: newTask.id });
+    set({ tasks: flattenTasks(activeListName) });
     return newTask.id;
   },
 
