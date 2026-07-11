@@ -18,7 +18,7 @@ export function Settings() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex min-h-dvh">
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-sm">
           <div className="mb-6 flex items-center justify-between">

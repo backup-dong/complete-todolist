@@ -352,7 +352,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu: () => void }) {
   }
 
   return (
-    <div className="flex h-full flex-1 overflow-hidden">
+    <div className="flex min-h-dvh flex-1 flex-col overflow-hidden md:min-h-0">
       <div className="flex flex-1 flex-col">
         <MobileHeader
           title={activeListName}
