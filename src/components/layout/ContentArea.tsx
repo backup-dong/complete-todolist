@@ -34,11 +34,13 @@ function MobileHeader({
   title,
   done,
   total,
+  showProgress = true,
   onOpenMenu,
 }: {
   title: string;
   done: number;
   total: number;
+  showProgress?: boolean;
   onOpenMenu: () => void;
 }) {
   return (
@@ -53,7 +55,7 @@ function MobileHeader({
       </button>
       <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-2">
         <h1 className="truncate text-base font-semibold text-[var(--color-text)]">{title}</h1>
-        {total > 0 && <ProgressBar done={done} total={total} />}
+        {showProgress && total > 0 && <ProgressBar done={done} total={total} />}
       </div>
       <div className="w-9" />
     </div>
@@ -364,6 +366,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
           title={todoView ? todoViewTitles[todoView] : activeListName ?? ''}
           done={doneCount}
           total={totalCount}
+          showProgress={!todoView}
           onOpenMenu={onOpenMenu ?? (() => {})}
         />
 
@@ -371,13 +374,10 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
 
         {todoView ? (
           <>
-            <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-              <div className="flex items-center justify-between">
-                <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text)]">
-                  {todoViewTitles[todoView]}
-                </h1>
-                {totalCount > 0 && <ProgressBar done={doneCount} total={totalCount} />}
-              </div>
+            <div className="hidden md:block border-b border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+              <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text)]">
+                {todoViewTitles[todoView]}
+              </h1>
             </div>
             <div className="flex-1 overflow-y-auto">
               <TodoView
