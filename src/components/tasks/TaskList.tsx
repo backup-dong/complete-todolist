@@ -25,6 +25,7 @@ function SortableTaskCard({
   task,
   sortMode,
   selected,
+  highlight,
   selectable,
   onToggle,
   onSelect,
@@ -35,6 +36,7 @@ function SortableTaskCard({
   task: Task;
   sortMode: 'drag' | 'due' | 'priority';
   selected?: boolean;
+  highlight?: boolean;
   selectable?: boolean;
   onToggle: (path: number[]) => void;
   onSelect: () => void;
@@ -72,6 +74,7 @@ function SortableTaskCard({
       <TaskCard
         task={task}
         selected={selected}
+        highlight={highlight}
         selectable={selectable}
         onToggleSelect={onToggleSelect}
         onToggle={onToggle}
@@ -88,6 +91,7 @@ function GroupSection({
   tasks,
   sortMode,
   selectedIds,
+  highlightedTaskId,
   selectable,
   onToggle,
   onSelect,
@@ -99,6 +103,7 @@ function GroupSection({
   tasks: Task[];
   sortMode: 'drag' | 'due' | 'priority';
   selectedIds: Set<string>;
+  highlightedTaskId?: string;
   selectable?: boolean;
   onToggle: (taskId: string, path: number[]) => void;
   onSelect: (taskId: string) => void;
@@ -138,6 +143,7 @@ function GroupSection({
                 task={task}
                 sortMode={sortMode}
                 selected={selectedIds.has(task.id)}
+                highlight={highlightedTaskId === task.id}
                 selectable={selectable}
                 onToggle={(path) => onToggle(task.id, path)}
                 onSelect={() => onSelect(task.id)}
@@ -159,6 +165,7 @@ export function TaskList({
   groupBy = false,
   selectable = false,
   selectedIds = new Set(),
+  highlightedTaskId,
   onReorder,
   onReorderInGroup,
   onToggle,
@@ -172,6 +179,7 @@ export function TaskList({
   groupBy?: boolean;
   selectable?: boolean;
   selectedIds?: Set<string>;
+  highlightedTaskId?: string;
   onReorder: (from: number, to: number) => void;
   onReorderInGroup?: (groupName: string, from: number, to: number) => void;
   onToggle: (taskId: string, path: number[]) => void;
@@ -271,6 +279,7 @@ export function TaskList({
                 tasks={group.tasks}
                 sortMode={sortMode}
                 selectedIds={selectedIds}
+                highlightedTaskId={highlightedTaskId}
                 selectable={selectable}
                 onToggle={onToggle}
                 onSelect={onSelect}
@@ -290,6 +299,7 @@ export function TaskList({
                 task={task}
                 sortMode={sortMode}
                 selected={selectedIds.has(task.id)}
+                highlight={highlightedTaskId === task.id}
                 selectable={selectable}
                 onToggle={(path) => onToggle(task.id, path)}
                 onSelect={() => onSelect(task.id)}

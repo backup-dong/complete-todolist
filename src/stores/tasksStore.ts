@@ -16,7 +16,7 @@ interface TasksState {
   todoView: TodoViewKey | null;
 
   loadTasks: (listName: string) => Promise<void>;
-  createTask: (title: string, group?: string) => Promise<void>;
+  createTask: (title: string, group?: string) => Promise<string | undefined>;
   updateTask: (id: string, patch: Omit<Partial<Task>, 'meta'> & { meta?: Partial<TaskMeta> }) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   deleteTasks: (ids: string[]) => Promise<void>;
@@ -191,7 +191,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   createTask: async (title, group) => {
     const ctx = requireActiveList();
-    if (!ctx) return;
+    if (!ctx) return undefined;
     const { activeListName, list, saveListContent } = ctx;
 
     const created = todayIso();
@@ -222,6 +222,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
     await saveListContent(activeListName, nextList);
     set({ tasks: flattenTasks(activeListName), selectedTaskId: newTask.id });
+    return newTask.id;
   },
 
   updateTask: async (id, patch) => {

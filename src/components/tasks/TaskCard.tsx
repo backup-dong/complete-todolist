@@ -194,6 +194,7 @@ function SubtaskItem({
 export function TaskCard({
   task,
   selected,
+  highlight,
   selectable,
   onToggleSelect,
   onToggle,
@@ -203,6 +204,7 @@ export function TaskCard({
 }: {
   task: Task;
   selected?: boolean;
+  highlight?: boolean;
   selectable?: boolean;
   onToggleSelect?: () => void;
   onToggle: (path: number[]) => void;
@@ -226,12 +228,14 @@ export function TaskCard({
   return (
     <div
       data-testid="task-card"
+      data-task-id={task.id}
       onClick={handleCardClick}
       className={[
         'group relative cursor-pointer rounded-lg border p-3 shadow-sm transition-all duration-150 ease-out hover:shadow-md md:p-4',
         selected
           ? 'border-[var(--color-primary)] bg-[var(--color-primary-subtle)]'
           : 'border-[var(--color-border-subtle)] bg-[var(--color-surface)] hover:border-[var(--color-border)]',
+        highlight ? 'animate-task-highlight' : '',
       ].join(' ')}
     >
       <div className="flex items-start gap-3">

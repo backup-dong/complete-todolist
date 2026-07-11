@@ -1,6 +1,6 @@
 # Dong Todo
 
-基于 Markdown + GitHub Repo 的纯前端待办系统。
+基于 JSON + GitHub Repo 的纯前端待办系统（兼容旧版 Markdown 数据）。
 
 ## 技术栈
 
@@ -16,17 +16,17 @@
 
 ## 数据结构
 
-所有待办数据以 Markdown 文件形式存储于 GitHub 私有仓库的 `todo/` 目录下：
+所有待办数据以 JSON 文件形式存储于 GitHub 私有仓库的 `todo/` 目录下：
 
 ```
 todo/
-├── 工作.md
-├── 学习.md
+├── 工作.json
+├── 学习.json
 └── _archived/
-    └── 工作.md
+    └── 工作.json
 ```
 
-每个 `.md` 文件即一个清单，内部使用 `## 分组` 和 `### 任务` 组织。
+每个 `.json` 文件即一个清单，内部使用 `groups` 数组组织分组，分组内使用 `tasks` 数组组织任务。旧版 `.md` 文件会在首次打开时自动迁移为 `.json`。
 
 ## 开发
 
@@ -45,7 +45,7 @@ npm run build
 
 ## 部署
 
-1. 创建一个 GitHub 私有仓库，用于存储待办 Markdown 数据。
+1. 创建一个 GitHub 私有仓库，用于存储待办 JSON 数据。
 2. 创建另一个仓库（或使用同一仓库的 `gh-pages` 分支）托管前端构建产物。
 3. 在设置页面配置 GitHub Token（Fine-grained PAT，需要 Contents: Read and write 权限）。
 4. 如需部署到子路径，修改 `vite.config.ts` 中的 `base`。
@@ -62,7 +62,7 @@ npm run build
 ## 核心功能
 
 - 清单管理：创建、删除、重命名
-- 分组管理：在任务编辑中创建新分组
+- 分组管理：在侧边栏创建新分组
 - 任务 CRUD：创建、编辑、删除
 - 子任务：最多支持 3 层嵌套
 - 状态自动推断：根据子任务完成情况自动维护主任务状态
@@ -72,12 +72,16 @@ npm run build
 - 排序：拖拽排序（默认）、按截止时间、按优先级
 - 进度可视化
 - GitHub API 同步与本地缓存
-- 周期性任务：daily / weekly / monthly
+- JSON 持久化存储，兼容旧版 Markdown 数据
+- 周期性任务：daily / weekly / monthly / weekdays / 自定义
 - 浏览器 Notification 到期提醒
+- 待办视图聚合：今天 / 本周 / 全部 / 高优先级
+- 周报导出（含下周计划）
 
 ## 设计文档
 
 - UI 设计系统规范：`doc/UI_DESIGN_SYSTEM.md`
-- 产品详细设计文档：`doc/todo-system-detailed-design.md`
+- 产品详细设计文档：`doc/todo-system-detailed-design-v2.0.md`
+- 旧版 Markdown 详细设计：`doc/todo-system-detailed-design.md`
 - 代码架构与开发规范：`CLAUDE.md`
-
+- JSON 存储改造方案：`doc/JSON存储改造方案.md`

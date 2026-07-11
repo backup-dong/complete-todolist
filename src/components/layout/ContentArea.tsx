@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Copy, FolderPlus, Inbox, ListChecks, Menu, Plus, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Copy, Inbox, ListChecks, Menu, Plus, X } from 'lucide-react';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
 import { confirm } from '@/stores/confirmStore';
@@ -66,12 +66,6 @@ function ListHeader({
   total,
   activeGroup,
   onCopyWeeklyReport,
-  onToggleNewGroup,
-  showNewGroup,
-  newGroupName,
-  onNewGroupNameChange,
-  onCreateGroup,
-  onCancelNewGroup,
   sortMode,
   onSortModeChange,
   batchMode,
@@ -82,12 +76,6 @@ function ListHeader({
   total: number;
   activeGroup: string | null;
   onCopyWeeklyReport: () => void;
-  onToggleNewGroup: () => void;
-  showNewGroup: boolean;
-  newGroupName: string;
-  onNewGroupNameChange: (value: string) => void;
-  onCreateGroup: () => void;
-  onCancelNewGroup: () => void;
   sortMode: 'drag' | 'due' | 'priority';
   onSortModeChange: (mode: 'drag' | 'due' | 'priority') => void;
   batchMode: boolean;
@@ -115,32 +103,6 @@ function ListHeader({
           <span className="hidden sm:inline">导出周报</span>
           <span className="sm:hidden">周报</span>
         </button>
-        {showNewGroup ? (
-          <div className="flex shrink-0 items-center gap-1">
-            <input
-              autoFocus
-              value={newGroupName}
-              onChange={(e) => onNewGroupNameChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onCreateGroup();
-                if (e.key === 'Escape') onCancelNewGroup();
-              }}
-              onBlur={() => onCreateGroup()}
-              placeholder="分组名称"
-              className="input w-32 py-1.5 text-xs"
-            />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={onToggleNewGroup}
-            className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
-          >
-            <FolderPlus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">新建分组</span>
-            <span className="sm:hidden">分组</span>
-          </button>
-        )}
         <button
           type="button"
           onClick={onToggleBatchMode}
@@ -173,9 +135,6 @@ function NewTaskBar({
 }) {
   return (
     <div className="flex gap-2">
-      <div className="hidden items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] md:flex">
-        {groupLabel}
-      </div>
       <input
         type="text"
         value={title}
@@ -242,7 +201,7 @@ function BatchActionBar({
 }
 
 export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
-  const { activeListName, activeGroup, fileCache, createGroup } = useListsStore();
+  const { activeListName, activeGroup, fileCache } = useListsStore();
   const {
     sortMode,
     filter,
@@ -264,10 +223,15 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
   } = useTasksStore();
 
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [showNewGroup, setShowNewGroup] = useState(false);
-  const [newGroupName, setNewGroupName] = useState('');
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!highlightedTaskId) return;
+    const timer = window.setTimeout(() => setHighlightedTaskId(null), 1500);
+    return () => window.clearTimeout(timer);
+  }, [highlightedTaskId]);
 
   const todoViewTitles: Record<TodoViewKey, string> = {
     today: '今天',
@@ -307,26 +271,18 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
   const handleCreateTask = async () => {
     const title = newTaskTitle.trim();
     if (!title) return;
-    await createTask(title, effectiveNewTaskGroup);
+    const id = await createTask(title, effectiveNewTaskGroup);
     setNewTaskTitle('');
+    if (!id) return;
+    setHighlightedTaskId(id);
+    window.setTimeout(() => {
+      const el = document.querySelector(`[data-task-id="${id}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
   };
 
   const handleSaveTask = (updated: Task) => {
     updateTask(updated.id, updated);
-  };
-
-  const handleCreateGroup = () => {
-    const name = newGroupName.trim();
-    if (!name) {
-      setNewGroupName('');
-      setShowNewGroup(false);
-      return;
-    }
-    if (!groups.includes(name)) {
-      createGroup(name);
-    }
-    setNewGroupName('');
-    setShowNewGroup(false);
   };
 
   const handleCompleteTask = async (id: string) => {
@@ -422,15 +378,6 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
                     copyWeeklyReport(activeListName!, activeList);
                   }
                 }}
-                onToggleNewGroup={() => setShowNewGroup((v) => !v)}
-                showNewGroup={showNewGroup}
-                newGroupName={newGroupName}
-                onNewGroupNameChange={setNewGroupName}
-                onCreateGroup={handleCreateGroup}
-                onCancelNewGroup={() => {
-                  setNewGroupName('');
-                  setShowNewGroup(false);
-                }}
                 sortMode={sortMode}
                 onSortModeChange={setSortMode}
                 batchMode={batchMode}
@@ -449,6 +396,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
                 groupBy={sortMode === 'drag' && !activeGroup}
                 selectable={batchMode}
                 selectedIds={selectedIds}
+                highlightedTaskId={highlightedTaskId ?? undefined}
                 onReorder={reorderTasks}
                 onReorderInGroup={reorderTasksInGroup}
                 onToggle={toggleSubtask}
