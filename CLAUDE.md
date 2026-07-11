@@ -181,3 +181,8 @@ If no GitHub config exists, the app redirects to `/settings`.
 - When modifying task state, prefer going through `tasksStore` actions; persistence is handled by `listsStore.saveListContent`.
 - When adding new metadata fields, add them to `TaskMeta` in `src/types/index.ts`, to the JSON parser defaults in `src/parser/jsonParser.ts`, and to `jsonSerializer.ts` so the round-trip parse/serialize remains lossless. Only update the legacy Markdown `META_KEYS` / `META_ORDER` switches if the field also needs to survive Markdown migration.
 - Avoid changing the boundary rules in the legacy `scanBlocks` unless you also update the legacy serializer; the Markdown parser relies on `###` and `##` lines as the only structural boundaries. New features should rely on the JSON schema instead.
+
+## Git workflow
+
+- Commit directly to the current branch (usually `main`). Do not create a feature branch unless the user explicitly asks for one.
+- Only push when explicitly asked.
