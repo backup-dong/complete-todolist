@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { FilterState, ParsedList, SortMode, Task, TaskMeta } from '@/types';
+import type { FilterState, ParsedList, SortMode, Task, TaskMeta, TodoViewKey } from '@/types';
 import { generateTaskId } from '@/utils/id';
 import { isDueToday, isDueThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
 import { computeNextDue } from '@/utils/repeat';
@@ -13,6 +13,7 @@ interface TasksState {
   sortMode: SortMode;
   filter: FilterState;
   searchQuery: string;
+  todoView: TodoViewKey | null;
 
   loadTasks: (listName: string) => Promise<void>;
   createTask: (title: string, group?: string) => Promise<void>;
@@ -24,12 +25,15 @@ interface TasksState {
   reorderTasks: (fromIdx: number, toIdx: number) => Promise<void>;
   reorderTasksInGroup: (groupName: string, fromIdx: number, toIdx: number) => Promise<void>;
   refreshTasks: (listName: string) => void;
+  refreshTodoView: () => void;
   selectTask: (id: string | null) => void;
   setSortMode: (mode: SortMode) => void;
   setFilter: (f: Partial<FilterState>) => void;
   setSearchQuery: (q: string) => void;
+  setTodoView: (key: TodoViewKey | null) => void;
   getFilteredTasks: () => Task[];
   getSelectedTask: () => Task | null;
+  getTodoViewCounts: () => Record<TodoViewKey, number>;
 }
 
 interface ActiveListCtx {
@@ -52,18 +56,62 @@ function requireActiveList(): ActiveListCtx | null {
   return { activeListName, list, saveListContent };
 }
 
-function findTaskInList(listName: string, taskId: string): { task: Task; groupIndex: number; taskIndex: number } | null {
-  const list = useListsStore.getState().fileCache[listName];
-  if (!list) return null;
-  for (let gi = 0; gi < list.groups.length; gi++) {
-    const g = list.groups[gi];
-    for (let ti = 0; ti < g.tasks.length; ti++) {
-      if (g.tasks[ti].id === taskId) {
-        return { task: g.tasks[ti], groupIndex: gi, taskIndex: ti };
+function flattenAllTasks(fileCache: Record<string, ParsedList>): Task[] {
+  const tasks: Task[] = [];
+  for (const [listName, list] of Object.entries(fileCache)) {
+    for (const group of list.groups) {
+      for (const task of group.tasks) {
+        tasks.push({ ...task, sourceList: listName });
+      }
+    }
+  }
+  return tasks;
+}
+
+function findTaskAcrossLists(taskId: string): { task: Task; listName: string; groupIndex: number; taskIndex: number } | null {
+  const { fileCache } = useListsStore.getState();
+  for (const [listName, list] of Object.entries(fileCache)) {
+    for (let gi = 0; gi < list.groups.length; gi++) {
+      const g = list.groups[gi];
+      for (let ti = 0; ti < g.tasks.length; ti++) {
+        if (g.tasks[ti].id === taskId) {
+          return { task: g.tasks[ti], listName, groupIndex: gi, taskIndex: ti };
+        }
       }
     }
   }
   return null;
+}
+
+interface TaskContext {
+  listName: string;
+  list: ParsedList;
+  saveListContent: (name: string, list: ParsedList) => Promise<void>;
+}
+
+function requireTaskContext(task?: Task, preferredListName?: string): TaskContext | null {
+  const { activeListName, fileCache, saveListContent } = useListsStore.getState();
+  const listName = preferredListName ?? task?.sourceList ?? activeListName;
+  if (!listName) return null;
+  const list = fileCache[listName];
+  if (!list) return null;
+  return { listName, list, saveListContent };
+}
+
+function matchesTodoView(task: Task, key: TodoViewKey): boolean {
+  if (task.meta.status === 'done') return false;
+  switch (key) {
+    case 'today':
+      return isDueToday(task.meta.due);
+    case 'week':
+      return isDueThisWeek(task.meta.due);
+    case 'all':
+      return true;
+    case 'high':
+      return task.meta.priority === 'high';
+    default:
+      return false;
+  }
 }
 
 function matchesFilter(task: Task, filter: FilterState, query: string): boolean {
@@ -128,6 +176,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   sortMode: 'drag',
   filter: { status: [], priority: 'all', timeRange: 'all' },
   searchQuery: '',
+  todoView: null,
 
   loadTasks: async (listName) => {
     // 先使用本地缓存渲染，避免切换清单时阻塞 UI
@@ -176,18 +225,19 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   updateTask: async (id, patch) => {
-    const ctx = requireActiveList();
-    if (!ctx) return;
-    const { activeListName, list, saveListContent } = ctx;
-
-    const found = findTaskInList(activeListName, id);
+    const found = findTaskAcrossLists(id);
     if (!found) return;
+    const ctx = requireTaskContext(found.task, found.listName);
+    if (!ctx) return;
+    const { listName, list, saveListContent } = ctx;
 
     const explicitStatus = patch.meta?.status;
     const merged = { ...found.task, ...patch };
     if (patch.meta) {
       merged.meta = { ...found.task.meta, ...patch.meta };
     }
+    // sourceList 是运行时聚合字段，不写入清单数据
+    delete (merged as Partial<Task>).sourceList;
     const updatedTask = buildTaskPatch(merged as Task, explicitStatus);
 
     // 如果修改了任务所属分组，需要在 groups 数组间物理移动，
@@ -224,14 +274,21 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
 
     const nextList = { ...list, groups: nextGroups };
-    await saveListContent(activeListName, nextList);
-    set({ tasks: flattenTasks(activeListName) });
+    await saveListContent(listName, nextList);
+
+    if (get().todoView) {
+      set((state) => ({ tasks: sortTasks(flattenAllTasks(useListsStore.getState().fileCache).filter((t) => matchesTodoView(t, state.todoView!)), state.sortMode) }));
+    } else {
+      set({ tasks: flattenTasks(listName) });
+    }
   },
 
   deleteTask: async (id) => {
-    const ctx = requireActiveList();
+    const found = findTaskAcrossLists(id);
+    if (!found) return;
+    const ctx = requireTaskContext(found.task, found.listName);
     if (!ctx) return;
-    const { activeListName, list, saveListContent } = ctx;
+    const { listName, list, saveListContent } = ctx;
 
     const nextList = { ...list };
     nextList.groups = nextList.groups.map((g) => ({
@@ -239,30 +296,66 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       tasks: g.tasks.filter((t) => t.id !== id),
     }));
 
-    await saveListContent(activeListName, nextList);
-    set({ tasks: flattenTasks(activeListName), selectedTaskId: null });
+    await saveListContent(listName, nextList);
+
+    if (get().todoView) {
+      set((state) => ({
+        tasks: sortTasks(
+          flattenAllTasks(useListsStore.getState().fileCache).filter((t) => matchesTodoView(t, state.todoView!)),
+          state.sortMode,
+        ),
+        selectedTaskId: state.selectedTaskId === id ? null : state.selectedTaskId,
+      }));
+    } else {
+      set({ tasks: flattenTasks(listName), selectedTaskId: null });
+    }
   },
 
   deleteTasks: async (ids) => {
-    const ctx = requireActiveList();
-    if (!ctx) return;
-    const { activeListName, list, saveListContent } = ctx;
+    const { fileCache, saveListContent, activeListName } = useListsStore.getState();
     const idSet = new Set(ids);
 
-    const nextList = { ...list };
-    nextList.groups = nextList.groups.map((g) => ({
-      ...g,
-      tasks: g.tasks.filter((t) => !idSet.has(t.id)),
-    }));
+    // 按清单分组，分别删除
+    const tasksByList = new Map<string, Task[]>();
+    for (const [listName, list] of Object.entries(fileCache)) {
+      const matched = list.groups.flatMap((g) => g.tasks.filter((t) => idSet.has(t.id)));
+      if (matched.length > 0) tasksByList.set(listName, matched);
+    }
 
-    await saveListContent(activeListName, nextList);
-    set({ tasks: flattenTasks(activeListName), selectedTaskId: null });
+    // 如果批量删除发生在清单视图且任务都来自当前清单，保持原有行为
+    const targetListName = get().todoView ? null : activeListName;
+
+    for (const [listName, list] of Object.entries(fileCache)) {
+      const hasMatch = list.groups.some((g) => g.tasks.some((t) => idSet.has(t.id)));
+      if (!hasMatch) continue;
+
+      const nextList = { ...list };
+      nextList.groups = nextList.groups.map((g) => ({
+        ...g,
+        tasks: g.tasks.filter((t) => !idSet.has(t.id)),
+      }));
+      await saveListContent(listName, nextList);
+    }
+
+    if (get().todoView) {
+      set((state) => ({
+        tasks: sortTasks(
+          flattenAllTasks(useListsStore.getState().fileCache).filter((t) => matchesTodoView(t, state.todoView!)),
+          state.sortMode,
+        ),
+        selectedTaskId: null,
+      }));
+    } else if (targetListName) {
+      set({ tasks: flattenTasks(targetListName), selectedTaskId: null });
+    }
   },
 
   toggleSubtask: async (taskId, path) => {
-    const ctx = requireActiveList();
+    const found = findTaskAcrossLists(taskId);
+    if (!found) return;
+    const ctx = requireTaskContext(found.task, found.listName);
     if (!ctx) return;
-    const { activeListName, list, saveListContent } = ctx;
+    const { listName, list, saveListContent } = ctx;
 
     const nextList = { ...list };
     nextList.groups = nextList.groups.map((g) => ({
@@ -278,14 +371,26 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       }),
     }));
 
-    await saveListContent(activeListName, nextList);
-    set({ tasks: flattenTasks(activeListName) });
+    await saveListContent(listName, nextList);
+
+    if (get().todoView) {
+      set((state) => ({
+        tasks: sortTasks(
+          flattenAllTasks(useListsStore.getState().fileCache).filter((t) => matchesTodoView(t, state.todoView!)),
+          state.sortMode,
+        ),
+      }));
+    } else {
+      set({ tasks: flattenTasks(listName) });
+    }
   },
 
   completeTaskWithoutSubtasks: async (taskId) => {
-    const ctx = requireActiveList();
+    const found = findTaskAcrossLists(taskId);
+    if (!found) return;
+    const ctx = requireTaskContext(found.task, found.listName);
     if (!ctx) return;
-    const { activeListName, list, saveListContent } = ctx;
+    const { listName, list, saveListContent } = ctx;
 
     const nextList = { ...list };
     nextList.groups = nextList.groups.map((g) => ({
@@ -308,8 +413,19 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       }),
     }));
 
-    await saveListContent(activeListName, nextList);
-    set({ tasks: flattenTasks(activeListName) });
+    await saveListContent(listName, nextList);
+
+    if (get().todoView) {
+      set((state) => ({
+        tasks: sortTasks(
+          flattenAllTasks(useListsStore.getState().fileCache).filter((t) => matchesTodoView(t, state.todoView!)),
+          state.sortMode,
+        ),
+        selectedTaskId: state.selectedTaskId === taskId ? null : state.selectedTaskId,
+      }));
+    } else {
+      set({ tasks: flattenTasks(listName) });
+    }
   },
 
   reorderTasks: async (fromIdx, toIdx) => {
@@ -383,10 +499,36 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     set({ tasks: flattenTasks(listName) });
   },
 
+  refreshTodoView: () => {
+    const { todoView, sortMode } = get();
+    if (!todoView) return;
+    const aggregated = flattenAllTasks(useListsStore.getState().fileCache);
+    const filtered = aggregated.filter((t) => matchesTodoView(t, todoView));
+    set({ tasks: sortTasks(filtered, sortMode) });
+  },
+
   selectTask: (id) => set({ selectedTaskId: id }),
   setSortMode: (mode) => set({ sortMode: mode }),
   setFilter: (f) => set((state) => ({ filter: { ...state.filter, ...f } })),
   setSearchQuery: (q) => set({ searchQuery: q }),
+  setTodoView: (key) => {
+    if (key) {
+      useListsStore.setState({ activeListName: null, activeGroup: null });
+      useListsStore.getState().fetchAllListsContent();
+      set({ todoView: key, selectedTaskId: null, filter: { status: [], priority: 'all', timeRange: 'all' }, searchQuery: '' });
+      const aggregated = flattenAllTasks(useListsStore.getState().fileCache);
+      const filtered = aggregated.filter((t) => matchesTodoView(t, key));
+      set({ tasks: sortTasks(filtered, get().sortMode) });
+    } else {
+      set({ todoView: null, selectedTaskId: null });
+      const { activeListName } = useListsStore.getState();
+      if (activeListName) {
+        set({ tasks: flattenTasks(activeListName) });
+      } else {
+        set({ tasks: [] });
+      }
+    }
+  },
 
   getFilteredTasks: () => {
     const { tasks, filter, searchQuery, sortMode } = get();
@@ -398,14 +540,35 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const { selectedTaskId, tasks } = get();
     return tasks.find((t) => t.id === selectedTaskId) ?? null;
   },
+
+  getTodoViewCounts: () => {
+    const aggregated = flattenAllTasks(useListsStore.getState().fileCache);
+    const keys: TodoViewKey[] = ['today', 'week', 'all', 'high'];
+    return keys.reduce(
+      (acc, key) => {
+        acc[key] = aggregated.filter((t) => matchesTodoView(t, key)).length;
+        return acc;
+      },
+      {} as Record<TodoViewKey, number>,
+    );
+  },
 }));
 
 // 监听清单切换，自动加载任务
 let lastActiveList: string | null = null;
-useListsStore.subscribe((state) => {
+useListsStore.subscribe((state, prevState) => {
   const active = state.activeListName;
   if (active && active !== lastActiveList) {
     lastActiveList = active;
     useTasksStore.getState().loadTasks(active);
+  } else if (!active && prevState?.activeListName) {
+    // activeListName 被清除（例如进入待办视图）时，重置记忆，
+    // 这样切回清单时仍能触发加载。
+    lastActiveList = null;
+  }
+
+  // 待办视图下，fileCache 变化时自动刷新聚合结果
+  if (state.fileCache !== prevState?.fileCache && useTasksStore.getState().todoView) {
+    useTasksStore.getState().refreshTodoView();
   }
 });

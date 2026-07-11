@@ -42,6 +42,7 @@ export interface Task {
   completed_at?: string; // 🏁 时间
   duration?: string; // ⏱ 耗时文字
   group: string; // 所属分组名
+  sourceList?: string; // 仅在待办视图聚合时使用，标识任务来自哪个清单
 }
 
 export interface ListMeta {
@@ -71,6 +72,8 @@ export interface JsonListFile {
 // ========== 组件 Props ==========
 
 export type SortMode = 'drag' | 'due' | 'priority';
+
+export type TodoViewKey = 'today' | 'week' | 'all' | 'high';
 
 export interface FilterState {
   status: TaskStatus[]; // 空数组表示全部

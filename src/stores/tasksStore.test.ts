@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
 import type { ParsedList, Task } from '@/types';
@@ -48,6 +48,7 @@ describe('tasksStore reorder', () => {
       sortMode: 'drag',
       filter: { status: [], priority: 'all', timeRange: 'all' },
       searchQuery: '',
+      todoView: null,
     });
   });
 
@@ -155,5 +156,133 @@ describe('tasksStore reorder', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('tasksStore todo views', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-10T12:00:00'));
+
+    useListsStore.setState({
+      lists: [],
+      activeListName: '工作',
+      activeGroup: null,
+      fileCache: {},
+    });
+    useTasksStore.setState({
+      tasks: [],
+      selectedTaskId: null,
+      sortMode: 'drag',
+      filter: { status: [], priority: 'all', timeRange: 'all' },
+      searchQuery: '',
+      todoView: null,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function makeWorkList(): ParsedList {
+    return {
+      meta: { name: '工作', created: '2026-07-01', archived: false },
+      groups: [
+        {
+          name: '项目Alpha',
+          tasks: [
+            { ...makeTask('w1', '今天工作', '项目Alpha', 1), meta: { ...makeTask('w1', '今天工作', '项目Alpha', 1).meta, due: '2026-07-10', priority: 'high' } },
+            { ...makeTask('w2', '本周工作', '项目Alpha', 2), meta: { ...makeTask('w2', '本周工作', '项目Alpha', 2).meta, due: '2026-07-12' } },
+            { ...makeTask('w3', '已完成工作', '项目Alpha', 3), meta: { ...makeTask('w3', '已完成工作', '项目Alpha', 3).meta, status: 'done' } },
+          ],
+        },
+      ],
+      rawContent: '',
+    };
+  }
+
+  function makeLifeList(): ParsedList {
+    return {
+      meta: { name: '生活', created: '2026-07-01', archived: false },
+      groups: [
+        {
+          name: '购物',
+          tasks: [
+            { ...makeTask('l1', '今天购物', '购物', 1), meta: { ...makeTask('l1', '今天购物', '购物', 1).meta, due: '2026-07-10' } },
+            { ...makeTask('l2', '高优先级生活', '购物', 2), meta: { ...makeTask('l2', '高优先级生活', '购物', 2).meta, priority: 'high' } },
+          ],
+        },
+      ],
+      rawContent: '',
+    };
+  }
+
+  it('setTodoView(today) aggregates tasks due today across lists', () => {
+    useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
+
+    useTasksStore.getState().setTodoView('today');
+
+    const tasks = useTasksStore.getState().tasks;
+    expect(tasks.map((t) => t.id).sort()).toEqual(['l1', 'w1']);
+    expect(tasks.every((t) => t.sourceList)).toBe(true);
+  });
+
+  it('setTodoView(week) aggregates tasks due this week', () => {
+    useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
+
+    useTasksStore.getState().setTodoView('week');
+
+    const tasks = useTasksStore.getState().tasks;
+    expect(tasks.map((t) => t.id).sort()).toEqual(['l1', 'w1', 'w2']);
+  });
+
+  it('setTodoView(high) aggregates high priority incomplete tasks', () => {
+    useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
+
+    useTasksStore.getState().setTodoView('high');
+
+    const tasks = useTasksStore.getState().tasks;
+    expect(tasks.map((t) => t.id).sort()).toEqual(['l2', 'w1']);
+  });
+
+  it('setTodoView(all) aggregates all incomplete tasks', () => {
+    useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
+
+    useTasksStore.getState().setTodoView('all');
+
+    const tasks = useTasksStore.getState().tasks;
+    expect(tasks.map((t) => t.id).sort()).toEqual(['l1', 'l2', 'w1', 'w2']);
+  });
+
+  it('getTodoViewCounts returns correct counts', () => {
+    useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
+
+    const counts = useTasksStore.getState().getTodoViewCounts();
+    expect(counts).toEqual({ today: 2, week: 3, all: 4, high: 2 });
+  });
+
+  it('completing task in todo view routes to source list and refreshes view', async () => {
+    useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
+    useTasksStore.getState().setTodoView('today');
+
+    await useTasksStore.getState().completeTaskWithoutSubtasks('w1');
+
+    const workList = useListsStore.getState().fileCache['工作'];
+    const completedTask = workList!.groups[0].tasks.find((t) => t.id === 'w1');
+    expect(completedTask?.meta.status).toBe('done');
+
+    const remaining = useTasksStore.getState().tasks;
+    expect(remaining.map((t) => t.id)).toEqual(['l1']);
+  });
+
+  it('updateTask in todo view routes to source list', async () => {
+    useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
+    useTasksStore.getState().setTodoView('all');
+
+    await useTasksStore.getState().updateTask('l2', { title: '修改后的生活任务' });
+
+    const lifeList = useListsStore.getState().fileCache['生活'];
+    expect(lifeList!.groups[0].tasks.find((t) => t.id === 'l2')?.title).toBe('修改后的生活任务');
+    expect(useTasksStore.getState().tasks.find((t) => t.id === 'l2')?.title).toBe('修改后的生活任务');
   });
 });
