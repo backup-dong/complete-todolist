@@ -255,9 +255,9 @@ function TodoViewsSection({
               type="button"
               onClick={() => onSelect(item.key)}
               className={[
-                'nav-item group justify-between',
+                'group flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors duration-100',
                 isActive
-                  ? 'bg-[var(--color-primary-subtle)] text-[var(--color-primary)]'
+                  ? 'bg-[var(--color-primary)] text-white'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
               ].join(' ')}
             >
@@ -270,7 +270,7 @@ function TodoViewsSection({
                   className={[
                     'rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
                     isActive
-                      ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                      ? 'bg-white/20 text-white'
                       : 'bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]',
                   ].join(' ')}
                 >
