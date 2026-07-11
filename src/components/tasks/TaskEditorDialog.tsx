@@ -17,7 +17,7 @@ export function TaskEditorDialog({ task, groups, onSave, onClose }: TaskEditorDi
       if (!isOpen) onClose();
     }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-[var(--color-backdrop)] backdrop-blur-sm" />
         <div className="fixed inset-0 z-50 flex pointer-events-none md:items-center md:justify-center md:p-4">
           <Dialog.Content
             className="pointer-events-auto z-50 flex h-full w-full flex-col overflow-hidden bg-[var(--color-surface-raised)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] outline-none md:h-[90vh] md:max-w-4xl md:rounded-xl md:border md:border-[var(--color-border)] md:shadow-lg md:pt-0 md:pb-0"

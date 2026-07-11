@@ -46,39 +46,52 @@
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
   --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+
+  /* Overlays */
+  --color-backdrop: rgba(0, 0, 0, 0.4);
+  --color-scrollbar-thumb: var(--color-border);
 }
 
 /* Dark mode overrides */
 .dark {
-  --color-primary: #60A5FA;
-  --color-primary-hover: #93C5FD;
-  --color-primary-subtle: #1E3A8A;
-  --color-primary-muted: #93C5FD;
+  /* Brand: slightly muted to reduce glare on dark surfaces */
+  --color-primary: #5B9FEA;
+  --color-primary-hover: #8BBBF5;
+  --color-primary-subtle: #1A326E;
+  --color-primary-muted: #7BAEE8;
 
-  --color-bg: #121212;
-  --color-surface: #1E1E1E;
-  --color-surface-raised: #252525;
-  --color-surface-hover: #2E2E2E;
+  /* Warm ink surface ramp: wider spacing for clearer elevation */
+  --color-bg: #161412;
+  --color-surface: #1F1D1B;
+  --color-surface-raised: #2A2724;
+  --color-surface-hover: #35312D;
 
-  --color-text: #F0F0F0;
-  --color-text-secondary: #B0B0B0;
-  --color-text-muted: #707070;
-  --color-text-inverse: #121212;
+  /* Text: softer warm grays with accessible muted text */
+  --color-text: #F2F0EE;
+  --color-text-secondary: #B8B4AF;
+  --color-text-muted: #8A8580;
+  --color-text-inverse: #161412;
 
-  --color-border: #333333;
-  --color-border-subtle: #2A2A2A;
-  --color-border-focus: rgba(96, 165, 250, 0.25);
+  /* Borders: separated enough to remain visible */
+  --color-border: #3D3834;
+  --color-border-subtle: #2C2824;
+  --color-border-focus: rgba(96, 165, 250, 0.35);
 
-  --color-success: #5BC98A;
-  --color-success-subtle: #163826;
-  --color-warning: #E6A84C;
-  --color-warning-subtle: #3D2E14;
-  --color-danger: #E76B6B;
+  /* Semantic states: tuned down but still readable */
+  --color-success: #4FB87A;
+  --color-success-subtle: #143D26;
+  --color-warning: #D99D45;
+  --color-warning-subtle: #4A3518;
+  --color-danger: #D65C5C;
   --color-danger-subtle: #3D1D1D;
 
-  --color-priority-high: #E76B6B;
-  --color-priority-med: #E6A84C;
-  --color-priority-low: #7FB89C;
+  --color-priority-high: #D65C5C;
+  --color-priority-med: #D99D45;
+  --color-priority-low: #6FA88E;
+
+  /* Overlays */
+  --color-backdrop: rgba(0, 0, 0, 0.65);
+  --color-scrollbar-thumb: var(--color-text-muted);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -120,12 +133,12 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--color-scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
+  background: var(--color-text-secondary);
 }
 
 /* Utility patterns (semantic helpers) */
@@ -166,7 +179,7 @@ button {
 
   .btn-danger {
     @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium
-           bg-[var(--color-danger)] text-white
+           bg-[var(--color-danger)] text-[var(--color-text-inverse)]
            hover:opacity-90
            active:scale-[0.98]
            focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]
@@ -208,7 +221,7 @@ button {
   }
 
   .nav-item-active {
-    @apply bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)];
+    @apply bg-[var(--color-primary)] text-[var(--color-text-inverse)] hover:bg-[var(--color-primary-hover)];
   }
 }
 

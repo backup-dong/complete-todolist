@@ -21,7 +21,7 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
           className={[
             'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
             mode === 'edit'
-              ? 'bg-[var(--color-primary)] text-white'
+              ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
           ].join(' ')}
           aria-pressed={mode === 'edit'}
@@ -36,7 +36,7 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
           className={[
             'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
             mode === 'preview'
-              ? 'bg-[var(--color-primary)] text-white'
+              ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
           ].join(' ')}
           aria-pressed={mode === 'preview'}

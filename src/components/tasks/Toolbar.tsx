@@ -170,7 +170,7 @@ export function ViewToggle({ mode, onChange }: { mode: SortMode; onChange: (mode
             className={[
               'inline-flex items-center gap-1 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors duration-100',
               active
-                ? 'bg-[var(--color-primary)] text-white'
+                ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
                 : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
             ].join(' ')}
           >

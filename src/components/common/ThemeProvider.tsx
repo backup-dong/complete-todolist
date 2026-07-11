@@ -14,7 +14,7 @@ function applyThemeClass(theme: 'light' | 'dark') {
 function updateThemeColor(theme: 'light' | 'dark') {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    meta.setAttribute('content', theme === 'dark' ? '#121212' : '#FDFCFA');
+    meta.setAttribute('content', theme === 'dark' ? '#161412' : '#FDFCFA');
   }
 }
 

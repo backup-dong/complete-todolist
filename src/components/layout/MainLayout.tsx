@@ -43,7 +43,7 @@ export function MainLayout() {
       )}
       {menuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          className="fixed inset-0 z-40 bg-[var(--color-backdrop)] md:hidden"
           onClick={closeMenu}
           aria-hidden="true"
         />

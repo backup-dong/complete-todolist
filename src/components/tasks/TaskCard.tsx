@@ -40,7 +40,7 @@ function PriorityBadge({ priority }: { priority: Task['meta']['priority'] }) {
 function StatusIconContent({ status }: { status: Task['meta']['status'] }) {
   if (status === 'done') {
     return (
-      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-success)] text-white">
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-success)] text-[var(--color-text-inverse)]">
         <Check className="h-3 w-3" strokeWidth={3} />
       </span>
     );

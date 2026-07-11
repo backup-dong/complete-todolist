@@ -39,7 +39,7 @@ function SyncIndicator({ pendingCount }: { pendingCount: number }) {
       <span className={`h-2 w-2 rounded-full ${color} ${status === 'syncing' ? 'animate-pulse' : ''}`} />
       <span>{label}</span>
       {pendingCount > 0 && (
-        <span className="rounded-full bg-[var(--color-warning)] px-1.5 py-0.5 text-[10px] font-medium text-white">
+        <span className="rounded-full bg-[var(--color-warning)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-inverse)]">
           {pendingCount}
         </span>
       )}
@@ -198,12 +198,12 @@ function ListRow({
       className={[
         'group flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors duration-100',
         active
-          ? 'bg-[var(--color-primary)] text-white'
+          ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
           : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
       ].join(' ')}
     >
       <div className="flex min-w-0 items-center gap-2.5">
-        <Folder className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-white/80' : 'text-[var(--color-text-muted)]'}`} />
+        <Folder className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-[var(--color-text-inverse)]/80' : 'text-[var(--color-text-muted)]'}`} />
         <span className="truncate">{list.name}</span>
       </div>
       <div className="flex shrink-0 items-center">
@@ -217,7 +217,7 @@ function ListRow({
           className={[
             'rounded-md p-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100 focus:opacity-100',
             active
-              ? 'text-white/70 hover:bg-white/10 hover:text-white'
+              ? 'text-[var(--color-text-inverse)]/70 hover:bg-[var(--color-text-inverse)]/10 hover:text-[var(--color-text-inverse)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-danger)]',
           ].join(' ')}
         >
@@ -257,7 +257,7 @@ function TodoViewsSection({
               className={[
                 'group flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors duration-100',
                 isActive
-                  ? 'bg-[var(--color-primary)] text-white'
+                  ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
               ].join(' ')}
             >
@@ -270,7 +270,7 @@ function TodoViewsSection({
                   className={[
                     'rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
                     isActive
-                      ? 'bg-white/20 text-white'
+                      ? 'bg-[var(--color-text-inverse)]/20 text-[var(--color-text-inverse)]'
                       : 'bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]',
                   ].join(' ')}
                 >
@@ -572,7 +572,7 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
     >
       <div className="flex items-center justify-between border-b border-[var(--color-border)] p-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--color-primary)] text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--color-primary)] text-[var(--color-text-inverse)]">
             <ListTodo className="h-5 w-5" />
           </div>
           <span className="text-lg font-semibold tracking-tight">Dong Todo</span>
