@@ -88,7 +88,7 @@ export function TodoView({
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4">
+    <div className="h-full overflow-y-auto">
       {sections.map((section) => (
         <GroupSection
           key={section.key}
