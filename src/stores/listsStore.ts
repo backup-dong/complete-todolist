@@ -30,6 +30,7 @@ interface ListsState {
   deleteList: (name: string) => Promise<void>;
   renameList: (oldName: string, newName: string) => Promise<void>;
   fetchListContent: (name: string) => Promise<ParsedList | null>;
+  fetchAllListsContent: () => Promise<void>;
   saveListContent: (name: string, list: ParsedList) => Promise<void>;
   getActiveList: () => ParsedList | null;
   createGroup: (name: string) => Promise<void>;
@@ -425,6 +426,28 @@ export const useListsStore = create<ListsState>((set, get) => ({
   getActiveList: () => {
     const { activeListName, fileCache } = get();
     return activeListName ? fileCache[activeListName] ?? null : null;
+  },
+
+  fetchAllListsContent: async () => {
+    const sync = useSyncStore.getState();
+    if (!sync.ensureInitialized()) return;
+
+    const { lists, fileCache } = get();
+    const results = await Promise.allSettled(
+      lists.map((list) => {
+        if (fileCache[list.name]) {
+          // 已有缓存则后台静默刷新，不阻塞视图渲染
+          return get().fetchListContent(list.name);
+        }
+        return get().fetchListContent(list.name);
+      }),
+    );
+
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.warn(`Failed to fetch list content for ${lists[index]?.name}:`, result.reason);
+      }
+    });
   },
 
   createGroup: async (name) => {

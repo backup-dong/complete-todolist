@@ -254,6 +254,11 @@ export function TaskCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
+          {task.sourceList && (
+            <span className="mb-1 inline-block rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]">
+              {task.sourceList}
+            </span>
+          )}
           <button
             type="button"
             onClick={(e) => {

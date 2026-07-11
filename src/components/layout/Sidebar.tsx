@@ -228,30 +228,55 @@ function ListRow({
   );
 }
 
-function SmartListsSection({
+function TodoViewsSection({
   items,
+  activeKey,
+  counts,
   onSelect,
 }: {
   items: readonly { key: string; icon: typeof Calendar; label: string }[];
+  activeKey: string | null;
+  counts: Record<string, number>;
   onSelect: (key: string) => void;
 }) {
   return (
     <>
       <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-        智能列表
+        待办视图
       </div>
       <div className="mb-4 space-y-1">
         {items.map((item) => {
           const Icon = item.icon;
+          const isActive = activeKey === item.key;
+          const count = counts[item.key] ?? 0;
           return (
             <button
               key={item.key}
               type="button"
               onClick={() => onSelect(item.key)}
-              className="nav-item"
+              className={[
+                'nav-item group justify-between',
+                isActive
+                  ? 'bg-[var(--color-primary-subtle)] text-[var(--color-primary)]'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
+              ].join(' ')}
             >
-              <Icon className="h-[18px] w-[18px]" />
-              <span>{item.label}</span>
+              <div className="flex items-center gap-2.5">
+                <Icon className="h-[18px] w-[18px]" />
+                <span>{item.label}</span>
+              </div>
+              {count > 0 && (
+                <span
+                  className={[
+                    'rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+                    isActive
+                      ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                      : 'bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]',
+                  ].join(' ')}
+                >
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}
@@ -454,7 +479,7 @@ function ListsSection({
 export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   const { lists, activeListName, activeGroup, selectList, selectGroup, createGroup, createList, deleteList, deleteGroup, fileCache } =
     useListsStore();
-  const { setSearchQuery, setFilter } = useTasksStore();
+  const { todoView, setTodoView, getTodoViewCounts } = useTasksStore();
   const { pushPending, config, pendingWrites } = useSyncStore();
   const navigate = useNavigate();
   const [newListName, setNewListName] = useState('');
@@ -463,23 +488,23 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   const [showNewGroupForList, setShowNewGroupForList] = useState<string | null>(null);
   const [queueExpanded, setQueueExpanded] = useState(false);
 
-  const smartLists = [
+  const todoViews = [
     { key: 'today', icon: Calendar, label: '今天' },
-    { key: 'scheduled', icon: CalendarDays, label: '已安排' },
+    { key: 'week', icon: CalendarDays, label: '本周' },
     { key: 'all', icon: Layers, label: '全部' },
-    { key: 'flagged', icon: Flag, label: '已标记' },
+    { key: 'high', icon: Flag, label: '高优先级' },
   ] as const;
 
-  const handleSmartClick = (key: string) => {
-    setFilter({ status: [], priority: 'all', timeRange: 'all' });
-    setSearchQuery('');
-    if (key === 'today') {
-      setFilter({ timeRange: 'today' });
-    } else if (key === 'scheduled') {
-      setFilter({ timeRange: 'week' });
-    } else if (key === 'flagged') {
-      setFilter({ priority: 'high' });
-    }
+  const todoViewCounts = getTodoViewCounts();
+
+  const handleTodoViewClick = (key: string) => {
+    setTodoView(key as typeof todoViews[number]['key']);
+    onClose?.();
+  };
+
+  const handleSelectList = (name: string) => {
+    setTodoView(null);
+    selectList(name);
     onClose?.();
   };
 
@@ -565,7 +590,12 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
-        <SmartListsSection items={smartLists} onSelect={handleSmartClick} />
+        <TodoViewsSection
+          items={todoViews}
+          activeKey={todoView}
+          counts={todoViewCounts}
+          onSelect={handleTodoViewClick}
+        />
 
         <ListsSection
           lists={lists}
@@ -574,10 +604,7 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
           activeGroup={activeGroup}
           showNewGroupForList={showNewGroupForList}
           newGroupName={newGroupName}
-          onSelectList={(name) => {
-            selectList(name);
-            onClose?.();
-          }}
+          onSelectList={handleSelectList}
           onDeleteList={handleDeleteList}
           onSelectGroup={(name) => {
             selectGroup(name);
