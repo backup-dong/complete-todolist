@@ -20,7 +20,7 @@ export default defineConfig({
         name: 'Dong Todo',
         short_name: 'Todo',
         description: '基于 Markdown + GitHub 的待办系统',
-        theme_color: '#2563EB',
+        theme_color: '#FDFCFA',
         background_color: '#FDFCFA',
         orientation: 'portrait',
         lang: 'zh-CN',
