@@ -10,7 +10,7 @@ interface NoteEditorProps {
 }
 
 export function NoteEditor({ value, onChange, placeholder = '备注（Markdown）', rows = 4 }: NoteEditorProps) {
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [mode, setMode] = useState<'edit' | 'preview'>('preview');
 
   return (
     <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface)]">
