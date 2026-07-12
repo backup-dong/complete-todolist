@@ -177,9 +177,51 @@ describe('generateWeeklyReport', () => {
 
     const report = generateWeeklyReport('测试清单', list);
     expect(report).toContain('1. 父任务本周完成');
-    expect(report).toContain('  - 本周子任务');
-    expect(report).toContain('  - 上周子任务');
+    expect(report).toContain('    1. 本周子任务');
+    expect(report).toContain('    2. 上周子任务');
     expect(report).not.toContain('未完成子任务');
+  });
+
+  it('同一任务下的子任务按原数组顺序用数字编号输出', () => {
+    const list = buildList([
+      buildTask('带多个子任务', {
+        completed_at: thisWeekDay(2),
+        subtasks: [
+          {
+            text: '第一个子任务',
+            level: 1,
+            completed: true,
+            completed_at: thisWeekDay(1),
+            children: [],
+          },
+          {
+            text: '第二个子任务',
+            level: 1,
+            completed: true,
+            completed_at: thisWeekDay(2),
+            children: [],
+          },
+          {
+            text: '第三个子任务',
+            level: 1,
+            completed: true,
+            completed_at: thisWeekDay(0),
+            children: [],
+          },
+        ],
+      }),
+    ]);
+
+    const report = generateWeeklyReport('测试清单', list);
+    const idx1 = report.indexOf('    1. 第一个子任务');
+    const idx2 = report.indexOf('    2. 第二个子任务');
+    const idx3 = report.indexOf('    3. 第三个子任务');
+
+    expect(idx1).toBeGreaterThan(-1);
+    expect(idx2).toBeGreaterThan(-1);
+    expect(idx3).toBeGreaterThan(-1);
+    expect(idx1).toBeLessThan(idx2);
+    expect(idx2).toBeLessThan(idx3);
   });
 
   it('本周无完成事项时返回空字符串', () => {

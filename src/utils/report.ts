@@ -119,10 +119,12 @@ function collectCompletedSubtasks(
   includeAllCompleted = false,
 ): string[] {
   const lines: string[] = [];
+  let index = 1;
   for (const s of subtasks) {
     const completedThisWeek = isCompletedThisWeek(s.completed_at);
     if (completedThisWeek || (includeAllCompleted && s.completed)) {
-      lines.push(`${indent}- ${s.text}`);
+      lines.push(`${indent}${index}. ${s.text}`);
+      index++;
     }
     lines.push(
       ...collectCompletedSubtasks(
@@ -200,7 +202,7 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
       lines.push(
         ...collectCompletedSubtasks(
           task.subtasks,
-          '  ',
+          '    ',
           isCompletedThisWeek(task.completed_at),
         ),
       );

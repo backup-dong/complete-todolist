@@ -198,8 +198,8 @@ describe('report utils', () => {
     };
     const report = generateWeeklyReport('Work', list);
     expect(report).toContain('1. Fix bug');
-    expect(report).toContain('  - Locate root cause');
-    expect(report).toContain('  - Verify fix');
+    expect(report).toContain('    1. Locate root cause');
+    expect(report).toContain('    2. Verify fix');
   });
 
   it('includes tasks whose subtasks were completed this week even if parent has no completed_at', () => {
@@ -227,7 +227,7 @@ describe('report utils', () => {
     };
     const report = generateWeeklyReport('Work', list);
     expect(report).toContain('1. API design');
-    expect(report).toContain('  - Draft schema');
+    expect(report).toContain('    1. Draft schema');
     expect(report).not.toContain('Pending review');
   });
 });

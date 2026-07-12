@@ -136,7 +136,7 @@ function GroupSection({
         {tasks.length === 0 ? (
           <p className="py-2 text-xs text-[var(--color-text-muted)]">该分组下还没有任务</p>
         ) : (
-          <div className="space-y-3 pl-7">
+          <div className={['space-y-3', sortMode === 'drag' && !selectable ? 'pl-7' : ''].join(' ').trim()}>
             {tasks.map((task) => (
               <SortableTaskCard
                 key={task.id}
@@ -292,7 +292,7 @@ export function TaskList({
         </div>
       ) : (
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-3 p-4 pl-11">
+          <div className={['space-y-3 p-4', sortMode === 'drag' && !selectable ? 'pl-11' : ''].join(' ').trim()}>
             {tasks.map((task) => (
               <SortableTaskCard
                 key={task.id}

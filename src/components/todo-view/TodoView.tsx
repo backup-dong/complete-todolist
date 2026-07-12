@@ -23,7 +23,7 @@ function GroupSection({
         <span className="text-xs tabular-nums text-[var(--color-text-muted)]">{tasks.length}</span>
       </div>
       <div className="px-4 pb-4 pt-4">
-        <div className="space-y-3 pl-7">
+        <div className="space-y-3">
           {tasks.map((task) => (
             <TaskCard
               key={task.id}

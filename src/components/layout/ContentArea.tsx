@@ -215,6 +215,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
     setSortMode,
     setFilter,
     setSearchQuery,
+    clearFilters,
     toggleSubtask,
     deleteTask,
     deleteTasks,
@@ -411,7 +412,22 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
               />
               <div className="flex flex-col gap-3">
                 <SearchBar value={searchQuery} onChange={setSearchQuery} />
-                <FilterDropdown filter={filter} onChange={setFilter} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <FilterDropdown filter={filter} onChange={setFilter} />
+                  {(filter.status.length > 0 ||
+                    filter.priority !== 'all' ||
+                    filter.timeRange !== 'all' ||
+                    searchQuery) && (
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      清除筛选
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 

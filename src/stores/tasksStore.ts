@@ -30,6 +30,7 @@ interface TasksState {
   setSortMode: (mode: SortMode) => void;
   setFilter: (f: Partial<FilterState>) => void;
   setSearchQuery: (q: string) => void;
+  clearFilters: () => void;
   setTodoView: (key: TodoViewKey | null) => void;
   getFilteredTasks: () => Task[];
   getSelectedTask: () => Task | null;
@@ -512,6 +513,11 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   setSortMode: (mode) => set({ sortMode: mode }),
   setFilter: (f) => set((state) => ({ filter: { ...state.filter, ...f } })),
   setSearchQuery: (q) => set({ searchQuery: q }),
+  clearFilters: () =>
+    set({
+      filter: { status: [], priority: 'all', timeRange: 'all' },
+      searchQuery: '',
+    }),
   setTodoView: (key) => {
     if (key) {
       useListsStore.setState({ activeListName: null, activeGroup: null });
