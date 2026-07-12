@@ -29,6 +29,7 @@ e2e-*.png
 # Build info
 tsconfig.node.tsbuildinfo
 vite.config.js
+vite.config.d.ts
 
 # Claude Code
 .claude

@@ -11,6 +11,9 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
     },
   },
+  server: {
+    host: true,
+  },
   plugins: [
     react(),
     tailwindcss(),
