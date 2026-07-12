@@ -13,5 +13,7 @@
 | 筛选条件，已逾期应该是到时间了没完成，而不是过去全部待办 | 是 | `matchesFilter` 的 overdue 条件增加 `task.meta.status !== 'done'`，已完成的逾期任务不再出现在已逾期筛选中 |
 | 导出周报，有些子任务会没有导出 | 是 | `collectCompletedSubtasks` 增加 `includeAllCompleted` 参数；父任务本周完成时，列出其下所有已完成的子任务 |
 | 移动端打开侧边栏后关闭，顶部和底部也就是手机导航栏还是灰色的 | 是 | 补充 `viewport-fit=cover` 与 `black-translucent` 状态栏配置，`ThemeProvider` 动态同步 `theme-color`，并在移动端头部/底部/抽屉/弹窗添加 `env(safe-area-inset-*)` 内边距；进一步将移动端抽屉在关闭动画结束后从 DOM 中移除，避免 iOS Safari 仍对离屏抽屉进行颜色采样导致安全区残留灰色 |
+| 移动端详情弹框日期选择输入框偏长 | 是 | 新增 `DateInput` 组件，使用 `min-w-0 appearance-none` 约束移动端原生日期输入宽度，避免溢出容器 |
+| 移动端没法清空日期选择 | 是 | `DateInput` 在日期有值时显示右侧清空按钮（×），支持一键清空 |
 
-_最后更新：2026-07-11_
+_最后更新：2026-07-12_

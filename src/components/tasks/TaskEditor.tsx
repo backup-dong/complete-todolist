@@ -25,6 +25,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Link, Subtask, Task } from '@/types';
+import { DateInput } from '@/components/common/DateInput';
 import { NoteEditor } from '@/components/common/NoteEditor';
 import { deleteSubtaskAtPath, emptySubtask, reorderSubtasksAtPath, updateSubtaskAtPath } from '@/utils/subtasks';
 
@@ -273,20 +274,16 @@ function SubtaskEditor({
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">开始时间</span>
-              <input
-                type="date"
+              <DateInput
                 value={subtask.start ?? ''}
-                onChange={(e) => handleChange({ start: e.target.value || undefined })}
-                className="input w-full"
+                onChange={(value) => handleChange({ start: value || undefined })}
               />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">截止时间</span>
-              <input
-                type="date"
+              <DateInput
                 value={subtask.due ?? ''}
-                onChange={(e) => handleChange({ due: e.target.value || undefined })}
-                className="input w-full"
+                onChange={(value) => handleChange({ due: value || undefined })}
               />
             </label>
           </div>
@@ -616,21 +613,17 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">开始时间</span>
-          <input
-            type="date"
+          <DateInput
             value={draft.start}
-            onChange={(e) => dispatch({ type: 'set', field: 'start', value: e.target.value })}
-            className="input"
+            onChange={(value) => dispatch({ type: 'set', field: 'start', value })}
           />
         </label>
 
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">截止时间</span>
-          <input
-            type="date"
+          <DateInput
             value={draft.due}
-            onChange={(e) => dispatch({ type: 'set', field: 'due', value: e.target.value })}
-            className="input"
+            onChange={(value) => dispatch({ type: 'set', field: 'due', value })}
           />
         </label>
       </div>
@@ -653,11 +646,9 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
 
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复截止</span>
-          <input
-            type="date"
+          <DateInput
             value={draft.repeat_until}
-            onChange={(e) => dispatch({ type: 'set', field: 'repeat_until', value: e.target.value })}
-            className="input"
+            onChange={(value) => dispatch({ type: 'set', field: 'repeat_until', value })}
           />
         </label>
       </div>
