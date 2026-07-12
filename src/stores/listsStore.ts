@@ -22,8 +22,11 @@ interface ListsState {
   activeGroup: string | null;
   fileCache: Record<string, ParsedList>;
   pendingMigrations: string[];
+  initialLoading: boolean;
+  listsFetched: boolean;
 
   fetchLists: () => Promise<void>;
+  setInitialLoading: (value: boolean) => void;
   selectList: (name: string) => void;
   selectGroup: (name: string | null) => void;
   createList: (name: string) => Promise<void>;
@@ -204,6 +207,8 @@ export const useListsStore = create<ListsState>((set, get) => ({
   activeGroup: null,
   fileCache: {},
   pendingMigrations: [],
+  initialLoading: true,
+  listsFetched: false,
 
   fetchLists: async () => {
     const sync = useSyncStore.getState();
@@ -246,13 +251,16 @@ export const useListsStore = create<ListsState>((set, get) => ({
         .map((f) => fileNameToListName(f.name));
 
       const nextActive = cleanupActiveList(listMetas, get().activeListName);
-      set({ lists: listMetas, activeListName: nextActive, pendingMigrations });
+      set({ lists: listMetas, activeListName: nextActive, pendingMigrations, initialLoading: listMetas.length > 0, listsFetched: true });
       sync.setSynced();
     } catch (err) {
       console.error('fetchLists failed', err);
+      set({ initialLoading: false, listsFetched: true });
       sync.setUnsaved();
     }
   },
+
+  setInitialLoading: (value) => set({ initialLoading: value }),
 
   selectList: (name) => {
     cacheActiveList(name);
@@ -399,11 +407,16 @@ export const useListsStore = create<ListsState>((set, get) => ({
           : parseMarkdownToList(cached.content, cached.sha);
         set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
         sync.setUnsaved();
-        return list;
+      } else {
+        sync.setUnsaved();
       }
-      sync.setUnsaved();
-      return null;
+    } finally {
+      // 首次进入时，无论成功失败，只要已经尝试加载当前激活清单内容，就关闭遮罩
+      if (get().activeListName === name && get().initialLoading) {
+        set({ initialLoading: false });
+      }
     }
+    return get().fileCache[name] ?? null;
   },
 
   saveListContent: async (name, list) => {
