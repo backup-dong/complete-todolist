@@ -18,8 +18,12 @@ export function DateInput({ value, onChange, className = '' }: DateInputProps) {
       {value && (
         <button
           type="button"
-          onClick={() => onChange('')}
-          className="absolute right-3 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]"
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onChange('');
+          }}
+          className="absolute right-3 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]"
           aria-label="清空日期"
           title="清空日期"
         >
