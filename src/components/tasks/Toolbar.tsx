@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Search, ChevronDown, GripVertical, CalendarArrowDown, ArrowUpDown, Check, X, Filter } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { FilterState, SortMode, TaskStatus } from '@/types';
@@ -205,52 +204,37 @@ export function ViewToggle({ mode, onChange }: { mode: SortMode; onChange: (mode
   );
 }
 
-export function MobileFilterPanel({
+export function MobileFilterToggle({
   filter,
-  onChange,
-  onClear,
-  clearActive,
+  open,
+  onToggle,
 }: {
   filter: FilterState;
-  onChange: (f: FilterState) => void;
-  onClear?: () => void;
-  clearActive?: boolean;
+  open: boolean;
+  onToggle: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const activeCount =
     filter.status.length +
     (filter.priority !== 'all' ? 1 : 0) +
     (filter.timeRange !== 'all' ? 1 : 0);
 
   return (
-    <div className="md:hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className={[
-          'btn-secondary flex items-center gap-1.5 py-1.5 text-xs',
-          open ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : '',
-        ].join(' ').trim()}
-      >
-        <Filter className="h-3.5 w-3.5" />
-        筛选
-        {activeCount > 0 && (
-          <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-primary)] px-1 text-[10px] font-medium text-[var(--color-text-inverse)]">
-            {activeCount}
-          </span>
-        )}
-      </button>
-      {open && (
-        <div className="mt-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-          <FilterDropdown
-            filter={filter}
-            onChange={onChange}
-            onClear={onClear}
-            clearActive={clearActive}
-          />
-        </div>
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className={[
+        'btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs',
+        open ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : '',
+      ].join(' ').trim()}
+    >
+      <Filter className="h-3.5 w-3.5" />
+      筛选
+      {activeCount > 0 && (
+        <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-primary)] px-1 text-[10px] font-medium text-[var(--color-text-inverse)]">
+          {activeCount}
+        </span>
       )}
-    </div>
+    </button>
   );
 }

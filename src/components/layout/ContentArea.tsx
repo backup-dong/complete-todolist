@@ -5,7 +5,7 @@ import { useTasksStore } from '@/stores/tasksStore';
 import { confirm } from '@/stores/confirmStore';
 import type { Task, TodoViewKey } from '@/types';
 import { copyWeeklyReport } from '@/utils/report';
-import { SearchBar, FilterDropdown, ViewToggle, MobileFilterPanel } from '../tasks/Toolbar';
+import { SearchBar, FilterDropdown, ViewToggle, MobileFilterToggle } from '../tasks/Toolbar';
 import { TaskList } from '../tasks/TaskList';
 import { TaskEditorDialog } from '../tasks/TaskEditorDialog';
 import { ConflictBanner } from './ConflictBanner';
@@ -229,6 +229,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
 
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [batchMode, setBatchMode] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const taskListScrollRef = useRef<HTMLDivElement>(null);
@@ -411,22 +412,37 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
                 onToggleBatchMode={handleToggleBatchMode}
               />
               <div className="flex flex-col gap-3">
-                <SearchBar value={searchQuery} onChange={setSearchQuery} />
-                <div className="hidden md:block">
-                  <FilterDropdown
+                <div className="flex items-center gap-2 md:hidden">
+                  <div className="flex-1">
+                    <SearchBar value={searchQuery} onChange={setSearchQuery} />
+                  </div>
+                  <MobileFilterToggle
                     filter={filter}
-                    onChange={setFilter}
-                    onClear={clearFilters}
-                    clearActive={
-                      filter.status.length > 0 ||
-                      filter.priority !== 'all' ||
-                      filter.timeRange !== 'all' ||
-                      !!searchQuery
-                    }
+                    open={filterOpen}
+                    onToggle={() => setFilterOpen((v) => !v)}
                   />
                 </div>
-                <div className="md:hidden">
-                  <MobileFilterPanel
+                {filterOpen && (
+                  <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 md:hidden">
+                    <FilterDropdown
+                      filter={filter}
+                      onChange={setFilter}
+                      onClear={() => {
+                        clearFilters();
+                        setFilterOpen(false);
+                      }}
+                      clearActive={
+                        filter.status.length > 0 ||
+                        filter.priority !== 'all' ||
+                        filter.timeRange !== 'all' ||
+                        !!searchQuery
+                      }
+                    />
+                  </div>
+                )}
+                <div className="hidden md:flex md:flex-col md:gap-3">
+                  <SearchBar value={searchQuery} onChange={setSearchQuery} />
+                  <FilterDropdown
                     filter={filter}
                     onChange={setFilter}
                     onClear={clearFilters}
