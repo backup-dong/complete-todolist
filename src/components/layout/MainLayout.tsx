@@ -23,9 +23,9 @@ export function MainLayout() {
   };
 
   return (
-    <div className="flex h-svh">
+    <div className="flex h-full">
       {/* Desktop sidebar */}
-      <div className="hidden md:flex h-svh">
+      <div className="hidden md:flex h-full">
         <Sidebar onClose={closeMenu} />
       </div>
 

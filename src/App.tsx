@@ -84,7 +84,7 @@ function App() {
 
   return (
     <NotificationProvider>
-      <div className="flex h-svh flex-col">
+      <div className="flex h-full flex-col">
         <AppRoutes />
       </div>
       <ConfirmDialog />
