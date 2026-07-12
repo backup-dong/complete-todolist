@@ -728,7 +728,7 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
                   onClick={() => toggleWeekday(key)}
                   className={`min-w-[2rem] rounded-md border px-2.5 py-1 text-sm transition-colors ${
                     selectedWeekdays.includes(key)
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
                       : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-raised)]'
                   }`}
                 >

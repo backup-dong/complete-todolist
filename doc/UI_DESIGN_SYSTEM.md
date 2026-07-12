@@ -13,7 +13,7 @@ Dong Todo 是一款把 Markdown 当作数据库的待办应用。它的界面应
 
 - **克制**：不喧宾夺主，让任务内容成为主角。
 - **清晰**：层级、状态、操作一目了然。
-- **温暖**：避免冷峻的默认灰蓝，使用暖白纸张感背景与蓝色主色。
+- **冷静**：采用冷调石板青底色，减少视觉噪音，让内容成为主角。
 - **一致**：颜色、字体、间距、圆角、图标在所有组件中保持统一。
 - **可访问**：焦点可见、对比度充足、尊重用户的动效偏好。
 
@@ -27,61 +27,61 @@ Dong Todo 是一款把 Markdown 当作数据库的待办应用。它的界面应
 
 | Token | Light | Dark | 用途 |
 |-------|-------|------|------|
-| `--color-primary` | `#2563EB` | `#5B9FEA` | 主按钮、激活态、链接、焦点环 |
-| `--color-primary-hover` | `#1D4ED8` | `#8BBBF5` | 主按钮悬停 |
-| `--color-primary-subtle` | `#EFF6FF` | `#1A326E` | 主色淡背景、badge |
-| `--color-primary-muted` | `#93C5FD` | `#7BAEE8` | 主色背景上的次要图标 |
+| `--color-primary` | `#0F72F6` | `#5CB3FF` | 主按钮、激活态、链接、焦点环 |
+| `--color-primary-hover` | `#085EC9` | `#8AC9FF` | 主按钮悬停 |
+| `--color-primary-subtle` | `#EAF4FF` | `#0F3460` | 主色淡背景、badge |
+| `--color-primary-muted` | `#7CB9FF` | `#7EB8E8` | 主色背景上的次要图标 |
 
 ### 2.2 背景 / 表面
 
 | Token | Light | Dark | 用途 |
 |-------|-------|------|------|
-| `--color-bg` | `#FDFCFA` | `#161412` | 页面背景 |
-| `--color-surface` | `#FFFFFF` | `#1F1D1B` | 卡片、面板、输入框背景 |
-| `--color-surface-raised` | `#FAFAF8` | `#2A2724` | 侧边栏等抬升表面 |
-| `--color-surface-hover` | `#F5F4F2` | `#35312D` | 列表项、按钮悬停 |
+| `--color-bg` | `#F8FAFC` | `#020617` | 页面背景 |
+| `--color-surface` | `#FFFFFF` | `#0F172A` | 卡片、面板、输入框背景 |
+| `--color-surface-raised` | `#F1F5F9` | `#1E293B` | 侧边栏等抬升表面 |
+| `--color-surface-hover` | `#E2E8F0` | `#334155` | 列表项、按钮悬停 |
 
 ### 2.3 文字
 
 | Token | Light | Dark | 用途 |
 |-------|-------|------|------|
-| `--color-text` | `#1A1A1A` | `#F2F0EE` | 主要文字 |
-| `--color-text-secondary` | `#4A4A4A` | `#B8B4AF` | 次要文字、标签 |
-| `--color-text-muted` | `#8A8A8A` | `#8A8580` | 占位、禁用、提示 |
-| `--color-text-inverse` | `#FFFFFF` | `#161412` | 主色背景上的文字 |
+| `--color-text` | `#0F172A` | `#F8FAFC` | 主要文字 |
+| `--color-text-secondary` | `#475569` | `#CBD5E1` | 次要文字、标签 |
+| `--color-text-muted` | `#64748B` | `#94A3B8` | 占位、禁用、提示 |
+| `--color-text-inverse` | `#FFFFFF` | `#020617` | 主色背景上的文字 |
 
 ### 2.4 边框
 
 | Token | Light | Dark | 用途 |
 |-------|-------|------|------|
-| `--color-border` | `#E8E6E3` | `#3D3834` | 默认边框、分隔线 |
-| `--color-border-subtle` | `#F0EEEB` | `#2C2824` | 微弱分隔（卡片内线） |
-| `--color-border-focus` | `rgba(37, 99, 235, 0.15)` | `rgba(96, 165, 250, 0.35)` | 焦点环颜色 |
+| `--color-border` | `#E2E8F0` | `#334155` | 默认边框、分隔线 |
+| `--color-border-subtle` | `#F1F5F9` | `#1E293B` | 微弱分隔（卡片内线） |
+| `--color-border-focus` | `rgba(15, 114, 246, 0.2)` | `rgba(92, 179, 255, 0.35)` | 焦点环颜色 |
 
 ### 2.5 语义 / 状态
 
 | Token | Light | Dark | 用途 |
 |-------|-------|------|------|
-| `--color-success` | `#3A8D5D` | `#4FB87A` | 已完成、已同步 |
-| `--color-success-subtle` | `#E8F5EE` | `#143D26` | 成功淡背景 |
-| `--color-warning` | `#C9872C` | `#D99D45` | 进行中、即将到期 |
-| `--color-warning-subtle` | `#FDF3E3` | `#4A3518` | 警告淡背景 |
-| `--color-danger` | `#C44B4B` | `#D65C5C` | 删除、错误、逾期 |
-| `--color-danger-subtle` | `#FCECEC` | `#3D1D1D` | 危险淡背景 |
+| `--color-success` | `#16A34A` | `#4ADE80` | 已完成、已同步 |
+| `--color-success-subtle` | `#DCFCE7` | `#14532D` | 成功淡背景 |
+| `--color-warning` | `#B45309` | `#FBBF24` | 进行中、即将到期 |
+| `--color-warning-subtle` | `#FEF3C7` | `#78350F` | 警告淡背景 |
+| `--color-danger` | `#DC2626` | `#F87171` | 删除、错误、逾期 |
+| `--color-danger-subtle` | `#FEE2E2` | `#7F1D1D` | 危险淡背景 |
 
 ### 2.6 优先级
 
 | Token | Light | Dark | 用途 |
 |-------|-------|------|------|
-| `--color-priority-high` | `#C44B4B` | `#D65C5C` | 高优先级 |
-| `--color-priority-med` | `#C9872C` | `#D99D45` | 中优先级 |
-| `--color-priority-low` | `#5B8A72` | `#6FA88E` | 低优先级 |
+| `--color-priority-high` | `#DC2626` | `#F87171` | 高优先级 |
+| `--color-priority-med` | `#B45309` | `#FBBF24` | 中优先级 |
+| `--color-priority-low` | `#16A34A` | `#4ADE80` | 低优先级 |
 
 ### 2.7 遮罩与滚动条
 
 | Token | Light | Dark | 用途 |
 |-------|-------|------|------|
-| `--color-backdrop` | `rgba(0, 0, 0, 0.4)` | `rgba(0, 0, 0, 0.65)` | 弹窗、抽屉遮罩 |
+| `--color-backdrop` | `rgba(15, 23, 42, 0.4)` | `rgba(0, 0, 0, 0.65)` | 弹窗、抽屉遮罩 |
 | `--color-scrollbar-thumb` | `var(--color-border)` | `var(--color-text-muted)` | 滚动条滑块 |
 
 ---
@@ -160,10 +160,10 @@ font-family: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragin
 
 | Token | 值 | 用途 |
 |-------|-----|------|
-| `shadow-sm` | `0 1px 2px rgba(0,0,0,0.04)` | 卡片默认 |
-| `shadow-md` | `0 2px 8px rgba(0,0,0,0.06)` | 卡片悬停、下拉 |
-| `shadow-lg` | `0 4px 16px rgba(0,0,0,0.08)` | 面板、弹窗 |
-| `shadow-focus` | `0 0 0 2px rgba(45,107,94,0.15)` | 焦点环 |
+| `shadow-sm` | `0 1px 2px rgba(15,23,42,0.05)` | 卡片默认 |
+| `shadow-md` | `0 2px 8px rgba(15,23,42,0.07)` | 卡片悬停、下拉 |
+| `shadow-lg` | `0 4px 16px rgba(15,23,42,0.09)` | 面板、弹窗 |
+| `shadow-focus` | `0 0 0 2px rgba(15,114,246,0.2)` | 焦点环 |
 
 深色模式下阴影使用黑色，但降低不透明度，避免过暗时发灰。
 
@@ -187,7 +187,7 @@ font-family: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragin
 ### 6.3 图标颜色
 
 - 默认：`text-[var(--color-text-muted)]`
-- 激活/选中：`text-[var(--color-primary)]` 或 `text-white`（在主色背景上）
+- 激活/选中：`text-[var(--color-primary)]` 或 `text-[var(--color-text-inverse)]`（在主色背景上）
 - 成功：`text-[var(--color-success)]`
 - 警告：`text-[var(--color-warning)]`
 - 危险：`text-[var(--color-danger)]`
@@ -439,7 +439,7 @@ if (await confirm('确定删除该清单？')) {
 | 状态 | 视觉处理 |
 |------|----------|
 | **Hover** | 背景过渡至 `--color-surface-hover`；卡片阴影由 `shadow-sm` 升至 `shadow-md` |
-| **Focus** | `box-shadow: 0 0 0 2px rgba(45,107,94,0.15)`，边框变为主色 |
+| **Focus** | `box-shadow: 0 0 0 2px rgba(15,114,246,0.2)`，边框变为主色 |
 | **Active / Pressed** | 按钮 `transform: scale(0.98)`，背景略深 |
 | **Disabled** | `opacity: 0.5`，`cursor: not-allowed`，无 hover 效果 |
 | **Selected** | 背景 `--color-primary`，文字/图标白色 |
@@ -496,19 +496,19 @@ if (await confirm('确定删除该清单？')) {
 
 ```css
 @theme {
-  --color-primary: #2563EB;        /* 主按钮、激活态 */
-  --color-primary-hover: #1D4ED8;  /* 悬停 */
-  --color-primary-subtle: #EFF6FF; /* 淡背景、badge */
-  --color-primary-muted: #93C5FD;  /* 主色背景上的次要元素 */
-  --color-border-focus: rgba(37, 99, 235, 0.15); /* 焦点环 */
+  --color-primary: #0F72F6;        /* 主按钮、激活态 */
+  --color-primary-hover: #085EC9;  /* 悬停 */
+  --color-primary-subtle: #EAF4FF; /* 淡背景、badge */
+  --color-primary-muted: #7CB9FF;  /* 主色背景上的次要元素 */
+  --color-border-focus: rgba(15, 114, 246, 0.2); /* 焦点环 */
 }
 
 .dark {
-  --color-primary: #5B9FEA;
-  --color-primary-hover: #8BBBF5;
-  --color-primary-subtle: #1A326E;
-  --color-primary-muted: #7BAEE8;
-  --color-border-focus: rgba(96, 165, 250, 0.35);
+  --color-primary: #5CB3FF;
+  --color-primary-hover: #8AC9FF;
+  --color-primary-subtle: #0F3460;
+  --color-primary-muted: #7EB8E8;
+  --color-border-focus: rgba(92, 179, 255, 0.35);
 }
 ```
 
@@ -569,4 +569,4 @@ if (await confirm('确定删除该清单？')) {
 
 ---
 
-*最后更新：2026-07-11*
+*最后更新：2026-07-12*

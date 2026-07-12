@@ -44,7 +44,7 @@ function MobileHeader({
   onOpenMenu: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] p-3 pt-[env(safe-area-inset-top)] md:hidden">
+    <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] p-3 pt-[env(safe-area-inset-top)] md:hidden">
       <button
         type="button"
         onClick={onOpenMenu}
@@ -175,7 +175,7 @@ function BatchActionBar({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:static md:z-auto md:border-t-0 md:bg-transparent md:p-0 md:pb-0">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-border)] bg-[var(--color-bg)] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:static md:z-auto md:border-t-0 md:bg-transparent md:p-0 md:pb-0">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm text-[var(--color-text-secondary)]">
           已选 <strong className="text-[var(--color-text)]">{count}</strong> 项
@@ -395,7 +395,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
           </>
         ) : (
           <>
-            <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+            <div className="border-b border-[var(--color-border)] bg-[var(--color-bg)] p-4 md:bg-[var(--color-surface)]">
               <ListHeader
                 title={activeListName ?? ''}
                 done={doneCount}
@@ -486,7 +486,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
               />
             </div>
 
-            <div className="border-t border-[var(--color-border)] bg-[var(--color-surface)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <div className="border-t border-[var(--color-border)] bg-[var(--color-bg)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:bg-[var(--color-surface)]">
               {batchMode ? (
                 <BatchActionBar
                   count={selectedIds.size}
