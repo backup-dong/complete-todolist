@@ -362,7 +362,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
   }
 
   return (
-    <div className="flex h-full flex-1 overflow-hidden">
+    <div className="flex h-svh flex-1 overflow-hidden">
       <div className="flex flex-1 flex-col">
         <MobileHeader
           title={todoView ? todoViewTitles[todoView] : activeListName ?? ''}
