@@ -5,7 +5,7 @@ import { useTasksStore } from '@/stores/tasksStore';
 import { confirm } from '@/stores/confirmStore';
 import type { Task, TodoViewKey } from '@/types';
 import { copyWeeklyReport } from '@/utils/report';
-import { SearchBar, FilterDropdown, ViewToggle } from '../tasks/Toolbar';
+import { SearchBar, FilterDropdown, ViewToggle, MobileFilterPanel } from '../tasks/Toolbar';
 import { TaskList } from '../tasks/TaskList';
 import { TaskEditorDialog } from '../tasks/TaskEditorDialog';
 import { ConflictBanner } from './ConflictBanner';
@@ -412,21 +412,31 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
               />
               <div className="flex flex-col gap-3">
                 <SearchBar value={searchQuery} onChange={setSearchQuery} />
-                <div className="flex flex-wrap items-center gap-2">
-                  <FilterDropdown filter={filter} onChange={setFilter} />
-                  {(filter.status.length > 0 ||
-                    filter.priority !== 'all' ||
-                    filter.timeRange !== 'all' ||
-                    searchQuery) && (
-                    <button
-                      type="button"
-                      onClick={clearFilters}
-                      className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                      清除筛选
-                    </button>
-                  )}
+                <div className="hidden md:block">
+                  <FilterDropdown
+                    filter={filter}
+                    onChange={setFilter}
+                    onClear={clearFilters}
+                    clearActive={
+                      filter.status.length > 0 ||
+                      filter.priority !== 'all' ||
+                      filter.timeRange !== 'all' ||
+                      !!searchQuery
+                    }
+                  />
+                </div>
+                <div className="md:hidden">
+                  <MobileFilterPanel
+                    filter={filter}
+                    onChange={setFilter}
+                    onClear={clearFilters}
+                    clearActive={
+                      filter.status.length > 0 ||
+                      filter.priority !== 'all' ||
+                      filter.timeRange !== 'all' ||
+                      !!searchQuery
+                    }
+                  />
                 </div>
               </div>
             </div>

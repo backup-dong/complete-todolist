@@ -1,4 +1,5 @@
-import { Search, ChevronDown, GripVertical, CalendarArrowDown, ArrowUpDown, Check } from 'lucide-react';
+import { useState } from 'react';
+import { Search, ChevronDown, GripVertical, CalendarArrowDown, ArrowUpDown, Check, X, Filter } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { FilterState, SortMode, TaskStatus } from '@/types';
 
@@ -116,9 +117,19 @@ function StatusFilterDropdown({
   );
 }
 
-export function FilterDropdown({ filter, onChange }: { filter: FilterState; onChange: (f: FilterState) => void }) {
+export function FilterDropdown({
+  filter,
+  onChange,
+  onClear,
+  clearActive,
+}: {
+  filter: FilterState;
+  onChange: (f: FilterState) => void;
+  onClear?: () => void;
+  clearActive?: boolean;
+}) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <StatusFilterDropdown
         value={filter.status}
         onChange={(status) => onChange({ ...filter, status })}
@@ -145,6 +156,17 @@ export function FilterDropdown({ filter, onChange }: { filter: FilterState; onCh
         <option value="week">本周到期</option>
         <option value="overdue">已逾期</option>
       </StyledSelect>
+
+      {onClear && clearActive && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
+        >
+          <X className="h-3.5 w-3.5" />
+          清除筛选
+        </button>
+      )}
     </div>
   );
 }
@@ -179,6 +201,56 @@ export function ViewToggle({ mode, onChange }: { mode: SortMode; onChange: (mode
           </button>
         );
       })}
+    </div>
+  );
+}
+
+export function MobileFilterPanel({
+  filter,
+  onChange,
+  onClear,
+  clearActive,
+}: {
+  filter: FilterState;
+  onChange: (f: FilterState) => void;
+  onClear?: () => void;
+  clearActive?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const activeCount =
+    filter.status.length +
+    (filter.priority !== 'all' ? 1 : 0) +
+    (filter.timeRange !== 'all' ? 1 : 0);
+
+  return (
+    <div className="md:hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={[
+          'btn-secondary flex items-center gap-1.5 py-1.5 text-xs',
+          open ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : '',
+        ].join(' ').trim()}
+      >
+        <Filter className="h-3.5 w-3.5" />
+        筛选
+        {activeCount > 0 && (
+          <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-primary)] px-1 text-[10px] font-medium text-[var(--color-text-inverse)]">
+            {activeCount}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="mt-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+          <FilterDropdown
+            filter={filter}
+            onChange={onChange}
+            onClear={onClear}
+            clearActive={clearActive}
+          />
+        </div>
+      )}
     </div>
   );
 }
