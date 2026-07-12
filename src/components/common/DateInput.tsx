@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { X } from 'lucide-react';
 
 interface DateInputProps {
@@ -7,12 +8,29 @@ interface DateInputProps {
 }
 
 export function DateInput({ value, onChange, className = '' }: DateInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleClick = () => {
+    const input = inputRef.current;
+    if (!input || typeof input.showPicker !== 'function') return;
+    // 仅在桌面端主动唤起选择器；移动端由系统默认行为处理
+    if (window.matchMedia('(pointer: fine)').matches) {
+      try {
+        input.showPicker();
+      } catch {
+        // 浏览器可能因选择器已打开等原因拒绝，忽略即可
+      }
+    }
+  };
+
   return (
     <div className="relative">
       <input
+        ref={inputRef}
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onClick={handleClick}
         className={`input w-full min-w-0 appearance-none pr-12 ${className}`}
       />
       {value && (
