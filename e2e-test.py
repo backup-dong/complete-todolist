@@ -199,7 +199,7 @@ def run_tests():
 
         data = json.loads(files.get('工作.json', '{}'))
         weekly = get_task_by_title(data, '每周任务')
-        if not weekly or weekly.get('meta', {}).get('due') != '2026-07-06':
+        if not weekly or weekly.get('meta', {}).get('due') != '2026-07-10':
             log_failure(f'Repeating task did not advance due date correctly. JSON:\n{files.get("工作.json", "")}')
 
         # 8. Delete task

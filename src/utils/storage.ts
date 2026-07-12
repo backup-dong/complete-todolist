@@ -6,7 +6,7 @@ const CONFIG_KEY = 'dong-todo:github-config';
 const FORMAT_VERSION_KEY = 'dong-todo:format-version';
 const CURRENT_FORMAT_VERSION = 1;
 
-function getJson<T>(key: string, fallback: T): T {
+export function getJson<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : fallback;
@@ -15,7 +15,7 @@ function getJson<T>(key: string, fallback: T): T {
   }
 }
 
-function setJson(key: string, value: unknown): void {
+export function setJson(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {

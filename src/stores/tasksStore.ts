@@ -5,6 +5,7 @@ import { isDueToday, isDueThisWeek, isOverdue, nowIso, todayIso, durationDays } 
 import { computeNextDue } from '@/utils/repeat';
 import { cloneSubtasks, resetSubtasks, toggleSubtaskAtPath } from '@/utils/subtasks';
 import { useListsStore } from './listsStore';
+import { useHolidayStore } from './holidayStore';
 import { normalizeTask } from '@/parser';
 
 interface TasksState {
@@ -149,9 +150,9 @@ function sortTasks(tasks: Task[], mode: SortMode): Task[] {
   return sorted;
 }
 
-function advanceRepeatingTask(task: Task): Task {
+function advanceRepeatingTask(task: Task, holidays: string[]): Task {
   if (!task.meta.repeat || !task.meta.due) return task;
-  const nextDue = computeNextDue(task.meta.due, task.meta.repeat, task.meta.repeat_until);
+  const nextDue = computeNextDue(task.meta.due, task.meta.repeat, task.meta.repeat_until, holidays);
   if (!nextDue) return task;
 
   return {
@@ -359,6 +360,12 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     if (!ctx) return;
     const { listName, list, saveListContent } = ctx;
 
+    const holidayStore = useHolidayStore.getState();
+    if (holidayStore.status !== 'ready') {
+      await holidayStore.loadHolidays();
+    }
+    const holidays = holidayStore.holidays;
+
     const nextList = { ...list };
     nextList.groups = nextList.groups.map((g) => ({
       ...g,
@@ -367,7 +374,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         const nextSubtasks = toggleSubtaskAtPath(cloneSubtasks(t.subtasks), path);
         let normalized = normalizeTask({ ...t, subtasks: nextSubtasks });
         if (normalized.meta.status === 'done' && normalized.meta.repeat) {
-          normalized = advanceRepeatingTask(normalized);
+          normalized = advanceRepeatingTask(normalized, holidays);
         }
         return normalized;
       }),
@@ -394,6 +401,12 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     if (!ctx) return;
     const { listName, list, saveListContent } = ctx;
 
+    const holidayStore = useHolidayStore.getState();
+    if (holidayStore.status !== 'ready') {
+      await holidayStore.loadHolidays();
+    }
+    const holidays = holidayStore.holidays;
+
     const nextList = { ...list };
     nextList.groups = nextList.groups.map((g) => ({
       ...g,
@@ -409,7 +422,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
             : durationDays(t.meta.created, completedAt),
         });
         if (normalized.meta.repeat) {
-          normalized = advanceRepeatingTask(normalized);
+          normalized = advanceRepeatingTask(normalized, holidays);
         }
         return normalized;
       }),

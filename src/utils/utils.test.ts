@@ -53,9 +53,9 @@ describe('repeat utils', () => {
     expect(computeNextDue('2026-07-01', 'daily')).toBe('2026-07-02');
   });
 
-  it('advances weekly to next Monday', () => {
+  it('advances weekly to the same weekday next week', () => {
     // 2026-07-01 is Wednesday
-    expect(computeNextDue('2026-07-01', 'weekly')).toBe('2026-07-06');
+    expect(computeNextDue('2026-07-01', 'weekly')).toBe('2026-07-08');
   });
 
   it('advances monthly', () => {
@@ -65,6 +65,11 @@ describe('repeat utils', () => {
   it('advances weekdays skipping weekend', () => {
     // 2026-07-03 is Friday
     expect(computeNextDue('2026-07-03', 'weekdays')).toBe('2026-07-06');
+  });
+
+  it('skips public holidays for weekdays', () => {
+    // 2026-10-01 is Thursday, 10/02 Friday, 10/03-10/07 holiday
+    expect(computeNextDue('2026-09-30', 'weekdays', undefined, ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08'])).toBe('2026-10-09');
   });
 
   it('handles custom weekday list', () => {

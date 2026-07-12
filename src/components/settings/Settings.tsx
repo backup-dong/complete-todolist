@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Shield, Save, Trash2, Palette } from 'lucide-react';
+import { ArrowLeft, Shield, Save, Trash2, Palette, Globe, RefreshCw } from 'lucide-react';
 import { useSyncStore } from '@/stores/syncStore';
+import { useHolidayStore } from '@/stores/holidayStore';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 
 export function Settings() {
   const { config, configure, clear } = useSyncStore();
+  const { country, status: holidayStatus, setCountry, loadHolidays } = useHolidayStore();
   const navigate = useNavigate();
   const [token, setToken] = useState(config?.token ?? '');
   const [owner, setOwner] = useState(config?.owner ?? '');
@@ -96,6 +98,37 @@ export function Settings() {
               <span>外观</span>
             </div>
             <ThemeToggle className="w-full justify-between" />
+          </div>
+
+          <div className="mt-6 rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-raised)] p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-[var(--color-text-secondary)]">
+              <Globe className="h-4 w-4" />
+              <span>节假日</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                placeholder="CN"
+                className="input w-24"
+              />
+              <button
+                type="button"
+                onClick={() => loadHolidays()}
+                disabled={holidayStatus === 'loading'}
+                className="btn-secondary inline-flex items-center gap-1.5"
+              >
+                <RefreshCw className={`h-4 w-4 ${holidayStatus === 'loading' ? 'animate-spin' : ''}`} />
+                刷新
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+              {holidayStatus === 'ready' && '已加载法定节假日'}
+              {holidayStatus === 'loading' && '正在加载节假日…'}
+              {holidayStatus === 'error' && '节假日加载失败，将只跳过周末'}
+              {holidayStatus === 'idle' && '输入国家代码（如 CN）后刷新'}
+            </p>
           </div>
 
           <div className="mt-6 flex gap-3">

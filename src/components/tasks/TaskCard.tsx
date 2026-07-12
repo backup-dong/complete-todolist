@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { Link, Subtask, Task } from '@/types';
 import { formatDate, isDueToday, isOverdue } from '@/utils/date';
+import { formatRepeat } from '@/utils/repeat';
 
 function useDueColor(due?: string, status?: Task['meta']['status']): string {
   if (!due) return '';
@@ -285,7 +286,7 @@ export function TaskCard({
             {task.meta.repeat && (
               <span className="inline-flex items-center gap-1 text-[var(--color-text-muted)]">
                 <Repeat className="h-3.5 w-3.5" />
-                {task.meta.repeat}
+                {formatRepeat(task.meta.repeat)}
               </span>
             )}
             {progress && (

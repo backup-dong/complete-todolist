@@ -25,8 +25,17 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Link, Subtask, Task } from '@/types';
+import { getDay, parseISO } from 'date-fns';
 import { DateInput } from '@/components/common/DateInput';
 import { NoteEditor } from '@/components/common/NoteEditor';
+import { todayIso } from '@/utils/date';
+import {
+  isMonthlyDaysRule,
+  isWeekdayRule,
+  parseWeekdayRule,
+  WEEKDAY_OPTIONS,
+  type WeekDay,
+} from '@/utils/repeat';
 import { deleteSubtaskAtPath, emptySubtask, reorderSubtasksAtPath, updateSubtaskAtPath } from '@/utils/subtasks';
 
 function detectSubtaskToggle(prev: Subtask[], curr: Subtask[]): boolean {
@@ -76,6 +85,19 @@ function textToLinks(text: string): Link[] | undefined {
     })
     .filter(Boolean) as Link[];
   return links.length > 0 ? links : undefined;
+}
+
+function weekdayFromDate(iso: string): WeekDay {
+  const map: Record<number, WeekDay> = {
+    0: 'sun',
+    1: 'mon',
+    2: 'tue',
+    3: 'wed',
+    4: 'thu',
+    5: 'fri',
+    6: 'sat',
+  };
+  return map[getDay(parseISO(iso))] ?? 'mon';
 }
 
 interface DraftTask {
@@ -608,6 +630,60 @@ function TaskMetaFields({
 }
 
 function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (action: DraftAction) => void }) {
+  const repeatMode = useMemo(() => {
+    if (!draft.repeat) return '';
+    if (['daily', 'monthly', 'weekdays'].includes(draft.repeat)) return draft.repeat;
+    if (isWeekdayRule(draft.repeat)) return 'weekly';
+    if (isMonthlyDaysRule(draft.repeat)) return 'monthly';
+    return '';
+  }, [draft.repeat]);
+
+  const selectedWeekdays = useMemo(() => {
+    if (repeatMode !== 'weekly') return [];
+    const parsed = parseWeekdayRule(draft.repeat);
+    return parsed.length > 0 ? parsed : [weekdayFromDate(draft.due || todayIso())];
+  }, [draft.repeat, repeatMode, draft.due]);
+
+  const monthlyCustomDays = useMemo(() => {
+    return repeatMode === 'monthly' && isMonthlyDaysRule(draft.repeat) ? draft.repeat : '';
+  }, [draft.repeat, repeatMode]);
+
+  const handleRepeatModeChange = (mode: string) => {
+    if (mode === '') {
+      dispatch({ type: 'set', field: 'repeat', value: '' });
+    } else if (mode === 'daily') {
+      dispatch({ type: 'set', field: 'repeat', value: 'daily' });
+    } else if (mode === 'weekdays') {
+      dispatch({ type: 'set', field: 'repeat', value: 'weekdays' });
+    } else if (mode === 'monthly') {
+      dispatch({ type: 'set', field: 'repeat', value: 'monthly' });
+    } else if (mode === 'weekly') {
+      const defaultDay = weekdayFromDate(draft.due || todayIso());
+      dispatch({ type: 'set', field: 'repeat', value: defaultDay });
+    }
+  };
+
+  const toggleWeekday = (key: WeekDay) => {
+    const next = selectedWeekdays.includes(key)
+      ? selectedWeekdays.filter((k) => k !== key)
+      : [...selectedWeekdays, key].sort(
+          (a, b) =>
+            WEEKDAY_OPTIONS.findIndex((o) => o.key === a) -
+            WEEKDAY_OPTIONS.findIndex((o) => o.key === b),
+        );
+    if (next.length === 0) return;
+    dispatch({ type: 'set', field: 'repeat', value: next.join(',') });
+  };
+
+  const handleMonthlyDaysChange = (value: string) => {
+    const sanitized = value
+      .replace(/[^0-9,]/g, '')
+      .split(',')
+      .filter(Boolean)
+      .join(',');
+    dispatch({ type: 'set', field: 'repeat', value: sanitized || 'monthly' });
+  };
+
   return (
     <>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -632,8 +708,8 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复规则</span>
           <select
-            value={draft.repeat}
-            onChange={(e) => dispatch({ type: 'set', field: 'repeat', value: e.target.value })}
+            value={repeatMode}
+            onChange={(e) => handleRepeatModeChange(e.target.value)}
             className="select"
           >
             <option value="">无</option>
@@ -642,6 +718,35 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
             <option value="monthly">每月</option>
             <option value="weekdays">工作日</option>
           </select>
+
+          {repeatMode === 'weekly' && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {WEEKDAY_OPTIONS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleWeekday(key)}
+                  className={`min-w-[2rem] rounded-md border px-2.5 py-1 text-sm transition-colors ${
+                    selectedWeekdays.includes(key)
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
+                      : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-raised)]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {repeatMode === 'monthly' && (
+            <input
+              type="text"
+              value={monthlyCustomDays}
+              onChange={(e) => handleMonthlyDaysChange(e.target.value)}
+              placeholder="例如 1,15，留空表示每月同一天"
+              className="input mt-2"
+            />
+          )}
         </label>
 
         <label className="block">
