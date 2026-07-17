@@ -56,8 +56,26 @@ function getOverdueDays(due?: string): number {
   }
 }
 
+function isActiveInNextWeek(start?: string, due?: string): boolean {
+  if (!start && !due) return false;
+  const { start: nextMon, end: nextSun } = getNextWeekRange();
+
+  try {
+    // 用已有的日期确定任务的时间范围，缺失的一侧用另一侧补全
+    const startDate = start ? parseISO(start) : parseISO(due!);
+    const dueDate = due ? parseISO(due) : parseISO(start!);
+    // 范围 [start, due] 与下周区间有交集
+    return startDate <= nextSun && dueDate >= nextMon;
+  } catch {
+    return false;
+  }
+}
+
 function shouldIncludeInPlan(task: Task): boolean {
-  return task.meta.status !== 'done' && (isOverdue(task.meta.due) || isDueNextWeek(task.meta.due));
+  return (
+    task.meta.status !== 'done' &&
+    (isOverdue(task.meta.due) || isDueNextWeek(task.meta.due) || isActiveInNextWeek(task.meta.start, task.meta.due))
+  );
 }
 
 function buildPlanTaskTitle(task: Task): string {
