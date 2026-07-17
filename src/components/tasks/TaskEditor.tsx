@@ -28,7 +28,7 @@ import type { Link, Subtask, Task } from '@/types';
 import { getDay, parseISO } from 'date-fns';
 import { DateInput } from '@/components/common/DateInput';
 import { NoteEditor } from '@/components/common/NoteEditor';
-import { todayIso } from '@/utils/date';
+import { nowIso, todayIso } from '@/utils/date';
 import {
   isMonthlyDaysRule,
   isWeekdayRule,
@@ -213,6 +213,10 @@ function SubtaskEditor({
   const expanded = pathsEqual(expandedPath, path);
 
   const handleChange = (patch: Partial<Subtask>) => {
+    // 当勾选/取消勾选子任务时，同步设置/清除 completed_at
+    if ('completed' in patch) {
+      patch.completed_at = patch.completed ? nowIso() : undefined;
+    }
     onChange(path, { ...subtask, ...patch });
   };
 
