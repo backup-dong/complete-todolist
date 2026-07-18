@@ -308,3 +308,15 @@ window.addEventListener('online', () => {
 window.addEventListener('offline', () => {
   useSyncStore.getState().setOffline();
 });
+
+// 其他标签页修改了待写入队列时，同步本页的状态计数
+window.addEventListener('storage', (e) => {
+  if (e.key !== 'dong-todo:pending-writes') return;
+  const store = useSyncStore.getState();
+  if (store.status === 'offline' || store.status === 'unconfigured') return;
+  if (Object.keys(getPendingWrites()).length > 0) {
+    store.setUnsaved();
+  } else {
+    store.setSynced();
+  }
+});

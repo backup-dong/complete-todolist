@@ -565,3 +565,27 @@ export const useListsStore = create<ListsState>((set, get) => ({
     selectGroup(null);
   },
 }));
+
+// 其他标签页更新了某清单的本地缓存时，同步到本页内存。
+// storage 事件只在“非发起方”标签页触发，因此不会和本页的保存流程冲突。
+window.addEventListener('storage', (e) => {
+  if (!e.key || !e.key.startsWith('dong-todo:file:')) return;
+  const name = e.key.slice('dong-todo:file:'.length);
+  const store = useListsStore.getState();
+  if (!store.fileCache[name]) return; // 未加载的清单无需同步
+  // 本标签页有待写入时以本地为准，跳过（推送时如遇远端修改走冲突流程）
+  if (getPendingWrites()[listNameToFileName(name)]) return;
+  const cached = getCachedFileContent(name);
+  if (!cached) return;
+  if (store.fileCache[name].rawContent === cached.content) return;
+  try {
+    const list = cached.content.trimStart().startsWith('{')
+      ? parseJsonToList(cached.content, cached.sha)
+      : parseMarkdownToList(cached.content, cached.sha);
+    useListsStore.setState((state) => ({
+      fileCache: { ...state.fileCache, [name]: list },
+    }));
+  } catch {
+    // 缓存内容无法解析时忽略，等待下次轮询兜底
+  }
+});

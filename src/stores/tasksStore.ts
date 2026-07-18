@@ -600,4 +600,13 @@ useListsStore.subscribe((state, prevState) => {
   if (state.fileCache !== prevState?.fileCache && useTasksStore.getState().todoView) {
     useTasksStore.getState().refreshTodoView();
   }
+
+  // 清单视图下，当前清单内容被外部更新（轮询拉取、其他标签页同步）时刷新任务列表
+  if (active && !useTasksStore.getState().todoView && state.fileCache !== prevState?.fileCache) {
+    const entry = state.fileCache[active];
+    const prevEntry = prevState?.fileCache?.[active];
+    if (entry && entry.rawContent !== prevEntry?.rawContent) {
+      useTasksStore.getState().refreshTasks(active);
+    }
+  }
 });
