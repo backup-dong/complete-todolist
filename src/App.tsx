@@ -17,7 +17,7 @@ function AppRoutes() {
   const fileCache = useListsStore((s) => s.fileCache);
   const listsFetched = useListsStore((s) => s.listsFetched);
   const initialLoading = useListsStore((s) => s.initialLoading);
-  const { fetchLists, setInitialLoading } = useListsStore();
+  const { fetchLists, setInitialLoading, fetchAllListsContent } = useListsStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,6 +31,10 @@ function AppRoutes() {
         // 启动时自动推送遗留的待写入（如防抖窗口内刷新页面留下的 pending），
         // 否则它们会一直滞留到下次断网重连或手动点击同步
         useSyncStore.getState().pushPending();
+
+        // 后台异步加载所有清单内容，确保待办视图（今天/本周/全部/高优先级）
+        // 数据就绪，无需等用户手动点击才去加载。
+        fetchAllListsContent();
       });
     }
   }, [config, ensureInitialized, fetchLists, navigate, setInitialLoading]);
