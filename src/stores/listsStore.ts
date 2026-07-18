@@ -496,12 +496,34 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const sync = useSyncStore.getState();
     if (!sync.ensureInitialized()) return;
 
-    const { lists, fileCache } = get();
+    const { lists, fileCache, activeListName } = get();
     const pendingWrites = getPendingWrites();
     const results = await Promise.allSettled(
       lists.map((list) => {
-        // 待写入中的清单跳过远程拉取，防止覆盖本地修改
-        if (pendingWrites[listNameToFileName(list.name)]) {
+        // 待写入中的清单从本地缓存加载，避免覆盖本地修改的同时确保 UI 有数据
+        const pendingFileName = listNameToFileName(list.name);
+        if (pendingWrites[pendingFileName]) {
+          if (!fileCache[list.name]) {
+            const cached = getCachedFileContent(list.name);
+            if (cached) {
+              try {
+                const cachedContent = cached.content;
+                const parsed = cachedContent.trimStart().startsWith('{')
+                  ? parseJsonToList(cachedContent, cached.sha)
+                  : parseMarkdownToList(cachedContent, cached.sha);
+                set((state) => ({
+                  fileCache: { ...state.fileCache, [list.name]: parsed },
+                  initialLoading: state.initialLoading && state.activeListName === list.name ? false : state.initialLoading,
+                }));
+              } catch {
+                // 缓存无法解析时忽略
+              }
+            }
+            // 待写入清单没有缓存时也关闭遮罩
+            if (get().initialLoading && activeListName === list.name) {
+              set({ initialLoading: false });
+            }
+          }
           return Promise.resolve();
         }
         if (fileCache[list.name]) {

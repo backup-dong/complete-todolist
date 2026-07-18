@@ -4,10 +4,10 @@ import { generateTaskId } from '@/utils/id';
 import { isDueToday, isDueThisWeek, isStartThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
 import { computeNextDue, computeEffectiveDueDate } from '@/utils/repeat';
 import { cloneSubtasks, resetSubtasks, toggleSubtaskAtPath } from '@/utils/subtasks';
-import { getPendingWrites } from '@/utils/storage';
+import { getPendingWrites, getCachedFileContent } from '@/utils/storage';
 import { useListsStore } from './listsStore';
 import { useHolidayStore } from './holidayStore';
-import { normalizeTask } from '@/parser';
+import { normalizeTask, parseJsonToList, parseMarkdownToList } from '@/parser';
 
 interface TasksState {
   tasks: Task[];
@@ -204,9 +204,31 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       set({ tasks: flattenTasks(listName) });
     }
 
-    // 检查是否有待写入的本地修改，有则跳过远程拉取
+    // 检查是否有待写入的本地修改，有则从本地缓存加载（不拉远程）
     const pendingWrites = getPendingWrites();
     if (pendingWrites[`${listName}.json`]) {
+      // 从 localStorage 缓存恢复数据，避免首屏 loading 卡死
+      const cached = getCachedFileContent(listName);
+      const store = useListsStore.getState();
+      if (cached && !store.fileCache[listName]) {
+        try {
+          const cachedContent = cached.content;
+          const list = cachedContent.trimStart().startsWith('{')
+            ? parseJsonToList(cachedContent, cached.sha)
+            : parseMarkdownToList(cachedContent, cached.sha);
+          useListsStore.setState((s) => ({
+            fileCache: { ...s.fileCache, [listName]: list },
+            initialLoading: s.initialLoading && s.activeListName === listName ? false : s.initialLoading,
+          }));
+          set({ tasks: flattenTasks(listName) });
+        } catch {
+          // 缓存无法解析时忽略
+        }
+      }
+      // 即使没有缓存，也要关闭首屏遮罩，不卡住用户
+      if (store.initialLoading && store.activeListName === listName) {
+        useListsStore.setState({ initialLoading: false });
+      }
       return;
     }
 
