@@ -30,6 +30,7 @@ import { DateInput } from '@/components/common/DateInput';
 import { NoteEditor } from '@/components/common/NoteEditor';
 import { nowIso, todayIso } from '@/utils/date';
 import {
+  getFirstDueDate,
   isMonthlyDaysRule,
   isWeekdayRule,
   parseWeekdayRule,
@@ -634,6 +635,8 @@ function TaskMetaFields({
 }
 
 function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (action: DraftAction) => void }) {
+  const [monthlyInputText, setMonthlyInputText] = useState('');
+
   const repeatMode = useMemo(() => {
     if (!draft.repeat) return '';
     if (['daily', 'monthly', 'weekdays'].includes(draft.repeat)) return draft.repeat;
@@ -652,18 +655,27 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
     return repeatMode === 'monthly' && isMonthlyDaysRule(draft.repeat) ? draft.repeat : '';
   }, [draft.repeat, repeatMode]);
 
+  // 切换模式时重置输入
+  useEffect(() => {
+    setMonthlyInputText('');
+  }, [repeatMode]);
+
   const handleRepeatModeChange = (mode: string) => {
     if (mode === '') {
       dispatch({ type: 'set', field: 'repeat', value: '' });
     } else if (mode === 'daily') {
       dispatch({ type: 'set', field: 'repeat', value: 'daily' });
+      dispatch({ type: 'set', field: 'due', value: todayIso() });
     } else if (mode === 'weekdays') {
       dispatch({ type: 'set', field: 'repeat', value: 'weekdays' });
+      dispatch({ type: 'set', field: 'due', value: getFirstDueDate('weekdays') });
     } else if (mode === 'monthly') {
       dispatch({ type: 'set', field: 'repeat', value: 'monthly' });
+      dispatch({ type: 'set', field: 'due', value: todayIso() });
     } else if (mode === 'weekly') {
       const defaultDay = weekdayFromDate(draft.due || todayIso());
       dispatch({ type: 'set', field: 'repeat', value: defaultDay });
+      dispatch({ type: 'set', field: 'due', value: getFirstDueDate(defaultDay) });
     }
   };
 
@@ -676,16 +688,25 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
             WEEKDAY_OPTIONS.findIndex((o) => o.key === b),
         );
     if (next.length === 0) return;
-    dispatch({ type: 'set', field: 'repeat', value: next.join(',') });
+    const repeatValue = next.join(',');
+    dispatch({ type: 'set', field: 'repeat', value: repeatValue });
+    dispatch({ type: 'set', field: 'due', value: getFirstDueDate(repeatValue) });
   };
 
   const handleMonthlyDaysChange = (value: string) => {
-    const sanitized = value
-      .replace(/[^0-9,]/g, '')
-      .split(',')
-      .filter(Boolean)
-      .join(',');
-    dispatch({ type: 'set', field: 'repeat', value: sanitized || 'monthly' });
+    // 保留原始输入（含逗号），仅去除非数字和逗号
+    const cleaned = value.replace(/[^0-9,]/g, '');
+    setMonthlyInputText(cleaned);
+
+    // 解析有效数字用于更新 repeat
+    const parts = cleaned.split(',').filter((p) => /^[0-9]+$/.test(p));
+    if (parts.length > 0) {
+      const repeatValue = parts.join(',');
+      dispatch({ type: 'set', field: 'repeat', value: repeatValue });
+      dispatch({ type: 'set', field: 'due', value: getFirstDueDate(repeatValue) });
+    } else {
+      dispatch({ type: 'set', field: 'repeat', value: 'monthly' });
+    }
   };
 
   return (
@@ -745,7 +766,7 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
           {repeatMode === 'monthly' && (
             <input
               type="text"
-              value={monthlyCustomDays}
+              value={monthlyInputText || monthlyCustomDays}
               onChange={(e) => handleMonthlyDaysChange(e.target.value)}
               placeholder="例如 1,15，留空表示每月同一天"
               className="input mt-2"

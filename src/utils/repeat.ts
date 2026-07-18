@@ -1,4 +1,5 @@
 import { addDays, addMonths, format, getDay, isWeekend, parseISO, setDate, startOfDay } from 'date-fns';
+import { todayIso } from '@/utils/date';
 
 type WeekDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
@@ -154,4 +155,61 @@ export function isMonthlyDaysRule(repeat: string): boolean {
   if (!repeat) return false;
   const parts = repeat.split(',').map((s) => s.trim().toLowerCase());
   return parts.length > 0 && parts.every((p) => /^[0-9]+$/.test(p));
+}
+
+/**
+ * 给定重复规则，返回首次发生的截止日期（用于设置新任务时自动填入）。
+ * - daily / weekly / monthly → 今天
+ * - weekdays → 如果今天是工作日返回今天，否则推到下周一
+ * - 自定义星期/日期 → 以昨天为基准计算最近一次
+ */
+export function getFirstDueDate(repeat: string): string {
+  const today = todayIso();
+
+  switch (repeat) {
+    case 'daily':
+    case 'weekly':
+    case 'monthly':
+      return today;
+    case 'weekdays':
+      if (!isWeekend(parseISO(today))) return today;
+      return computeNextDue(today, 'weekdays') ?? today;
+    default: {
+      // "sat,sun" / "mon,wed,fri" / "1,15" 等自定义规则
+      const yesterday = format(addDays(parseISO(today), -1), 'yyyy-MM-dd');
+      return computeNextDue(yesterday, repeat) ?? today;
+    }
+  }
+}
+
+/**
+ * 计算重复任务的有效截止日期。
+ * 如果任务的截止日期已过期，循环推进 repeat 规则直到达到今天或未来，
+ * 返回"应该显示为"的有效截止日期。
+ * 如果截止日期已是今天或将来，直接返回原值。
+ */
+export function computeEffectiveDueDate(
+  due: string,
+  repeat: string,
+  repeatUntil?: string,
+  holidays?: string[],
+): string {
+  // 没有重复规则的任务，直接返回原值
+  if (!repeat) return due;
+
+  const today = todayIso();
+  let current = due;
+
+  // 已经今天或将来，无需推进
+  if (current >= today) return current;
+
+  const MAX_ITERATIONS = 365;
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    const next = computeNextDue(current, repeat, repeatUntil, holidays);
+    if (!next || next === current) break;
+    if (next >= today) return next;
+    current = next;
+  }
+
+  return current;
 }

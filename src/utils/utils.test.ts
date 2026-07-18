@@ -6,7 +6,7 @@ import {
   toChineseNumeral,
   generateWeeklyReport,
 } from '@/utils/report';
-import { computeNextDue } from '@/utils/repeat';
+import { computeNextDue, computeEffectiveDueDate } from '@/utils/repeat';
 import { generateTaskId } from '@/utils/id';
 import type { ParsedList } from '@/types';
 
@@ -84,6 +84,90 @@ describe('repeat utils', () => {
 
   it('respects repeat_until', () => {
     expect(computeNextDue('2026-07-01', 'daily', '2026-07-01')).toBeNull();
+  });
+
+  it('effective due returns same date for non-repeating task', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T12:00:00'));
+    try {
+      expect(computeEffectiveDueDate('2026-07-15', '', undefined)).toBe('2026-07-15');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('effective due returns original when due is today', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T12:00:00'));
+    try {
+      expect(computeEffectiveDueDate('2026-07-18', 'daily', undefined)).toBe('2026-07-18');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('effective due returns original when due is in future', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T12:00:00'));
+    try {
+      expect(computeEffectiveDueDate('2026-07-20', 'daily', undefined)).toBe('2026-07-20');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('effective due advances daily repeat to today', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T12:00:00'));
+    try {
+      expect(computeEffectiveDueDate('2026-07-15', 'daily', undefined)).toBe('2026-07-18');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('effective due advances sat,sun repeat to current saturday', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T12:00:00')); // 2026-07-18 is Saturday
+    try {
+      // past date is also a Saturday
+      expect(computeEffectiveDueDate('2026-07-11', 'sat,sun', undefined)).toBe('2026-07-18');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('effective due advances sat,sun repeat to current sunday', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-19T12:00:00')); // 2026-07-19 is Sunday
+    try {
+      // past date is Saturday, should advance to Sunday
+      expect(computeEffectiveDueDate('2026-07-18', 'sat,sun', undefined)).toBe('2026-07-19');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('effective due advances to next occurrence when no occurrence today', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-20T12:00:00')); // 2026-07-20 is Monday
+    try {
+      // past Saturday, next sat/sun after today is 2026-07-25 (Sat)
+      expect(computeEffectiveDueDate('2026-07-18', 'sat,sun', undefined)).toBe('2026-07-25');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('effective due respects repeat_until', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-20T12:00:00'));
+    try {
+      // daily repeat but repeat_until is 2026-07-15, so can't reach today
+      expect(computeEffectiveDueDate('2026-07-14', 'daily', '2026-07-15')).toBe('2026-07-15');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

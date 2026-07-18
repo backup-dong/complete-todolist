@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { FilterState, ParsedList, SortMode, Task, TaskMeta, TodoViewKey } from '@/types';
 import { generateTaskId } from '@/utils/id';
 import { isDueToday, isDueThisWeek, isStartThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
-import { computeNextDue } from '@/utils/repeat';
+import { computeNextDue, computeEffectiveDueDate } from '@/utils/repeat';
 import { cloneSubtasks, resetSubtasks, toggleSubtaskAtPath } from '@/utils/subtasks';
 import { getPendingWrites } from '@/utils/storage';
 import { useListsStore } from './listsStore';
@@ -103,11 +103,15 @@ function requireTaskContext(task?: Task, preferredListName?: string): TaskContex
 
 function matchesTodoView(task: Task, key: TodoViewKey): boolean {
   if (task.meta.status === 'done') return false;
+
+  // 对重复任务使用有效截止日期（自动推进过期任务到最近一次发生）
+  const due = dueForView(task);
+
   switch (key) {
     case 'today':
-      return isDueToday(task.meta.due);
+      return isDueToday(due);
     case 'week':
-      return isDueThisWeek(task.meta.due);
+      return isDueThisWeek(due);
     case 'start-week':
       return isStartThisWeek(task.meta.start);
     case 'all':
@@ -117,6 +121,14 @@ function matchesTodoView(task: Task, key: TodoViewKey): boolean {
     default:
       return false;
   }
+}
+
+/** 对于有 repeat 的任务，返回有效截止日期（自动推进到今天的最近一次），否则返回原始 due */
+function dueForView(task: Task): string | undefined {
+  if (task.meta.repeat && task.meta.due) {
+    return computeEffectiveDueDate(task.meta.due, task.meta.repeat, task.meta.repeat_until);
+  }
+  return task.meta.due;
 }
 
 function matchesFilter(task: Task, filter: FilterState, query: string): boolean {
@@ -155,7 +167,10 @@ function sortTasks(tasks: Task[], mode: SortMode): Task[] {
 
 function advanceRepeatingTask(task: Task, holidays: string[]): Task {
   if (!task.meta.repeat || !task.meta.due) return task;
-  const nextDue = computeNextDue(task.meta.due, task.meta.repeat, task.meta.repeat_until, holidays);
+
+  // 对于已过期的重复任务，先推进到有效日期再算下一次，避免从旧日期算出错误结果
+  const baseDue = computeEffectiveDueDate(task.meta.due, task.meta.repeat, task.meta.repeat_until, holidays);
+  const nextDue = computeNextDue(baseDue, task.meta.repeat, task.meta.repeat_until, holidays);
   if (!nextDue) return task;
 
   return {

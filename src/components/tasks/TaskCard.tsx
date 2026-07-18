@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   CalendarClock,
   Check,
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import type { Link, Subtask, Task } from '@/types';
 import { formatDate, isDueToday, isOverdue } from '@/utils/date';
-import { formatRepeat } from '@/utils/repeat';
+import { computeEffectiveDueDate, formatRepeat } from '@/utils/repeat';
 
 function useDueColor(due?: string, status?: Task['meta']['status']): string {
   if (!due) return '';
@@ -213,7 +213,15 @@ export function TaskCard({
   onDelete: () => void;
   onComplete?: () => void;
 }) {
-  const dueColor = useDueColor(task.meta.due, task.meta.status);
+  // 重复任务：显示有效截止日期（自动推进已过期的到最近一次）
+  const displayDue = useMemo(() => {
+    if (task.meta.repeat && task.meta.due) {
+      return computeEffectiveDueDate(task.meta.due, task.meta.repeat, task.meta.repeat_until);
+    }
+    return task.meta.due;
+  }, [task.meta.due, task.meta.repeat, task.meta.repeat_until]);
+
+  const dueColor = useDueColor(displayDue, task.meta.status);
 
   const progress =
     task.subtasks.length > 0
@@ -277,10 +285,10 @@ export function TaskCard({
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <PriorityBadge priority={task.meta.priority} />
-            {task.meta.due && (
+            {displayDue && (
               <span className={`inline-flex items-center gap-1 ${dueColor}`}>
                 <CalendarClock className="h-3.5 w-3.5" />
-                {formatDate(task.meta.due)}
+                {formatDate(displayDue)}
               </span>
             )}
             {task.meta.repeat && (
