@@ -27,7 +27,11 @@ function AppRoutes() {
       return;
     }
     if (ensureInitialized()) {
-      fetchLists();
+      fetchLists().then(() => {
+        // 启动时自动推送遗留的待写入（如防抖窗口内刷新页面留下的 pending），
+        // 否则它们会一直滞留到下次断网重连或手动点击同步
+        useSyncStore.getState().pushPending();
+      });
     }
   }, [config, ensureInitialized, fetchLists, navigate, setInitialLoading]);
 

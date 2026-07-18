@@ -7,6 +7,9 @@ import {
   clearConfig,
   isOffline,
   cacheShaMap,
+  getCachedShaMap,
+  getCachedFileContent,
+  cacheFileContent,
   getPendingWrites,
   clearPendingWrite,
   clearPendingIfUnchanged,
@@ -26,6 +29,7 @@ interface SyncStore extends SyncStatusState {
   setUnsaved: () => void;
   setOffline: () => void;
   setUnconfigured: () => void;
+  markConflict: (fileName: string) => void;
   pollSha: () => Promise<Record<string, string> | null>;
   pushPending: () => Promise<{ succeeded: string[]; failed: string[]; conflicts: string[] }>;
   resolveConflict: (fileName: string, strategy: 'local' | 'remote') => Promise<void>;
@@ -48,6 +52,22 @@ interface PushResult {
   kind: 'success' | 'conflict' | 'error';
 }
 
+function isConflictError(err: unknown): boolean {
+  const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
+  return status === 409 || status === 422;
+}
+
+function fileNameToListName(fileName: string): string {
+  return fileName.replace(/\.json$/, '');
+}
+
+/** 本地已知的远端 sha：优先文件缓存，其次 sha map */
+function knownRemoteSha(fileName: string): string | undefined {
+  const cached = getCachedFileContent(fileNameToListName(fileName));
+  if (cached?.sha) return cached.sha;
+  return getCachedShaMap()[fileName] || undefined;
+}
+
 async function tryPushOneFile(
   name: string,
   content: string,
@@ -55,17 +75,22 @@ async function tryPushOneFile(
 ): Promise<PushResult> {
   const path = `${config.basePath}/${name}`;
   try {
-    const remote = await getFileContent(config, path).catch(() => null);
-    const sha = remote?.sha;
-    await writeFileContent(config, path, content, sha);
+    // 条件写入：基于本地已知的远端 sha；远端被其他设备修改时 409/422，走冲突流程。
+    // 本地没有 sha 记录时没有冲突判断依据，先取远端 sha 再写。
+    let sha = knownRemoteSha(name);
+    if (!sha) {
+      const remote = await getFileContent(config, path).catch(() => null);
+      sha = remote?.sha;
+    }
+    const newSha = await writeFileContent(config, path, content, sha);
     // 安全清除：只有待写入内容未被更新时才清除，
     // 防止 async 间隙新内容被误清除
-    clearPendingIfUnchanged(name, content);
+    if (clearPendingIfUnchanged(name, content)) {
+      cacheFileContent(fileNameToListName(name), content, newSha);
+    }
     return { kind: 'success' };
   } catch (err) {
-    // GitHub API 返回 422（SHA 不匹配）或 409（并发冲突）时标记为冲突
-    const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
-    if (status === 422 || status === 409) {
+    if (isConflictError(err)) {
       return { kind: 'conflict' };
     }
     console.error(`pushPending failed for ${name}`, err);
@@ -84,7 +109,7 @@ function deriveStatusFromResults(
   return {
     status: remaining > 0 ? 'unsaved' : 'synced',
     pendingWrites: remaining,
-    conflictFiles: conflicts > 0 ? ['conflict'] : [], // placeholder, replaced by caller
+    conflictFiles: [], // 由调用方填充具体冲突文件
   };
 }
 
@@ -110,13 +135,29 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
   },
 
   setSyncing: () => set({ status: 'syncing' }),
-  setSynced: () => set({ status: 'synced', lastSyncAt: new Date().toISOString(), pendingWrites: 0 }),
+  // 根据实际待写入队列计算状态：其他文件可能仍有 pending，不能无条件置 synced
+  setSynced: () => {
+    const pending = Object.keys(getPendingWrites()).length;
+    set({
+      status: pending > 0 ? 'unsaved' : 'synced',
+      lastSyncAt: new Date().toISOString(),
+      pendingWrites: pending,
+    });
+  },
   setUnsaved: () => {
     const pending = Object.keys(getPendingWrites()).length;
     set({ status: 'unsaved', pendingWrites: pending });
   },
   setOffline: () => set({ status: 'offline' }),
   setUnconfigured: () => set({ status: 'unconfigured' }),
+  markConflict: (fileName) =>
+    set((state) => ({
+      status: 'unsaved',
+      pendingWrites: Object.keys(getPendingWrites()).length,
+      conflictFiles: state.conflictFiles.includes(fileName)
+        ? state.conflictFiles
+        : [...state.conflictFiles, fileName],
+    })),
 
   pollSha: async () => {
     const { config, ensureInitialized } = get();
@@ -132,7 +173,35 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
       remoteFiles.forEach((f) => {
         remoteMap[f.name] = f.sha;
       });
+
+      // 对比上一轮 sha map，检测远端变更
+      const prevMap = getCachedShaMap();
       cacheShaMap(remoteMap);
+
+      const pending = getPendingWrites();
+      // 本地有待写入的文件跳过：以本地为准，推送时如遇远端修改走冲突流程
+      const changed = Object.keys(remoteMap).filter(
+        (name) => prevMap[name] && prevMap[name] !== remoteMap[name] && !pending[name],
+      );
+      const added = Object.keys(remoteMap).filter((name) => !(name in prevMap));
+      const removed = Object.keys(prevMap).filter((name) => !(name in remoteMap) && !pending[name]);
+
+      if (added.length > 0 || removed.length > 0 || changed.length > 0) {
+        // 动态引入避免与 listsStore 的循环依赖
+        const { useListsStore } = await import('./listsStore');
+        if (added.length > 0 || removed.length > 0) {
+          // 文件增删：刷新清单目录
+          await useListsStore.getState().fetchLists();
+        }
+        for (const fileName of changed) {
+          const listName = fileNameToListName(fileName);
+          if (useListsStore.getState().lists.some((l) => l.name === listName)) {
+            // fetchListContent 内部会再次检查 pending，不会覆盖本地修改
+            await useListsStore.getState().fetchListContent(listName);
+          }
+        }
+      }
+
       return remoteMap;
     } catch (err) {
       console.error('pollSha failed', err);
@@ -186,14 +255,36 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
   resolveConflict: async (fileName, strategy) => {
     const { config, ensureInitialized } = get();
     if (!ensureInitialized() || !config) return;
+    const listName = fileNameToListName(fileName);
+    const path = `${config.basePath}/${fileName}`;
+
     if (strategy === 'remote') {
+      // 放弃本地修改：清除待写入，重新拉取远端内容刷新 UI
       clearPendingWrite(fileName);
+      const { useListsStore } = await import('./listsStore');
+      await useListsStore.getState().fetchListContent(listName);
     } else {
-      // local: keep pending content, retry immediately
-      await get().pushPending();
+      // 保留本地修改：基于远端最新 sha 强制覆盖写入（用户已确认以本地为准）
+      const pending = getPendingWrites()[fileName];
+      if (pending) {
+        try {
+          const remote = await getFileContent(config, path).catch(() => null);
+          const newSha = await writeFileContent(config, path, pending, remote?.sha);
+          if (clearPendingIfUnchanged(fileName, pending)) {
+            cacheFileContent(listName, pending, newSha);
+          }
+        } catch (err) {
+          console.error(`resolveConflict failed for ${fileName}`, err);
+          return; // 保留冲突标记，允许用户重试
+        }
+      }
     }
+
+    const remaining = Object.keys(getPendingWrites()).length;
     set((state) => ({
       conflictFiles: state.conflictFiles.filter((f) => f !== fileName),
+      status: remaining > 0 ? 'unsaved' : 'synced',
+      pendingWrites: remaining,
     }));
   },
 
