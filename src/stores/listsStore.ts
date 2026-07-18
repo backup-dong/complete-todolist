@@ -11,6 +11,7 @@ import {
   getCachedActiveList,
   addPendingWrite,
   clearPendingWrite,
+  clearPendingIfUnchanged,
   cacheShaMap,
   getCachedShaMap,
   getPendingWrites,
@@ -103,15 +104,6 @@ async function uploadContent(
   const remote = await getFileContent(config, path).catch(() => null);
   const sha = await writeFileContent(config, path, content, remote?.sha);
   return { sha, remoteSha: remote?.sha };
-}
-
-function clearPendingIfUnchanged(fileName: string, content: string): boolean {
-  const latestPending = getPendingWrites()[fileName];
-  if (latestPending === content) {
-    clearPendingWrite(fileName);
-    return true;
-  }
-  return false;
 }
 
 async function performBackgroundSync(name: string, content: string, fileName: string, config: GithubConfig): Promise<void> {
@@ -383,9 +375,29 @@ export const useListsStore = create<ListsState>((set, get) => ({
       const jsonFile = await getFileContent(sync.config!, jsonPath).catch(() => null);
       if (jsonFile) {
         const list = parseJsonToList(jsonFile.content, jsonFile.sha);
-        set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
-        cacheFileContent(name, jsonFile.content, jsonFile.sha);
-        sync.setSynced();
+
+        // 检查是否有未同步的本地修改，避免覆盖本地数据
+        const pendingWrites = getPendingWrites();
+        const payloadFileName = listNameToFileName(name);
+        if (pendingWrites[payloadFileName]) {
+          // 本地有待写入修改：从 localStorage 加载待写入数据到 UI
+          const cached = getCachedFileContent(name);
+          if (cached && cached.content !== jsonFile.content) {
+            const cachedList = cached.content.trimStart().startsWith('{')
+              ? parseJsonToList(cached.content, cached.sha)
+              : parseMarkdownToList(cached.content, cached.sha);
+            set((state) => ({ fileCache: { ...state.fileCache, [name]: cachedList } }));
+          } else {
+            // 没有额外缓存，先用远程数据展示
+            set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
+          }
+          // 不覆盖 cacheFileContent，防止丢失待写入数据的 SHA
+          sync.setUnsaved();
+        } else {
+          set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
+          cacheFileContent(name, jsonFile.content, jsonFile.sha);
+          sync.setSynced();
+        }
         return list;
       }
 
@@ -427,6 +439,8 @@ export const useListsStore = create<ListsState>((set, get) => ({
     // 1. 立即更新本地状态与待写入队列，UI 不阻塞
     set((state) => ({ fileCache: { ...state.fileCache, [name]: { ...list, rawContent: content } } }));
     addPendingWrite(fileName, content);
+    // 同步写入 localStorage 缓存，防止页面刷新后待写入数据丢失
+    cacheFileContent(name, content, list.sha ?? '');
     sync.setUnsaved();
 
     // 离线或未配置时直接返回，后续由 pushPending 或 online 事件兜底
@@ -446,8 +460,13 @@ export const useListsStore = create<ListsState>((set, get) => ({
     if (!sync.ensureInitialized()) return;
 
     const { lists, fileCache } = get();
+    const pendingWrites = getPendingWrites();
     const results = await Promise.allSettled(
       lists.map((list) => {
+        // 待写入中的清单跳过远程拉取，防止覆盖本地修改
+        if (pendingWrites[listNameToFileName(list.name)]) {
+          return Promise.resolve();
+        }
         if (fileCache[list.name]) {
           // 已有缓存则后台静默刷新，不阻塞视图渲染
           return get().fetchListContent(list.name);

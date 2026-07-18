@@ -73,7 +73,7 @@ export interface JsonListFile {
 
 export type SortMode = 'drag' | 'due' | 'priority';
 
-export type TodoViewKey = 'today' | 'week' | 'all' | 'high';
+export type TodoViewKey = 'today' | 'week' | 'start-week' | 'all' | 'high';
 
 export interface FilterState {
   status: TaskStatus[]; // 空数组表示全部

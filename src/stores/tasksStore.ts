@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import type { FilterState, ParsedList, SortMode, Task, TaskMeta, TodoViewKey } from '@/types';
 import { generateTaskId } from '@/utils/id';
-import { isDueToday, isDueThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
+import { isDueToday, isDueThisWeek, isStartThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
 import { computeNextDue } from '@/utils/repeat';
 import { cloneSubtasks, resetSubtasks, toggleSubtaskAtPath } from '@/utils/subtasks';
+import { getPendingWrites } from '@/utils/storage';
 import { useListsStore } from './listsStore';
 import { useHolidayStore } from './holidayStore';
 import { normalizeTask } from '@/parser';
@@ -107,6 +108,8 @@ function matchesTodoView(task: Task, key: TodoViewKey): boolean {
       return isDueToday(task.meta.due);
     case 'week':
       return isDueThisWeek(task.meta.due);
+    case 'start-week':
+      return isStartThisWeek(task.meta.start);
     case 'all':
       return true;
     case 'high':
@@ -184,6 +187,12 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     // 先使用本地缓存渲染，避免切换清单时阻塞 UI
     if (useListsStore.getState().fileCache[listName]) {
       set({ tasks: flattenTasks(listName) });
+    }
+
+    // 检查是否有待写入的本地修改，有则跳过远程拉取
+    const pendingWrites = getPendingWrites();
+    if (pendingWrites[`${listName}.json`]) {
+      return;
     }
 
     // 后台拉取最新内容并再次刷新
@@ -563,7 +572,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   getTodoViewCounts: () => {
     const aggregated = flattenAllTasks(useListsStore.getState().fileCache);
-    const keys: TodoViewKey[] = ['today', 'week', 'all', 'high'];
+    const keys: TodoViewKey[] = ['today', 'week', 'start-week', 'all', 'high'];
     return keys.reduce(
       (acc, key) => {
         acc[key] = aggregated.filter((t) => matchesTodoView(t, key)).length;

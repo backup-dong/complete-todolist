@@ -7,9 +7,9 @@ import {
   clearConfig,
   isOffline,
   cacheShaMap,
-  getCachedShaMap,
   getPendingWrites,
   clearPendingWrite,
+  clearPendingIfUnchanged,
   migrateLocalStorageCache,
 } from '@/utils/storage';
 
@@ -52,19 +52,22 @@ async function tryPushOneFile(
   name: string,
   content: string,
   config: GithubConfig,
-  localShaMap: Record<string, string>,
 ): Promise<PushResult> {
   const path = `${config.basePath}/${name}`;
   try {
     const remote = await getFileContent(config, path).catch(() => null);
-    if (remote && localShaMap[name] && remote.sha !== localShaMap[name]) {
-      return { kind: 'conflict' };
-    }
     const sha = remote?.sha;
     await writeFileContent(config, path, content, sha);
-    clearPendingWrite(name);
+    // 安全清除：只有待写入内容未被更新时才清除，
+    // 防止 async 间隙新内容被误清除
+    clearPendingIfUnchanged(name, content);
     return { kind: 'success' };
   } catch (err) {
+    // GitHub API 返回 422（SHA 不匹配）或 409（并发冲突）时标记为冲突
+    const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
+    if (status === 422 || status === 409) {
+      return { kind: 'conflict' };
+    }
     console.error(`pushPending failed for ${name}`, err);
     return { kind: 'error' };
   }
@@ -156,12 +159,11 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
     const succeeded: string[] = [];
     const failed: string[] = [];
     const conflicts: string[] = [];
-    const localShaMap = getCachedShaMap();
 
     try {
       for (const name of pendingKeys) {
         const content = pending[name];
-        const result = await tryPushOneFile(name, content, config, localShaMap);
+        const result = await tryPushOneFile(name, content, config);
         if (result.kind === 'success') succeeded.push(name);
         else if (result.kind === 'conflict') conflicts.push(name);
         else failed.push(name);
@@ -206,8 +208,7 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
 window.addEventListener('online', () => {
   const store = useSyncStore.getState();
   if (store.config) {
-    store.setSynced();
-    store.pushPending();
+    store.pushPending(); // pushPending 内部会处理 sync 状态转换
   } else {
     store.setUnconfigured();
   }

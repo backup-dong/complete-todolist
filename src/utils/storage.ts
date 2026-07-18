@@ -187,6 +187,19 @@ export function getPendingWriteDetails(): PendingWriteDetail[] {
   }
 }
 
+/**
+ * 只有当待写入内容与指定内容一致时才清除 pending write。
+ * 用于防止在 async 间隙被更新的 pending write 被误清除。
+ */
+export function clearPendingIfUnchanged(fileName: string, content: string): boolean {
+  const latestPending = getPendingWrites()[fileName];
+  if (latestPending === content) {
+    clearPendingWrite(fileName);
+    return true;
+  }
+  return false;
+}
+
 export function clearPendingWrite(name: string): void {
   updateJson<RawPendingWriteRecord>(
     'dong-todo:pending-writes',
