@@ -242,7 +242,8 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
 
   const todoViewTitles: Record<TodoViewKey, string> = {
     today: '今天',
-    week: '本周',
+    week: '本周截止',
+    'start-week': '本周开始',
     all: '全部',
     high: '高优先级',
   };

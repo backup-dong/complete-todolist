@@ -1,5 +1,5 @@
+import { useEffect, useRef, useState } from 'react';
 import { Search, ChevronDown, GripVertical, CalendarArrowDown, ArrowUpDown, Check, X, Filter } from 'lucide-react';
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { FilterState, SortMode, TaskStatus } from '@/types';
 
 export function SearchBar({
@@ -58,6 +58,10 @@ function StatusFilterDropdown({
   value: TaskStatus[];
   onChange: (value: TaskStatus[]) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
   const options: { value: TaskStatus; label: string }[] = [
     { value: 'pending', label: '待处理' },
     { value: 'active', label: '进行中' },
@@ -70,49 +74,73 @@ function StatusFilterDropdown({
 
   const label = value.length === 0 ? '全部状态' : value.map((v) => options.find((o) => o.value === v)?.label).join(' + ');
 
+  // 点击外部关闭
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <button
-          type="button"
-          className="relative inline-flex min-w-[120px] items-center justify-between gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 pr-8 text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]"
-          aria-label="状态过滤"
-        >
-          <span className="truncate">{label}</span>
-          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-text-muted)]" />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          className="z-50 min-w-[140px] rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-md"
-          sideOffset={4}
-        >
-          {options.map((opt) => (
-            <DropdownMenu.CheckboxItem
-              key={opt.value}
-              checked={value.includes(opt.value)}
-              onCheckedChange={() => toggle(opt.value)}
-              className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[var(--color-text)] outline-none hover:bg-[var(--color-surface-hover)] focus:bg-[var(--color-surface-hover)] focus:outline-none"
-            >
-              <span className="flex h-4 w-4 items-center justify-center rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-primary)]">
-                <DropdownMenu.ItemIndicator>
-                  <Check className="h-3.5 w-3.5" />
-                </DropdownMenu.ItemIndicator>
-              </span>
-              {opt.label}
-            </DropdownMenu.CheckboxItem>
-          ))}
-          <DropdownMenu.Separator className="my-1 h-px bg-[var(--color-border)]" />
-          <DropdownMenu.Item
-            disabled={value.length === 0}
-            onSelect={() => onChange([])}
-            className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm text-[var(--color-text)] outline-none hover:bg-[var(--color-surface-hover)] focus:bg-[var(--color-surface-hover)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+    <div ref={ref} className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="relative inline-flex min-w-[120px] items-center justify-between gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 pr-8 text-xs text-[var(--color-text)] hover:bg-[var(--color-surface-hover)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]"
+        aria-label="状态过滤"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-text-muted)]" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-md">
+          {options.map((opt) => {
+            const checked = value.includes(opt.value);
+            return (
+              <div
+                key={opt.value}
+                role="option"
+                aria-selected={checked}
+                onClick={() => toggle(opt.value)}
+                className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]"
+              >
+                <span
+                  className={[
+                    'flex h-4 w-4 items-center justify-center rounded border',
+                    checked
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
+                      : 'border-[var(--color-border)] bg-[var(--color-surface)]',
+                  ].join(' ')}
+                >
+                  {checked && <Check className="h-3 w-3" />}
+                </span>
+                {opt.label}
+              </div>
+            );
+          })}
+          <div className="my-1 h-px bg-[var(--color-border)]" />
+          <div
+            role="button"
+            onClick={() => {
+              onChange([]);
+              setOpen(false);
+            }}
+            className={[
+              'flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-[var(--color-surface-hover)]',
+              value.length === 0 ? 'cursor-not-allowed opacity-50' : '',
+            ].join(' ')}
           >
             清除选择
-          </DropdownMenu.Item>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

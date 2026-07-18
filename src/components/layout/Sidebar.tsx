@@ -8,6 +8,7 @@ import {
   Folder,
   Layers,
   ListTodo,
+  Pencil,
   Plus,
   RefreshCw,
   Settings2,
@@ -116,16 +117,47 @@ function GroupRow({
   done,
   total,
   active,
+  editing,
+  editValue,
   onClick,
   onDelete,
+  onStartEdit,
+  onEditValueChange,
+  onSaveEdit,
+  onCancelEdit,
 }: {
   name: string;
   done: number;
   total: number;
   active: boolean;
+  editing: boolean;
+  editValue: string;
   onClick: () => void;
   onDelete: () => void;
+  onStartEdit: () => void;
+  onEditValueChange: (value: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
 }) {
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 rounded-md px-3 py-1.5">
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-muted)]" />
+        <input
+          autoFocus
+          value={editValue}
+          onChange={(e) => onEditValueChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSaveEdit();
+            if (e.key === 'Escape') onCancelEdit();
+          }}
+          onBlur={onSaveEdit}
+          placeholder="分组名称"
+          className="input flex-1 py-0.5 text-sm"
+        />
+      </div>
+    );
+  }
   return (
     <div
       role="button"
@@ -148,10 +180,26 @@ function GroupRow({
         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-muted)]" />
         <span className="truncate">{name}</span>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1">
         <span className={`text-xs tabular-nums ${active ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'}`}>
           {done}/{total}
         </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartEdit();
+          }}
+          aria-label="重命名分组"
+          className={[
+            'rounded-md p-1.5 md:opacity-0 transition-opacity duration-100 md:group-hover:opacity-100 focus:opacity-100',
+            active
+              ? 'text-[var(--color-primary)]/70 hover:bg-[var(--color-primary)]/10 hover:text-[var(--color-primary)]'
+              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-primary)]',
+          ].join(' ')}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
         <button
           type="button"
           onClick={(e) => {
@@ -160,7 +208,7 @@ function GroupRow({
           }}
           aria-label="删除分组"
           className={[
-            'rounded-md p-1.5 opacity-0 transition-opacity duration-100 group-hover:opacity-100 focus:opacity-100',
+            'rounded-md p-1.5 md:opacity-0 transition-opacity duration-100 md:group-hover:opacity-100 focus:opacity-100',
             active
               ? 'text-[var(--color-primary)]/70 hover:bg-[var(--color-primary)]/10 hover:text-[var(--color-danger)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-danger)]',
@@ -176,14 +224,49 @@ function GroupRow({
 function ListRow({
   list,
   active,
+  editing,
+  editValue,
+  collapsed,
   onClick,
   onDelete,
+  onStartEdit,
+  onEditValueChange,
+  onSaveEdit,
+  onCancelEdit,
+  onToggleCollapse,
 }: {
   list: ListMeta;
   active: boolean;
+  editing: boolean;
+  editValue: string;
+  collapsed?: boolean;
   onClick: () => void;
   onDelete: () => void;
+  onStartEdit: () => void;
+  onEditValueChange: (value: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onToggleCollapse: () => void;
 }) {
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 rounded-md px-3 py-2">
+        <Folder className={`h-[18px] w-[18px] shrink-0 text-[var(--color-text-muted)]`} />
+        <input
+          autoFocus
+          value={editValue}
+          onChange={(e) => onEditValueChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSaveEdit();
+            if (e.key === 'Escape') onCancelEdit();
+          }}
+          onBlur={onSaveEdit}
+          placeholder="清单名称"
+          className="input flex-1 py-0.5 text-sm"
+        />
+      </div>
+    );
+  }
   return (
     <div
       role="button"
@@ -202,11 +285,43 @@ function ListRow({
           : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
       ].join(' ')}
     >
-      <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleCollapse();
+          }}
+          className="flex shrink-0 items-center justify-center rounded p-0.5 text-current opacity-60 hover:opacity-100"
+          aria-label={collapsed ? '展开清单' : '折叠清单'}
+        >
+          <ChevronRight
+            className={[
+              'h-4 w-4 transition-transform duration-150',
+              collapsed ? '' : 'rotate-90',
+            ].join(' ')}
+          />
+        </button>
         <Folder className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-[var(--color-text-inverse)]/80' : 'text-[var(--color-text-muted)]'}`} />
         <span className="truncate">{list.name}</span>
       </div>
-      <div className="flex shrink-0 items-center">
+      <div className="flex shrink-0 items-center md:opacity-0 transition-opacity duration-100 md:group-hover:opacity-100">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartEdit();
+          }}
+          aria-label="重命名清单"
+          className={[
+            'rounded-md p-1',
+            active
+              ? 'text-[var(--color-text-inverse)]/70 hover:bg-[var(--color-text-inverse)]/10'
+              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-primary)]',
+          ].join(' ')}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
         <button
           type="button"
           onClick={(e) => {
@@ -215,7 +330,7 @@ function ListRow({
           }}
           aria-label="删除清单"
           className={[
-            'rounded-md p-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100 focus:opacity-100',
+            'rounded-md p-1',
             active
               ? 'text-[var(--color-text-inverse)]/70 hover:bg-[var(--color-text-inverse)]/10 hover:text-[var(--color-text-inverse)]'
               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-danger)]',
@@ -348,23 +463,35 @@ function ListGroups({
   activeGroup,
   showInputForList,
   newGroupName,
+  editingGroupName,
+  editingGroupNewName,
   onSelectGroup,
   onDeleteGroup,
   onShowNewGroup,
   onNewGroupNameChange,
   onCreateGroup,
   onCancelNewGroup,
+  onStartEditGroup,
+  onEditGroupNameChange,
+  onSaveEditGroup,
+  onCancelEditGroup,
 }: {
   listData: ParsedList;
   activeGroup: string | null;
   showInputForList: string | null;
   newGroupName: string;
+  editingGroupName: string | null;
+  editingGroupNewName: string;
   onSelectGroup: (name: string | null) => void;
   onDeleteGroup: (name: string) => Promise<void>;
   onShowNewGroup: () => void;
   onNewGroupNameChange: (value: string) => void;
   onCreateGroup: () => void;
   onCancelNewGroup: () => void;
+  onStartEditGroup: (name: string) => void;
+  onEditGroupNameChange: (value: string) => void;
+  onSaveEditGroup: () => void;
+  onCancelEditGroup: () => void;
 }) {
   return (
     <div className="ml-4 mt-0.5 space-y-0.5 border-l border-[var(--color-border)] pl-2">
@@ -377,8 +504,14 @@ function ListGroups({
             done={done}
             total={g.tasks.length}
             active={activeGroup === g.name}
+            editing={editingGroupName === g.name}
+            editValue={editingGroupName === g.name ? editingGroupNewName : g.name}
             onClick={() => onSelectGroup(activeGroup === g.name ? null : g.name)}
             onDelete={() => void onDeleteGroup(g.name)}
+            onStartEdit={() => onStartEditGroup(g.name)}
+            onEditValueChange={onEditGroupNameChange}
+            onSaveEdit={onSaveEditGroup}
+            onCancelEdit={onCancelEditGroup}
           />
         );
       })}
@@ -410,6 +543,11 @@ function ListsSection({
   activeGroup,
   showNewGroupForList,
   newGroupName,
+  editingListName,
+  editingListNewName,
+  editingGroupName,
+  editingGroupNewName,
+  expandedListNames,
   onSelectList,
   onDeleteList,
   onSelectGroup,
@@ -418,6 +556,15 @@ function ListsSection({
   onNewGroupNameChange,
   onCreateGroup,
   onCancelNewGroup,
+  onStartEditList,
+  onEditListNameChange,
+  onSaveEditList,
+  onCancelEditList,
+  onStartEditGroup,
+  onEditGroupNameChange,
+  onSaveEditGroup,
+  onCancelEditGroup,
+  onToggleListCollapse,
 }: {
   lists: ListMeta[];
   activeListName: string | null;
@@ -425,6 +572,11 @@ function ListsSection({
   activeGroup: string | null;
   showNewGroupForList: string | null;
   newGroupName: string;
+  editingListName: string | null;
+  editingListNewName: string;
+  editingGroupName: string | null;
+  editingGroupNewName: string;
+  expandedListNames: Set<string>;
   onSelectList: (name: string) => void;
   onDeleteList: (name: string) => Promise<void>;
   onSelectGroup: (name: string | null) => void;
@@ -433,6 +585,15 @@ function ListsSection({
   onNewGroupNameChange: (value: string) => void;
   onCreateGroup: (listName: string) => void;
   onCancelNewGroup: () => void;
+  onStartEditList: (name: string) => void;
+  onEditListNameChange: (value: string) => void;
+  onSaveEditList: () => void;
+  onCancelEditList: () => void;
+  onStartEditGroup: (name: string) => void;
+  onEditGroupNameChange: (value: string) => void;
+  onSaveEditGroup: () => void;
+  onCancelEditGroup: () => void;
+  onToggleListCollapse: (name: string) => void;
 }) {
   return (
     <>
@@ -443,29 +604,45 @@ function ListsSection({
         {lists.map((list) => {
           const isActive = activeListName === list.name;
           const listData = fileCache[list.name];
+          const isExpanded = expandedListNames.has(list.name);
           return (
             <div key={list.name} className="space-y-0.5">
               <ListRow
                 list={list}
                 active={isActive}
+                editing={editingListName === list.name}
+                editValue={editingListName === list.name ? editingListNewName : list.name}
+                collapsed={!isExpanded}
                 onClick={() => {
                   onSelectList(list.name);
                   onSelectGroup(null);
+                  if (!isExpanded) onToggleListCollapse(list.name);
                 }}
                 onDelete={() => void onDeleteList(list.name)}
+                onStartEdit={() => onStartEditList(list.name)}
+                onEditValueChange={onEditListNameChange}
+                onSaveEdit={onSaveEditList}
+                onCancelEdit={onCancelEditList}
+                onToggleCollapse={() => onToggleListCollapse(list.name)}
               />
-              {isActive && listData && (
+              {isExpanded && listData && (
                 <ListGroups
                   listData={listData}
                   activeGroup={activeGroup}
                   showInputForList={showNewGroupForList}
                   newGroupName={newGroupName}
+                  editingGroupName={editingGroupName}
+                  editingGroupNewName={editingGroupNewName}
                   onSelectGroup={onSelectGroup}
                   onDeleteGroup={onDeleteGroup}
                   onShowNewGroup={() => onShowNewGroup(list.name)}
                   onNewGroupNameChange={onNewGroupNameChange}
                   onCreateGroup={() => onCreateGroup(list.name)}
                   onCancelNewGroup={onCancelNewGroup}
+                  onStartEditGroup={onStartEditGroup}
+                  onEditGroupNameChange={onEditGroupNameChange}
+                  onSaveEditGroup={onSaveEditGroup}
+                  onCancelEditGroup={onCancelEditGroup}
                 />
               )}
             </div>
@@ -477,7 +654,7 @@ function ListsSection({
 }
 
 export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
-  const { lists, activeListName, activeGroup, selectList, selectGroup, createGroup, createList, deleteList, deleteGroup, fileCache } =
+  const { lists, activeListName, activeGroup, selectList, selectGroup, createGroup, renameGroup, createList, renameList, deleteList, deleteGroup, fileCache } =
     useListsStore();
   const { todoView, setTodoView, getTodoViewCounts } = useTasksStore();
   const { pushPending, config, pendingWrites } = useSyncStore();
@@ -488,9 +665,21 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   const [showNewGroupForList, setShowNewGroupForList] = useState<string | null>(null);
   const [queueExpanded, setQueueExpanded] = useState(false);
 
+  // 清单展开/收缩
+  const [expandedListNames, setExpandedListNames] = useState<Set<string>>(new Set());
+
+  // 清单重命名
+  const [editingListName, setEditingListName] = useState<string | null>(null);
+  const [editingListNewName, setEditingListNewName] = useState('');
+
+  // 分组重命名
+  const [editingGroupName, setEditingGroupName] = useState<string | null>(null);
+  const [editingGroupNewName, setEditingGroupNewName] = useState('');
+
   const todoViews = [
     { key: 'today', icon: Calendar, label: '今天' },
-    { key: 'week', icon: CalendarDays, label: '本周' },
+    { key: 'week', icon: CalendarDays, label: '本周截止' },
+    { key: 'start-week', icon: CalendarDays, label: '本周开始' },
     { key: 'all', icon: Layers, label: '全部' },
     { key: 'high', icon: Flag, label: '高优先级' },
   ] as const;
@@ -522,6 +711,7 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
     }
     try {
       await createList(name);
+      setExpandedListNames((prev) => new Set([...prev, name]));
       setNewListName('');
       setShowNewList(false);
     } catch (err) {
@@ -540,6 +730,7 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
       if (activeListName !== listName) {
         selectList(listName);
       }
+      setExpandedListNames((prev) => new Set([...prev, listName]));
       await createGroup(name);
       setNewGroupName('');
       setShowNewGroupForList(null);
@@ -561,6 +752,85 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
         useTasksStore.getState().refreshTasks(activeListName);
       }
     }
+  };
+
+  // 清单展开/收缩，互斥——展开一个自动收起上一个
+  const handleToggleListCollapse = (name: string) => {
+    setExpandedListNames((prev) => {
+      if (prev.has(name)) {
+        // 点击已展开的清单 => 收起
+        const next = new Set(prev);
+        next.delete(name);
+        return next;
+      }
+      // 展开新的 => 替换为仅此一个
+      return new Set([name]);
+    });
+  };
+
+  // 清单重命名
+  const handleStartEditList = (name: string) => {
+    setEditingListName(name);
+    setEditingListNewName(name);
+  };
+
+  const handleSaveEditList = async () => {
+    if (!editingListName) return;
+    const newName = editingListNewName.trim();
+    if (!newName) {
+      setEditingListName(null);
+      return;
+    }
+    try {
+      await renameList(editingListName, newName);
+      // 同步更新展开状态
+      setExpandedListNames((prev) => {
+        const next = new Set(prev);
+        next.delete(editingListName);
+        next.add(newName);
+        return next;
+      });
+      setEditingListName(null);
+    } catch (err) {
+      toast.error('重命名失败：' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleCancelEditList = () => {
+    setEditingListName(null);
+  };
+
+  const handleEditListNameChange = (value: string) => {
+    setEditingListNewName(value);
+  };
+
+  // 分组重命名
+  const handleStartEditGroup = (name: string) => {
+    setEditingGroupName(name);
+    setEditingGroupNewName(name);
+  };
+
+  const handleSaveEditGroup = async () => {
+    if (!editingGroupName) return;
+    const newName = editingGroupNewName.trim();
+    if (!newName) {
+      setEditingGroupName(null);
+      return;
+    }
+    try {
+      await renameGroup(editingGroupName, newName);
+      setEditingGroupName(null);
+    } catch (err) {
+      toast.error('重命名失败：' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleCancelEditGroup = () => {
+    setEditingGroupName(null);
+  };
+
+  const handleEditGroupNameChange = (value: string) => {
+    setEditingGroupNewName(value);
   };
 
   return (
@@ -604,6 +874,11 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
           activeGroup={activeGroup}
           showNewGroupForList={showNewGroupForList}
           newGroupName={newGroupName}
+          editingListName={editingListName}
+          editingListNewName={editingListNewName}
+          editingGroupName={editingGroupName}
+          editingGroupNewName={editingGroupNewName}
+          expandedListNames={expandedListNames}
           onSelectList={handleSelectList}
           onDeleteList={handleDeleteList}
           onSelectGroup={(name) => {
@@ -618,6 +893,15 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
             setNewGroupName('');
             setShowNewGroupForList(null);
           }}
+          onStartEditList={handleStartEditList}
+          onEditListNameChange={handleEditListNameChange}
+          onSaveEditList={handleSaveEditList}
+          onCancelEditList={handleCancelEditList}
+          onStartEditGroup={handleStartEditGroup}
+          onEditGroupNameChange={handleEditGroupNameChange}
+          onSaveEditGroup={handleSaveEditGroup}
+          onCancelEditGroup={handleCancelEditGroup}
+          onToggleListCollapse={handleToggleListCollapse}
         />
 
         {showNewList ? (

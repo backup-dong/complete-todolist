@@ -57,6 +57,19 @@ export function isDueThisWeek(iso?: string): boolean {
   }
 }
 
+export function isStartThisWeek(iso?: string): boolean {
+  if (!iso) return false;
+  try {
+    const date = parseISO(iso);
+    const now = new Date();
+    const start = startOfWeek(now, { weekStartsOn: 1 });
+    const end = endOfWeek(now, { weekStartsOn: 1 });
+    return isWithinInterval(date, { start, end });
+  } catch {
+    return false;
+  }
+}
+
 export function durationDays(from: string, to: string): string {
   try {
     const start = parseISO(from);
