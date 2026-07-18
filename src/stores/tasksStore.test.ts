@@ -258,7 +258,7 @@ describe('tasksStore todo views', () => {
     useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
 
     const counts = useTasksStore.getState().getTodoViewCounts();
-    expect(counts).toEqual({ today: 2, week: 3, all: 4, high: 2 });
+    expect(counts).toEqual({ today: 2, week: 3, 'start-week': 0, all: 4, high: 2 });
   });
 
   it('completing task in todo view routes to source list and refreshes view', async () => {
