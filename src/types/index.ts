@@ -88,8 +88,10 @@ export interface FilterDropdownProps {
 
 // ========== Store 状态 ==========
 
+export type SyncStatus = 'synced' | 'unsaved' | 'unconfigured';
+
 export interface SyncStatusState {
-  status: 'synced' | 'syncing' | 'unsaved' | 'offline' | 'unconfigured';
+  status: SyncStatus;
   lastSyncAt: string | null;
   pendingWrites: number;
 }

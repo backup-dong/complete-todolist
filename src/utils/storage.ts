@@ -1,10 +1,6 @@
 import type { GithubConfig } from '@/types';
-import { parseMarkdownToList } from '@/parser/scanner';
-import { serializeListToJson } from '@/parser/jsonSerializer';
 
 const CONFIG_KEY = 'dong-todo:github-config';
-const FORMAT_VERSION_KEY = 'dong-todo:format-version';
-const CURRENT_FORMAT_VERSION = 1;
 
 export function getJson<T>(key: string, fallback: T): T {
   try {
@@ -47,64 +43,6 @@ export function clearConfig(): void {
   localStorage.removeItem(CONFIG_KEY);
 }
 
-export function getStorageFormatVersion(): number {
-  return getJson<number>(FORMAT_VERSION_KEY, 0);
-}
-
-export function setStorageFormatVersion(version: number): void {
-  setJson(FORMAT_VERSION_KEY, version);
-}
-
-export function migrateLocalStorageCache(): void {
-  if (getStorageFormatVersion() >= CURRENT_FORMAT_VERSION) return;
-
-  // 清空旧的文件缓存（格式可能混合 .md/.json）
-  for (const key of Object.keys(localStorage)) {
-    if (key.startsWith('dong-todo:file:')) {
-      localStorage.removeItem(key);
-    }
-  }
-
-  // 清空 SHA 缓存
-  localStorage.removeItem('dong-todo:sha-map');
-
-  // 迁移 pending writes
-  migratePendingWrites();
-
-  setStorageFormatVersion(CURRENT_FORMAT_VERSION);
-}
-
-function migratePendingWrites(): void {
-  const raw = localStorage.getItem('dong-todo:pending-writes');
-  if (!raw) return;
-
-  let parsed: Record<string, string | { content: string; timestamp?: string }>;
-  try {
-    parsed = JSON.parse(raw) as Record<string, string | { content: string; timestamp?: string }>;
-  } catch {
-    localStorage.removeItem('dong-todo:pending-writes');
-    return;
-  }
-
-  const migrated: Record<string, { content: string; timestamp: string }> = {};
-  for (const [fileName, value] of Object.entries(parsed)) {
-    const content = typeof value === 'string' ? value : value.content;
-    if (fileName.endsWith('.json')) {
-      migrated[fileName] = { content, timestamp: new Date().toISOString() };
-    } else if (fileName.endsWith('.md')) {
-      try {
-        const list = parseMarkdownToList(content);
-        const jsonName = fileName.replace(/\.md$/, '.json');
-        migrated[jsonName] = { content: serializeListToJson(list), timestamp: new Date().toISOString() };
-      } catch {
-        console.warn(`Dropping corrupt pending write during migration: ${fileName}`);
-      }
-    }
-  }
-
-  setJson('dong-todo:pending-writes', migrated);
-}
-
 export function isOffline(): boolean {
   return !navigator.onLine;
 }
@@ -123,18 +61,9 @@ export function clearCachedFile(name: string): void {
   localStorage.removeItem(`dong-todo:file:${name}`);
 }
 
-export function cacheShaMap(map: Record<string, string>): void {
-  setJson('dong-todo:sha-map', map);
-}
+type PendingWriteStore = Record<string, string>;
 
-export function getCachedShaMap(): Record<string, string> {
-  return getJson<Record<string, string>>('dong-todo:sha-map', {});
-}
-
-type PendingWriteRecord = Record<string, string>;
-type RawPendingWriteRecord = Record<string, string | { content: string; timestamp?: string }>;
-
-function parsePendingWrites(raw: string | null): PendingWriteRecord {
+function parsePendingWrites(raw: string | null): PendingWriteStore {
   if (!raw) return {};
   try {
     const map = JSON.parse(raw) as Record<string, string | { content: string }>;
@@ -150,58 +79,19 @@ function parsePendingWrites(raw: string | null): PendingWriteRecord {
 }
 
 export function addPendingWrite(name: string, content: string): void {
-  updateJson<RawPendingWriteRecord>(
+  updateJson<PendingWriteStore>(
     'dong-todo:pending-writes',
-    (map) => ({ ...map, [name]: { content, timestamp: new Date().toISOString() } }),
+    (map) => ({ ...map, [name]: content }),
     {},
   );
 }
 
-export function getPendingWrites(): Record<string, string> {
+export function getPendingWrites(): PendingWriteStore {
   return parsePendingWrites(localStorage.getItem('dong-todo:pending-writes'));
 }
 
-interface PendingWriteDetail {
-  fileName: string;
-  content: string;
-  timestamp: string;
-}
-
-export function getPendingWriteDetails(): PendingWriteDetail[] {
-  const raw = localStorage.getItem('dong-todo:pending-writes');
-  if (!raw) return [];
-  try {
-    const map = JSON.parse(raw) as Record<string, string | { content: string; timestamp?: string }>;
-    return Object.entries(map).map(([fileName, value]) => {
-      if (typeof value === 'string') {
-        return { fileName, content: value, timestamp: new Date().toISOString() };
-      }
-      return {
-        fileName,
-        content: value.content,
-        timestamp: value.timestamp ?? new Date().toISOString(),
-      };
-    });
-  } catch {
-    return [];
-  }
-}
-
-/**
- * 只有当待写入内容与指定内容一致时才清除 pending write。
- * 用于防止在 async 间隙被更新的 pending write 被误清除。
- */
-export function clearPendingIfUnchanged(fileName: string, content: string): boolean {
-  const latestPending = getPendingWrites()[fileName];
-  if (latestPending === content) {
-    clearPendingWrite(fileName);
-    return true;
-  }
-  return false;
-}
-
 export function clearPendingWrite(name: string): void {
-  updateJson<RawPendingWriteRecord>(
+  updateJson<PendingWriteStore>(
     'dong-todo:pending-writes',
     (map) => {
       const next = { ...map };

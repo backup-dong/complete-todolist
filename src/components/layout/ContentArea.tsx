@@ -8,7 +8,7 @@ import { copyWeeklyReport } from '@/utils/report';
 import { SearchBar, FilterDropdown, ViewToggle, MobileFilterToggle } from '../tasks/Toolbar';
 import { TaskList } from '../tasks/TaskList';
 import { TaskEditorDialog } from '../tasks/TaskEditorDialog';
-import { ConflictBanner } from './ConflictBanner';
+
 import { TodoView } from '@/components/todo-view/TodoView';
 
 function ProgressBar({ done, total }: { done: number; total: number }) {
@@ -373,7 +373,6 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
           onOpenMenu={onOpenMenu ?? (() => {})}
         />
 
-        <ConflictBanner />
 
         {todoView ? (
           <>

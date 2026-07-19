@@ -21,30 +21,27 @@ import { useSyncStore } from '@/stores/syncStore';
 import { confirm } from '@/stores/confirmStore';
 import { toast } from '@/utils/toast';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
-import { getPendingWriteDetails } from '@/utils/storage';
+import { getPendingWrites } from '@/utils/storage';
 import type { ListMeta, ParsedList } from '@/types';
 
 function SyncIndicator({ pendingCount }: { pendingCount: number }) {
   const { status, lastSyncAt } = useSyncStore();
-  const statusMap: Record<typeof status, { label: string; color: string; icon?: React.ReactNode }> = {
+  const statusMap: Record<typeof status, { label: string; color: string }> = {
     synced: { label: '已同步', color: 'bg-[var(--color-success)]' },
-    syncing: { label: '同步中', color: 'bg-[var(--color-warning)]', icon: <RefreshCw className="h-3 w-3 animate-spin" /> },
-    unsaved: { label: '待同步', color: 'bg-[var(--color-warning)]' },
-    offline: { label: '离线', color: 'bg-[var(--color-danger)]' },
+    unsaved: { label: '未同步', color: 'bg-[var(--color-warning)]' },
     unconfigured: { label: '未配置', color: 'bg-[var(--color-text-muted)]' },
   };
-  const { label, color, icon } = statusMap[status];
+  const { label, color } = statusMap[status];
 
   return (
     <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-      <span className={`h-2 w-2 rounded-full ${color} ${status === 'syncing' ? 'animate-pulse' : ''}`} />
+      <span className={`h-2 w-2 rounded-full ${color}`} />
       <span>{label}</span>
       {pendingCount > 0 && (
         <span className="rounded-full bg-[var(--color-warning)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-inverse)]">
           {pendingCount}
         </span>
       )}
-      {icon && <span className="text-[var(--color-text-muted)]">{icon}</span>}
       {lastSyncAt && status === 'synced' && (
         <span className="ml-auto">{new Date(lastSyncAt).toLocaleTimeString()}</span>
       )}
@@ -53,26 +50,14 @@ function SyncIndicator({ pendingCount }: { pendingCount: number }) {
 }
 
 function PendingQueue({ expanded }: { expanded: boolean }) {
-  const { status, pushPending } = useSyncStore();
+  const { pushPending } = useSyncStore();
   const [retrying, setRetrying] = useState(false);
 
   if (!expanded) return null;
 
-  const details = getPendingWriteDetails();
-  if (details.length === 0) return null;
-
-  const formatTime = (timestamp: string) => {
-    try {
-      return new Date(timestamp).toLocaleString('zh-CN', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return timestamp;
-    }
-  };
+  const pending = getPendingWrites();
+  const keys = Object.keys(pending);
+  if (keys.length === 0) return null;
 
   const handleRetry = async () => {
     setRetrying(true);
@@ -90,7 +75,7 @@ function PendingQueue({ expanded }: { expanded: boolean }) {
         <button
           type="button"
           onClick={handleRetry}
-          disabled={retrying || status === 'offline'}
+          disabled={retrying}
           className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] disabled:opacity-50"
         >
           <RefreshCw className={`h-3 w-3 ${retrying ? 'animate-spin' : ''}`} />
@@ -98,13 +83,12 @@ function PendingQueue({ expanded }: { expanded: boolean }) {
         </button>
       </div>
       <div className="space-y-1">
-        {details.map((item) => (
+        {keys.map((fileName) => (
           <div
-            key={item.fileName}
+            key={fileName}
             className="flex items-center justify-between rounded px-2 py-1.5 text-xs"
           >
-            <span className="truncate text-[var(--color-text-secondary)]">{item.fileName}</span>
-            <span className="shrink-0 text-[var(--color-text-muted)]">{formatTime(item.timestamp)}</span>
+            <span className="truncate text-[var(--color-text-secondary)]">{fileName}</span>
           </div>
         ))}
       </div>

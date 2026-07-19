@@ -28,12 +28,6 @@ function AppRoutes() {
     }
     if (ensureInitialized()) {
       fetchLists().then(() => {
-        // 启动时自动推送遗留的待写入（如防抖窗口内刷新页面留下的 pending），
-        // 否则它们会一直滞留到下次断网重连或手动点击同步
-        useSyncStore.getState().pushPending();
-
-        // 后台异步加载所有清单内容，确保待办视图（今天/本周/全部/高优先级）
-        // 数据就绪，无需等用户手动点击才去加载。
         fetchAllListsContent();
       });
     }
@@ -45,7 +39,6 @@ function AppRoutes() {
     }
   }, [lists]);
 
-  // 兜底：只要清单列表已拉取且当前激活清单内容已就绪，就关闭首屏遮罩
   useEffect(() => {
     if (!initialLoading) return;
     if (!config) {
@@ -57,26 +50,6 @@ function AppRoutes() {
       setInitialLoading(false);
     }
   }, [config, lists, listsFetched, activeListName, fileCache, initialLoading, setInitialLoading]);
-
-  // SHA 轮询
-  useEffect(() => {
-    if (!config) return;
-    const interval = setInterval(() => {
-      useSyncStore.getState().pollSha();
-    }, 60_000);
-    return () => clearInterval(interval);
-  }, [config]);
-
-  // 页面可见性变化时拉取
-  useEffect(() => {
-    const handler = () => {
-      if (document.visibilityState === 'visible' && config) {
-        useSyncStore.getState().pollSha();
-      }
-    };
-    document.addEventListener('visibilitychange', handler);
-    return () => document.removeEventListener('visibilitychange', handler);
-  }, [config]);
 
   return (
     <Routes>

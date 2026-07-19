@@ -11,9 +11,6 @@ import {
   getCachedActiveList,
   addPendingWrite,
   clearPendingWrite,
-  clearPendingIfUnchanged,
-  cacheShaMap,
-  getCachedShaMap,
   getPendingWrites,
 } from '@/utils/storage';
 
@@ -72,108 +69,42 @@ function cleanupActiveList(lists: ListMeta[], currentActive: string | null): str
   return null;
 }
 
-// 按文件防抖的后台同步
 const syncTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
-const syncInFlight: Map<string, Promise<void>> = new Map();
 
-function triggerDebouncedSync(name: string, content: string, fileName: string, config: GithubConfig): void {
+async function debouncedPush(name: string): Promise<void> {
+  const pending = getPendingWrites();
+  const fileName = listNameToFileName(name);
+  const content = pending[fileName];
+  if (!content) return;
+
+  const config = useSyncStore.getState().config;
+  if (!config) return;
+
+  const path = `${config.basePath}/${fileName}`;
+  try {
+    const remote = await getFileContent(config, path).catch(() => null);
+    const sha = await writeFileContent(config, path, content, remote?.sha);
+    clearPendingWrite(fileName);
+    cacheFileContent(name, content, sha);
+    const cached = useListsStore.getState().fileCache[name];
+    if (cached && cached.rawContent === content) {
+      useListsStore.setState((state) => ({
+        fileCache: { ...state.fileCache, [name]: { ...cached, sha } },
+      }));
+    }
+  } catch (err) {
+    console.error(`Debounced push failed for ${name}`, err);
+  }
+}
+
+function triggerDebouncedPush(name: string): void {
   const existing = syncTimeouts.get(name);
   if (existing) clearTimeout(existing);
-
   const timeout = setTimeout(() => {
     syncTimeouts.delete(name);
-    performBackgroundSync(name, content, fileName, config);
+    debouncedPush(name);
   }, 1500);
-
   syncTimeouts.set(name, timeout);
-}
-
-async function waitForInFlight(name: string): Promise<void> {
-  const inFlight = syncInFlight.get(name);
-  if (inFlight) {
-    await inFlight.catch(() => {});
-  }
-}
-
-function isConflictError(err: unknown): boolean {
-  const status = err && typeof err === 'object' && 'status' in err ? (err as { status: number }).status : 0;
-  return status === 409 || status === 422;
-}
-
-/** 本地已知的远端 sha：优先文件缓存，其次 sha map */
-function knownRemoteSha(name: string): string | undefined {
-  const cached = getCachedFileContent(name);
-  if (cached?.sha) return cached.sha;
-  return getCachedShaMap()[listNameToFileName(name)] || undefined;
-}
-
-async function uploadContent(
-  name: string,
-  content: string,
-  config: GithubConfig,
-): Promise<{ sha: string } | { conflict: true } | null> {
-  const path = filePath(config, name);
-  let knownSha = knownRemoteSha(name);
-  if (!knownSha) {
-    // 本地没有远端 sha 记录（如换新设备）：没有冲突判断依据，退回先取远端 sha 再写
-    const remote = await getFileContent(config, path).catch(() => null);
-    knownSha = remote?.sha;
-  }
-  try {
-    // 条件写入：基于本地已知的远端 sha。远端被其他设备修改时 GitHub 返回 409/422，
-    // 此时不能覆盖，走冲突流程由用户决定
-    const sha = await writeFileContent(config, path, content, knownSha);
-    return { sha };
-  } catch (err) {
-    if (isConflictError(err)) return { conflict: true };
-    throw err;
-  }
-}
-
-async function performBackgroundSync(name: string, content: string, fileName: string, config: GithubConfig): Promise<void> {
-  await waitForInFlight(name);
-
-  const sync = useSyncStore.getState();
-  const promise = (async () => {
-    try {
-      sync.setSyncing();
-      const result = await uploadContent(name, content, config);
-      if (!result) {
-        sync.setUnsaved();
-        return;
-      }
-      if ('conflict' in result) {
-        // 远端已被其他设备修改：保留本地待写入，提示用户解决冲突
-        sync.markConflict(fileName);
-        return;
-      }
-
-      // 只有在待写入内容没有再次被覆盖时才清除 pending
-      if (clearPendingIfUnchanged(fileName, content)) {
-        cacheFileContent(name, content, result.sha);
-        // 同步更新内存中清单的 sha，避免后续保存基于过期 sha 产生假冲突
-        const cached = useListsStore.getState().fileCache[name];
-        if (cached && cached.rawContent === content) {
-          useListsStore.setState((state) => ({
-            fileCache: { ...state.fileCache, [name]: { ...cached, sha: result.sha } },
-          }));
-        }
-        sync.setSynced();
-      } else {
-        sync.setUnsaved();
-      }
-    } catch (err) {
-      console.error('Background sync failed', err);
-      sync.setUnsaved();
-    }
-  })();
-
-  syncInFlight.set(name, promise);
-  try {
-    await promise;
-  } finally {
-    syncInFlight.delete(name);
-  }
 }
 
 async function createRemoteList(config: GithubConfig, name: string, content: string): Promise<string> {
@@ -194,18 +125,6 @@ async function deleteLegacyMdIfExists(config: GithubConfig, name: string, sha?: 
   });
 }
 
-function resolveListSha(name: string): { json?: string; md?: string } {
-  const cached = getCachedFileContent(name);
-  if (cached?.sha) {
-    return { json: cached.sha };
-  }
-  const shaMap = getCachedShaMap();
-  return {
-    json: shaMap[listNameToFileName(name)],
-    md: shaMap[`${name}${LEGACY_EXT}`],
-  };
-}
-
 async function migrateListToJson(
   config: GithubConfig,
   name: string,
@@ -216,9 +135,7 @@ async function migrateListToJson(
   const jsonPath = filePath(config, name);
 
   try {
-    // 先写 .json
     const newSha = await writeFileContent(config, jsonPath, jsonContent);
-    // 写成功后再删 .md
     if (oldMdSha) {
       await deleteLegacyMdIfExists(config, name, oldMdSha);
     }
@@ -227,6 +144,10 @@ async function migrateListToJson(
     console.error(`migrateListToJson failed for ${name}`, err);
     throw err;
   }
+}
+
+function getCachedSha(name: string): string | undefined {
+  return getCachedFileContent(name)?.sha;
 }
 
 export const useListsStore = create<ListsState>((set, get) => ({
@@ -242,7 +163,6 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const sync = useSyncStore.getState();
     if (!sync.ensureInitialized()) return;
 
-    sync.setSyncing();
     try {
       const [mdFiles, jsonFiles, archivedMdFiles, archivedJsonFiles] = await Promise.all([
         listFilesByExtension(sync.config!, '.md'),
@@ -263,16 +183,12 @@ export const useListsStore = create<ListsState>((set, get) => ({
         }
       }
 
-      const shaMap: Record<string, string> = {};
       const listMetas: ListMeta[] = [];
       const defaultCreated = new Date().toISOString().slice(0, 10);
 
       for (const { file } of latestByName.values()) {
-        shaMap[file.name] = file.sha;
         listMetas.push(buildListMeta(file, defaultCreated));
       }
-
-      cacheShaMap(shaMap);
 
       const pendingMigrations = [...mdFiles, ...archivedMdFiles]
         .filter((f) => latestByName.get(fileNameToListName(f.name))?.isJson === false)
@@ -280,11 +196,9 @@ export const useListsStore = create<ListsState>((set, get) => ({
 
       const nextActive = cleanupActiveList(listMetas, get().activeListName);
       set({ lists: listMetas, activeListName: nextActive, pendingMigrations, initialLoading: listMetas.length > 0, listsFetched: true });
-      sync.setSynced();
     } catch (err) {
       console.error('fetchLists failed', err);
       set({ initialLoading: false, listsFetched: true });
-      sync.setUnsaved();
     }
   },
 
@@ -310,7 +224,6 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const path = filePath(sync.config!, name);
 
     try {
-      sync.setSyncing();
       const sha = await writeFileContent(sync.config!, path, content);
       const parsed = parseJsonToList(content, sha);
       set((state) => ({
@@ -319,11 +232,9 @@ export const useListsStore = create<ListsState>((set, get) => ({
         activeListName: name,
       }));
       cacheFileContent(name, content, sha);
-      sync.setSynced();
     } catch (err) {
       console.error('createList failed', err);
       addPendingWrite(listNameToFileName(name), serializeListToJson(list));
-      sync.setUnsaved();
       throw err;
     }
   },
@@ -333,13 +244,15 @@ export const useListsStore = create<ListsState>((set, get) => ({
     if (!sync.ensureInitialized()) return;
 
     try {
-      sync.setSyncing();
-      const shas = resolveListSha(name);
-      if (shas.json) {
-        await deleteRemoteList(sync.config!, name, shas.json);
-      }
-      if (shas.md) {
-        await deleteLegacyMdIfExists(sync.config!, name, shas.md);
+      const sha = getCachedSha(name);
+      if (sha) {
+        await deleteRemoteList(sync.config!, name, sha);
+      } else {
+        const path = filePath(sync.config!, name);
+        const remote = await getFileContent(sync.config!, path).catch(() => null);
+        if (remote) {
+          await deleteRemoteList(sync.config!, name, remote.sha);
+        }
       }
       set((state) => ({
         lists: state.lists.filter((l) => l.name !== name),
@@ -352,10 +265,8 @@ export const useListsStore = create<ListsState>((set, get) => ({
       clearCachedFile(name);
       clearPendingWrite(listNameToFileName(name));
       clearPendingWrite(`${name}${LEGACY_EXT}`);
-      sync.setSynced();
     } catch (err) {
       console.error('deleteList failed', err);
-      sync.setUnsaved();
     }
   },
 
@@ -364,20 +275,21 @@ export const useListsStore = create<ListsState>((set, get) => ({
     if (!sync.ensureInitialized()) return;
 
     try {
-      sync.setSyncing();
       const oldList = get().fileCache[oldName] ?? createEmptyList(oldName);
       const newList = { ...oldList, meta: { ...oldList.meta, name: newName } };
       const content = serializeListToJson(newList);
-      const shas = resolveListSha(oldName);
 
-      // 创建新文件
       const newSha = await createRemoteList(sync.config!, newName, content);
-      // 删除旧文件（.json 和 .md）
-      if (shas.json) {
-        await deleteRemoteList(sync.config!, oldName, shas.json);
-      }
-      if (shas.md) {
-        await deleteLegacyMdIfExists(sync.config!, oldName, shas.md);
+
+      const oldSha = getCachedSha(oldName);
+      if (oldSha) {
+        await deleteRemoteList(sync.config!, oldName, oldSha);
+      } else {
+        const path = filePath(sync.config!, oldName);
+        const remote = await getFileContent(sync.config!, path).catch(() => null);
+        if (remote) {
+          await deleteRemoteList(sync.config!, oldName, remote.sha);
+        }
       }
 
       set((state) => ({
@@ -390,10 +302,8 @@ export const useListsStore = create<ListsState>((set, get) => ({
         activeListName: state.activeListName === oldName ? newName : state.activeListName,
       }));
       cacheFileContent(newName, content, newSha);
-      sync.setSynced();
     } catch (err) {
       console.error('renameList failed', err);
-      sync.setUnsaved();
     }
   },
 
@@ -405,18 +315,12 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const mdPath = filePath(sync.config!, name, LEGACY_EXT);
 
     try {
-      sync.setSyncing();
-
-      // 优先读取 .json
       const jsonFile = await getFileContent(sync.config!, jsonPath).catch(() => null);
       if (jsonFile) {
         const list = parseJsonToList(jsonFile.content, jsonFile.sha);
-
-        // 检查是否有未同步的本地修改，避免覆盖本地数据
         const pendingWrites = getPendingWrites();
         const payloadFileName = listNameToFileName(name);
         if (pendingWrites[payloadFileName]) {
-          // 本地有待写入修改：从 localStorage 加载待写入数据到 UI
           const cached = getCachedFileContent(name);
           if (cached && cached.content !== jsonFile.content) {
             const cachedList = cached.content.trimStart().startsWith('{')
@@ -424,42 +328,30 @@ export const useListsStore = create<ListsState>((set, get) => ({
               : parseMarkdownToList(cached.content, cached.sha);
             set((state) => ({ fileCache: { ...state.fileCache, [name]: cachedList } }));
           } else {
-            // 没有额外缓存，先用远程数据展示
             set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
           }
-          // 不覆盖 cacheFileContent，防止丢失待写入数据的 SHA
-          sync.setUnsaved();
         } else {
           set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
           cacheFileContent(name, jsonFile.content, jsonFile.sha);
-          sync.setSynced();
         }
         return list;
       }
 
-      // 回退读取旧 .md 并立即迁移
       const mdFile = await getFileContent(sync.config!, mdPath);
       const list = parseMarkdownToList(mdFile.content, mdFile.sha);
       const newSha = await migrateListToJson(sync.config!, name, list, mdFile.sha);
-      const jsonContent = serializeListToJson(list);
       set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
-      cacheFileContent(name, jsonContent, newSha);
-      sync.setSynced();
+      cacheFileContent(name, serializeListToJson(list), newSha);
       return list;
     } catch {
-      // 尝试本地缓存
       const cached = getCachedFileContent(name);
       if (cached) {
         const list = cached.content.trimStart().startsWith('{')
           ? parseJsonToList(cached.content, cached.sha)
           : parseMarkdownToList(cached.content, cached.sha);
         set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
-        sync.setUnsaved();
-      } else {
-        sync.setUnsaved();
       }
     } finally {
-      // 首次进入时，无论成功失败，只要已经尝试加载当前激活清单内容，就关闭遮罩
       if (get().activeListName === name && get().initialLoading) {
         set({ initialLoading: false });
       }
@@ -472,19 +364,13 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const content = serializeListToJson(list);
     const fileName = listNameToFileName(name);
 
-    // 1. 立即更新本地状态与待写入队列，UI 不阻塞
     set((state) => ({ fileCache: { ...state.fileCache, [name]: { ...list, rawContent: content } } }));
     addPendingWrite(fileName, content);
-    // 同步写入 localStorage 缓存，防止页面刷新后待写入数据丢失。
-    // sha 保持为本地已知的远端 sha（条件写入的并发控制依据），不用 list.sha（可能已过期）
-    cacheFileContent(name, content, knownRemoteSha(name) ?? list.sha ?? '');
-    sync.setUnsaved();
+    cacheFileContent(name, content, list.sha ?? '');
 
-    // 离线或未配置时直接返回，后续由 pushPending 或 online 事件兜底
-    if (!sync.ensureInitialized() || sync.status === 'offline') return;
+    if (!sync.ensureInitialized()) return;
 
-    // 2. 触发后台防抖同步
-    triggerDebouncedSync(name, content, fileName, sync.config!);
+    triggerDebouncedPush(name);
   },
 
   getActiveList: () => {
@@ -500,35 +386,28 @@ export const useListsStore = create<ListsState>((set, get) => ({
     const pendingWrites = getPendingWrites();
     const results = await Promise.allSettled(
       lists.map((list) => {
-        // 待写入中的清单从本地缓存加载，避免覆盖本地修改的同时确保 UI 有数据
         const pendingFileName = listNameToFileName(list.name);
         if (pendingWrites[pendingFileName]) {
           if (!fileCache[list.name]) {
             const cached = getCachedFileContent(list.name);
             if (cached) {
               try {
-                const cachedContent = cached.content;
-                const parsed = cachedContent.trimStart().startsWith('{')
-                  ? parseJsonToList(cachedContent, cached.sha)
-                  : parseMarkdownToList(cachedContent, cached.sha);
+                const parsed = cached.content.trimStart().startsWith('{')
+                  ? parseJsonToList(cached.content, cached.sha)
+                  : parseMarkdownToList(cached.content, cached.sha);
                 set((state) => ({
                   fileCache: { ...state.fileCache, [list.name]: parsed },
                   initialLoading: state.initialLoading && state.activeListName === list.name ? false : state.initialLoading,
                 }));
               } catch {
-                // 缓存无法解析时忽略
+                // ignore
               }
             }
-            // 待写入清单没有缓存时也关闭遮罩
             if (get().initialLoading && activeListName === list.name) {
               set({ initialLoading: false });
             }
           }
           return Promise.resolve();
-        }
-        if (fileCache[list.name]) {
-          // 已有缓存则后台静默刷新，不阻塞视图渲染
-          return get().fetchListContent(list.name);
         }
         return get().fetchListContent(list.name);
       }),
@@ -587,27 +466,3 @@ export const useListsStore = create<ListsState>((set, get) => ({
     selectGroup(null);
   },
 }));
-
-// 其他标签页更新了某清单的本地缓存时，同步到本页内存。
-// storage 事件只在“非发起方”标签页触发，因此不会和本页的保存流程冲突。
-window.addEventListener('storage', (e) => {
-  if (!e.key || !e.key.startsWith('dong-todo:file:')) return;
-  const name = e.key.slice('dong-todo:file:'.length);
-  const store = useListsStore.getState();
-  if (!store.fileCache[name]) return; // 未加载的清单无需同步
-  // 本标签页有待写入时以本地为准，跳过（推送时如遇远端修改走冲突流程）
-  if (getPendingWrites()[listNameToFileName(name)]) return;
-  const cached = getCachedFileContent(name);
-  if (!cached) return;
-  if (store.fileCache[name].rawContent === cached.content) return;
-  try {
-    const list = cached.content.trimStart().startsWith('{')
-      ? parseJsonToList(cached.content, cached.sha)
-      : parseMarkdownToList(cached.content, cached.sha);
-    useListsStore.setState((state) => ({
-      fileCache: { ...state.fileCache, [name]: list },
-    }));
-  } catch {
-    // 缓存内容无法解析时忽略，等待下次轮询兜底
-  }
-});
