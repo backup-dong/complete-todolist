@@ -15,5 +15,6 @@
 | 移动端打开侧边栏后关闭，顶部和底部也就是手机导航栏还是灰色的 | 是 | 补充 `viewport-fit=cover` 与 `black-translucent` 状态栏配置，`ThemeProvider` 动态同步 `theme-color`，并在移动端头部/底部/抽屉/弹窗添加 `env(safe-area-inset-*)` 内边距；进一步将移动端抽屉在关闭动画结束后从 DOM 中移除，避免 iOS Safari 仍对离屏抽屉进行颜色采样导致安全区残留灰色 |
 | 移动端详情弹框日期选择输入框偏长 | 是 | 新增 `DateInput` 组件，使用 `min-w-0 appearance-none` 约束移动端原生日期输入宽度，避免溢出容器 |
 | 移动端没法清空日期选择 | 是 | `DateInput` 在日期有值时显示右侧清空按钮（×），支持一键清空 |
+| 从待办视图直接选择分组会切换不成功 | 是 | `onSelectGroup` 增加退出待办视图 (`setTodoView(null)`) 和切换所属清单 (`selectList`) 的逻辑，确保从侧边栏点分组时正确切换到对应清单视图 |
 
-_最后更新：2026-07-12_
+_最后更新：2026-07-19_

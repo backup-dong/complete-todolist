@@ -466,7 +466,7 @@ function ListGroups({
   newGroupName: string;
   editingGroupName: string | null;
   editingGroupNewName: string;
-  onSelectGroup: (name: string | null) => void;
+  onSelectGroup: (name: string | null, listName?: string) => void;
   onDeleteGroup: (name: string) => Promise<void>;
   onShowNewGroup: () => void;
   onNewGroupNameChange: (value: string) => void;
@@ -490,7 +490,7 @@ function ListGroups({
             active={activeGroup === g.name}
             editing={editingGroupName === g.name}
             editValue={editingGroupName === g.name ? editingGroupNewName : g.name}
-            onClick={() => onSelectGroup(activeGroup === g.name ? null : g.name)}
+            onClick={() => onSelectGroup(activeGroup === g.name ? null : g.name, listData.meta.name)}
             onDelete={() => void onDeleteGroup(g.name)}
             onStartEdit={() => onStartEditGroup(g.name)}
             onEditValueChange={onEditGroupNameChange}
@@ -563,7 +563,7 @@ function ListsSection({
   expandedListNames: Set<string>;
   onSelectList: (name: string) => void;
   onDeleteList: (name: string) => Promise<void>;
-  onSelectGroup: (name: string | null) => void;
+  onSelectGroup: (name: string | null, listName?: string) => void;
   onDeleteGroup: (name: string) => Promise<void>;
   onShowNewGroup: (listName: string) => void;
   onNewGroupNameChange: (value: string) => void;
@@ -865,8 +865,16 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
           expandedListNames={expandedListNames}
           onSelectList={handleSelectList}
           onDeleteList={handleDeleteList}
-          onSelectGroup={(name) => {
-            selectGroup(name);
+          onSelectGroup={(name, listName) => {
+            if (name && listName) {
+              setTodoView(null);
+              if (activeListName !== listName) {
+                selectList(listName);
+              }
+              selectGroup(name);
+            } else {
+              selectGroup(null);
+            }
             onClose?.();
           }}
           onDeleteGroup={handleDeleteGroup}
