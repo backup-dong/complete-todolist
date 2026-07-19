@@ -266,22 +266,24 @@ export function TaskCard({
             <StatusIcon status={task.meta.status} onClick={task.subtasks.length === 0 ? onComplete : undefined} />
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          {task.sourceList && (
-            <span className="mb-1 inline-block rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]">
-              {task.sourceList}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartEdit();
-            }}
-            className="text-left text-base font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] rounded"
-          >
-            {task.title}
-          </button>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex items-center gap-2">
+            {task.sourceList && (
+              <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]">
+                {task.sourceList}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartEdit();
+              }}
+              className="text-left text-base font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] rounded"
+            >
+              {task.title}
+            </button>
+          </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <PriorityBadge priority={task.meta.priority} />
