@@ -278,7 +278,7 @@ export function TaskCard({
               e.stopPropagation();
               onStartEdit();
             }}
-            className="text-left text-base font-medium text-[var(--color-text)] hover:text-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] rounded"
+            className="text-left text-base font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] rounded"
           >
             {task.title}
           </button>

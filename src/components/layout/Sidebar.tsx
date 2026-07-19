@@ -364,18 +364,17 @@ function TodoViewsSection({
                 <Icon className="h-[18px] w-[18px]" />
                 <span>{item.label}</span>
               </div>
-              {count > 0 && (
-                <span
-                  className={[
-                    'rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
-                    isActive
-                      ? 'bg-[var(--color-text-inverse)]/20 text-[var(--color-text-inverse)]'
-                      : 'bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]',
-                  ].join(' ')}
-                >
-                  {count}
-                </span>
-              )}
+              <span
+                className={[
+                  'rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+                  count === 0 && 'opacity-40',
+                  isActive
+                    ? 'bg-[var(--color-text-inverse)]/20 text-[var(--color-text-inverse)]'
+                    : 'bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]',
+                ].join(' ')}
+              >
+                {count}
+              </span>
             </button>
           );
         })}
