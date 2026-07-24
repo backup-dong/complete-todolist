@@ -16,5 +16,5 @@
 | 移动端详情弹框日期选择输入框偏长 | 是 | 新增 `DateInput` 组件，使用 `min-w-0 appearance-none` 约束移动端原生日期输入宽度，避免溢出容器 |
 | 移动端没法清空日期选择 | 是 | `DateInput` 在日期有值时显示右侧清空按钮（×），支持一键清空 |
 | 从待办视图直接选择分组会切换不成功 | 是 | `onSelectGroup` 增加退出待办视图 (`setTodoView(null)`) 和切换所属清单 (`selectList`) 的逻辑，确保从侧边栏点分组时正确切换到对应清单视图 |
-
-_最后更新：2026-07-19_
+| 自动同步完时间没刷新 | 是 | `debouncedPush` 推送成功后调用 `computeState()` 更新 `syncStore` 的 `status`/`lastSyncAt`/`pendingWrites`，`SyncIndicator` 正确显示"已同步"及时间戳 |
+| _最后更新：2026-07-24_ |

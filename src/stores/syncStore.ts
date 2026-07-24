@@ -30,7 +30,7 @@ function deriveStatus(): SyncStatus {
   return 'synced';
 }
 
-function computeState() {
+export function computeState() {
   return {
     status: deriveStatus(),
     pendingWrites: Object.keys(getPendingWrites()).length,

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { GithubConfig, ListMeta, ParsedList } from '@/types';
 import { getFileContent, listFilesByExtension, writeFileContent, deleteFile } from '@/github/client';
 import { parseJsonToList, parseMarkdownToList, serializeListToJson, createEmptyList } from '@/parser';
-import { useSyncStore } from './syncStore';
+import { useSyncStore, computeState } from './syncStore';
 import {
   cacheFileContent,
   getCachedFileContent,
@@ -92,6 +92,7 @@ async function debouncedPush(name: string): Promise<void> {
         fileCache: { ...state.fileCache, [name]: { ...cached, sha } },
       }));
     }
+    useSyncStore.setState(computeState());
   } catch (err) {
     console.error(`Debounced push failed for ${name}`, err);
   }
