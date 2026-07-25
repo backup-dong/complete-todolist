@@ -1,17 +1,17 @@
-import { useRef, useState, useCallback } from 'react';
-import { Eye, Pencil, Maximize } from 'lucide-react';
-import { MarkdownPreview } from './MarkdownPreview';
+import { useRef, useCallback, useState, useEffect } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
 import { NoteToolbar } from './NoteToolbar';
-import { NoteEditorDialog } from './NoteEditorDialog';
+import { MarkdownPreview } from './MarkdownPreview';
 import { InsertTableDialog } from './InsertTableDialog';
 import { InsertLinkDialog } from './InsertLinkDialog';
 import { InsertImageDialog } from './InsertImageDialog';
 
-interface NoteEditorProps {
+interface NoteEditorDialogProps {
+  open: boolean;
   value: string;
   onChange: (value: string) => void;
-  placeholder?: string;
-  rows?: number;
+  onClose: () => void;
 }
 
 function insertFormat(value: string, selStart: number, selEnd: number, type: string, extra?: { rows?: number; cols?: number; text?: string; url?: string; alt?: string }): { newValue: string; newCursor: number } {
@@ -100,11 +100,9 @@ function insertFormat(value: string, selStart: number, selEnd: number, type: str
   }
 }
 
-export function NoteEditor({ value, onChange, placeholder = '备注（Markdown）', rows = 4 }: NoteEditorProps) {
-  const [mode, setMode] = useState<'edit' | 'preview'>('preview');
-  const [fullscreen, setFullscreen] = useState(false);
-  const [dialog, setDialog] = useState<'table' | 'link' | 'image' | null>(null);
+export function NoteEditorDialog({ open, value, onChange, onClose }: NoteEditorDialogProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [dialog, setDialog] = useState<'table' | 'link' | 'image' | null>(null);
 
   const handleFormat = useCallback((type: string) => {
     const ta = textareaRef.current;
@@ -124,15 +122,18 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
     });
   }, [value, onChange]);
 
-  const handleTableInsert = useCallback((r: number, c: number) => {
+  const handleTableInsert = useCallback((rows: number, cols: number) => {
     const ta = textareaRef.current;
     if (!ta) return;
     const selStart = ta.selectionStart;
     const selEnd = ta.selectionEnd;
-    const { newValue, newCursor } = insertFormat(value, selStart, selEnd, 'table', { rows: r, cols: c });
+    const { newValue, newCursor } = insertFormat(value, selStart, selEnd, 'table', { rows, cols });
     onChange(newValue);
     setDialog(null);
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(newCursor, newCursor); });
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(newCursor, newCursor);
+    });
   }, [value, onChange]);
 
   const handleLinkInsert = useCallback((text: string, url: string) => {
@@ -143,7 +144,10 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
     const { newValue, newCursor } = insertFormat(value, selStart, selEnd, 'link', { text, url });
     onChange(newValue);
     setDialog(null);
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(newCursor, newCursor); });
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(newCursor, newCursor);
+    });
   }, [value, onChange]);
 
   const handleImageInsert = useCallback((alt: string, url: string) => {
@@ -154,91 +158,102 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
     const { newValue, newCursor } = insertFormat(value, selStart, selEnd, 'image', { alt, url });
     onChange(newValue);
     setDialog(null);
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(newCursor, newCursor); });
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(newCursor, newCursor);
+    });
   }, [value, onChange]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
     const isCtrl = e.ctrlKey || e.metaKey;
     if (isCtrl && e.key === 'b') { e.preventDefault(); handleFormat('bold'); }
     if (isCtrl && e.key === 'i') { e.preventDefault(); handleFormat('italic'); }
     if (isCtrl && e.key === 'k') { e.preventDefault(); handleFormat('link'); }
   }, [handleFormat]);
 
-  return (
-    <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface)]">
-      {mode === 'preview' ? (
-        <div className="flex items-center justify-end border-b border-[var(--color-border-subtle)] px-3 py-1.5">
-          <button
-            type="button"
-            onClick={() => setMode('edit')}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
-          >
-            <Pencil className="h-3 w-3" />
-            编辑
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)]">
-          <div className="relative flex-1">
-            <NoteToolbar onFormat={handleFormat} />
-            {dialog === 'table' && (
-              <InsertTableDialog onInsert={handleTableInsert} onClose={() => setDialog(null)} />
-            )}
-            {dialog === 'link' && (
-              <InsertLinkDialog onInsert={handleLinkInsert} onClose={() => setDialog(null)} />
-            )}
-            {dialog === 'image' && (
-              <InsertImageDialog onInsert={handleImageInsert} onClose={() => setDialog(null)} />
-            )}
-          </div>
-          <div className="flex items-center gap-1 px-3 py-1.5">
-            <button
-              type="button"
-              onClick={() => setFullscreen(true)}
-              className="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
-              title="全屏编辑"
-            >
-              <Maximize className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('preview')}
-              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
-            >
-              <Eye className="h-3 w-3" />
-              预览
-            </button>
-          </div>
-        </div>
-      )}
-      {mode === 'edit' ? (
-        <div className="p-3">
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            rows={rows}
-            className="input min-h-[80px] resize-y"
-            style={{ height: 'auto' }}
-            autoFocus
-          />
-        </div>
-      ) : (
-        <div className="cursor-pointer p-3" onClick={() => setMode('edit')}>
-          <div className="pointer-events-none">
-            <MarkdownPreview content={value} />
-          </div>
-        </div>
-      )}
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (dialog && e.key === 'Escape') {
+        e.stopPropagation();
+        setDialog(null);
+      }
+    };
+    if (dialog) {
+      document.addEventListener('keydown', handleEsc, true);
+      return () => document.removeEventListener('keydown', handleEsc, true);
+    }
+  }, [dialog]);
 
-      <NoteEditorDialog
-        open={fullscreen}
-        value={value}
-        onChange={onChange}
-        onClose={() => setFullscreen(false)}
-      />
-    </div>
+  return (
+    <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-[var(--color-backdrop)] backdrop-blur-sm" />
+        <div className="fixed inset-0 z-50 flex pointer-events-none p-4">
+          <Dialog.Content
+            className="pointer-events-auto z-50 flex h-full w-full flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none"
+            aria-describedby={undefined}
+            onKeyDown={(e) => {
+              if (dialog && e.key === 'Escape') {
+                e.preventDefault();
+                setDialog(null);
+              }
+            }}
+            key={open ? 'open' : 'closed'}
+          >
+            <Dialog.Title className="sr-only">全屏备注编辑</Dialog.Title>
+
+            <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)]">
+              <div className="relative flex-1">
+                <NoteToolbar onFormat={handleFormat} />
+                {dialog === 'table' && (
+                  <InsertTableDialog
+                    onInsert={handleTableInsert}
+                    onClose={() => setDialog(null)}
+                  />
+                )}
+                {dialog === 'link' && (
+                  <InsertLinkDialog
+                    onInsert={handleLinkInsert}
+                    onClose={() => setDialog(null)}
+                  />
+                )}
+                {dialog === 'image' && (
+                  <InsertImageDialog
+                    onInsert={handleImageInsert}
+                    onClose={() => setDialog(null)}
+                  />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="mr-3 rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-1 overflow-hidden">
+              <div className="flex w-1/2 flex-col">
+                <textarea
+                  ref={textareaRef}
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="备注（Markdown）"
+                  className="h-full w-full resize-none border-0 bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
+                  autoFocus
+                />
+              </div>
+              <div className="w-1/2 overflow-y-auto border-l border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+                <MarkdownPreview content={value} />
+              </div>
+            </div>
+          </Dialog.Content>
+        </div>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
