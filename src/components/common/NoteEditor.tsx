@@ -12,6 +12,7 @@ interface NoteEditorProps {
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
+  className?: string;
 }
 
 function insertFormat(value: string, selStart: number, selEnd: number, type: string, extra?: { rows?: number; cols?: number; text?: string; url?: string; alt?: string }): { newValue: string; newCursor: number } {
@@ -100,7 +101,7 @@ function insertFormat(value: string, selStart: number, selEnd: number, type: str
   }
 }
 
-export function NoteEditor({ value, onChange, placeholder = '备注（Markdown）', rows = 4 }: NoteEditorProps) {
+export function NoteEditor({ value, onChange, placeholder = '备注（Markdown）', rows = 4, className = '' }: NoteEditorProps) {
   const [mode, setMode] = useState<'edit' | 'preview'>('preview');
   const [fullscreen, setFullscreen] = useState(false);
   const [dialog, setDialog] = useState<'table' | 'link' | 'image' | null>(null);
@@ -165,7 +166,7 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
   }, [handleFormat]);
 
   return (
-    <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface)]">
+    <div className={`rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface)] ${className}`}>
       {mode === 'preview' ? (
         <div className="flex items-center justify-end border-b border-[var(--color-border-subtle)] px-3 py-1.5">
           <button

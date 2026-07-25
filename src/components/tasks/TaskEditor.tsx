@@ -172,9 +172,11 @@ function draftReducer(state: DraftTask, action: DraftAction): DraftTask {
 function LinksEditor({
   value,
   onChange,
+  className = '',
 }: {
   value: string;
   onChange: (value: string) => void;
+  className?: string;
 }) {
   const [preview, setPreview] = useState(false);
   const [draftText, setDraftText] = useState(value);
@@ -190,9 +192,8 @@ function LinksEditor({
   };
 
   return (
-    <div className="rounded-lg border border-[var(--color-border-subtle)]">
-      <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-3 py-1.5">
-        <span className="text-xs font-medium text-[var(--color-text-secondary)]">链接</span>
+    <div className={`rounded-lg border border-[var(--color-border-subtle)] ${className}`}>
+      <div className="flex items-center justify-end border-b border-[var(--color-border-subtle)] px-3 py-1.5">
         <button
           type="button"
           onClick={handleToggle}
@@ -766,6 +767,17 @@ function TaskSubtasksEditor({
   );
 }
 
+function Section({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 shadow-sm ${className}`}>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
 function TaskMetaFields({
   draft,
   groups,
@@ -776,34 +788,45 @@ function TaskMetaFields({
   dispatch: (action: DraftAction) => void;
 }) {
   return (
-    <>
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">标题</span>
+    <Section title="基本信息">
+      <div className="space-y-3">
         <input
           value={draft.title}
           onChange={(e) => dispatch({ type: 'set', field: 'title', value: e.target.value })}
-          className="input"
+          placeholder="任务标题"
+          className="w-full border-0 bg-transparent p-0 text-xl font-semibold text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-0"
         />
-      </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">分组</span>
+          <select
+            value={draft.group}
+            onChange={(e) => dispatch({ type: 'set', field: 'group', value: e.target.value })}
+            className="select w-full"
+          >
+            {groups.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </Section>
+  );
+}
 
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">分组</span>
-        <select
-          value={draft.group}
-          onChange={(e) => dispatch({ type: 'set', field: 'group', value: e.target.value })}
-          className="select w-full"
-        >
-          {groups.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-        </select>
-      </label>
-
+function TaskStatusFields({
+  draft,
+  dispatch,
+}: {
+  draft: DraftTask;
+  dispatch: (action: DraftAction) => void;
+}) {
+  return (
+    <Section title="状态">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">优先级</span>
+          <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">优先级</span>
           <select
             value={draft.priority}
             onChange={(e) => dispatch({ type: 'set', field: 'priority', value: e.target.value as Task['meta']['priority'] })}
@@ -816,7 +839,7 @@ function TaskMetaFields({
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">状态</span>
+          <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">状态</span>
           <select
             value={draft.status}
             onChange={(e) => dispatch({ type: 'set', field: 'status', value: e.target.value as NonNullable<Task['meta']['status']> })}
@@ -828,7 +851,7 @@ function TaskMetaFields({
           </select>
         </label>
       </div>
-    </>
+    </Section>
   );
 }
 
@@ -904,79 +927,81 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
   };
 
   return (
-    <>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">开始时间</span>
-          <DateInput
-            value={draft.start}
-            onChange={(value) => dispatch({ type: 'set', field: 'start', value })}
-          />
-        </label>
-
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">截止时间</span>
-          <DateInput
-            value={draft.due}
-            onChange={(value) => dispatch({ type: 'set', field: 'due', value })}
-          />
-        </label>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复规则</span>
-          <select
-            value={repeatMode}
-            onChange={(e) => handleRepeatModeChange(e.target.value)}
-            className="select"
-          >
-            <option value="">无</option>
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-            <option value="monthly">每月</option>
-            <option value="weekdays">工作日</option>
-          </select>
-
-          {repeatMode === 'weekly' && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {WEEKDAY_OPTIONS.map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => toggleWeekday(key)}
-                  className={`min-w-[2rem] rounded-md border px-2.5 py-1 text-sm transition-colors ${
-                    selectedWeekdays.includes(key)
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
-                      : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-raised)]'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {repeatMode === 'monthly' && (
-            <input
-              type="text"
-              value={monthlyInputText || monthlyCustomDays}
-              onChange={(e) => handleMonthlyDaysChange(e.target.value)}
-              placeholder="例如 1,15，留空表示每月同一天"
-              className="input mt-2"
+    <Section title="日期与重复">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">开始时间</span>
+            <DateInput
+              value={draft.start}
+              onChange={(value) => dispatch({ type: 'set', field: 'start', value })}
             />
-          )}
-        </label>
+          </label>
 
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">重复截止</span>
-          <DateInput
-            value={draft.repeat_until}
-            onChange={(value) => dispatch({ type: 'set', field: 'repeat_until', value })}
-          />
-        </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">截止时间</span>
+            <DateInput
+              value={draft.due}
+              onChange={(value) => dispatch({ type: 'set', field: 'due', value })}
+            />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">重复规则</span>
+            <select
+              value={repeatMode}
+              onChange={(e) => handleRepeatModeChange(e.target.value)}
+              className="select"
+            >
+              <option value="">无</option>
+              <option value="daily">每天</option>
+              <option value="weekly">每周</option>
+              <option value="monthly">每月</option>
+              <option value="weekdays">工作日</option>
+            </select>
+
+            {repeatMode === 'weekly' && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {WEEKDAY_OPTIONS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => toggleWeekday(key)}
+                    className={`min-w-[2rem] rounded-md border px-2.5 py-1 text-sm transition-colors ${
+                      selectedWeekdays.includes(key)
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
+                        : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-raised)]'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {repeatMode === 'monthly' && (
+              <input
+                type="text"
+                value={monthlyInputText || monthlyCustomDays}
+                onChange={(e) => handleMonthlyDaysChange(e.target.value)}
+                placeholder="例如 1,15，留空表示每月同一天"
+                className="input mt-2"
+              />
+            )}
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">重复截止</span>
+            <DateInput
+              value={draft.repeat_until}
+              onChange={(value) => dispatch({ type: 'set', field: 'repeat_until', value })}
+            />
+          </label>
+        </div>
       </div>
-    </>
+    </Section>
   );
 }
 
@@ -1095,35 +1120,39 @@ export function TaskEditor({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="space-y-4">
+        <div className="mx-auto max-w-5xl space-y-4">
           <TaskMetaFields draft={draft} groups={groups} dispatch={dispatch} />
-          <TaskDateFields draft={draft} dispatch={dispatch} />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <TaskStatusFields draft={draft} dispatch={dispatch} />
+            <TaskDateFields draft={draft} dispatch={dispatch} />
+          </div>
 
-          <div className="block">
-            <span className="mb-2 block text-sm font-medium text-[var(--color-text-secondary)]">子任务</span>
+          <Section title="子任务">
             <TaskSubtasksEditor
               subtasks={draft.subtasks}
               onChange={(subtasks) => dispatch({ type: 'set', field: 'subtasks', value: subtasks })}
             />
-          </div>
+          </Section>
 
-          <div className="block">
-            <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">备注（Markdown）</span>
+          <Section title="备注">
             <NoteEditor
               value={draft.note}
               onChange={(v) => dispatch({ type: 'set', field: 'note', value: v })}
               placeholder="备注（Markdown）"
               rows={4}
+              className="border-0 bg-transparent"
             />
-          </div>
+          </Section>
 
-          <LinksEditor
-            value={draft.linksText}
-            onChange={(v) => dispatch({ type: 'set', field: 'linksText', value: v })}
-          />
+          <Section title="链接">
+            <LinksEditor
+              value={draft.linksText}
+              onChange={(v) => dispatch({ type: 'set', field: 'linksText', value: v })}
+              className="border-0 bg-transparent"
+            />
+          </Section>
 
-          <div className="block">
-            <span className="mb-2 block text-sm font-medium text-[var(--color-text-secondary)]">附件</span>
+          <Section title="附件">
             <FileListDisplay
               files={draft.files}
               onDownload={downloadFile}
@@ -1143,12 +1172,12 @@ export function TaskEditor({
               type="button"
               disabled={uploading || !config || !activeListName}
               onClick={() => fileInputRef.current?.click()}
-              className="mt-2 flex items-center gap-1.5 rounded-md border border-dashed border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
+              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
             >
-              <Upload className="h-3.5 w-3.5" />
+              <Upload className="h-4 w-4" />
               {uploading ? '上传中...' : '上传文件'}
             </button>
-          </div>
+          </Section>
         </div>
       </div>
 
