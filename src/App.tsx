@@ -31,7 +31,7 @@ function AppRoutes() {
         fetchAllListsContent();
       });
     }
-  }, [config, ensureInitialized, fetchLists, navigate, setInitialLoading]);
+  }, [config, ensureInitialized, fetchLists, fetchAllListsContent, navigate, setInitialLoading]);
 
   useEffect(() => {
     if (lists.length > 0 && !useListsStore.getState().activeListName) {

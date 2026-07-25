@@ -655,12 +655,8 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
     return repeatMode === 'monthly' && isMonthlyDaysRule(draft.repeat) ? draft.repeat : '';
   }, [draft.repeat, repeatMode]);
 
-  // 切换模式时重置输入
-  useEffect(() => {
-    setMonthlyInputText('');
-  }, [repeatMode]);
-
   const handleRepeatModeChange = (mode: string) => {
+    setMonthlyInputText('');
     if (mode === '') {
       dispatch({ type: 'set', field: 'repeat', value: '' });
     } else if (mode === 'daily') {
@@ -862,7 +858,7 @@ export function TaskEditor({
             />
           </div>
 
-          <label className="block">
+          <div className="block">
             <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">备注（Markdown）</span>
             <NoteEditor
               value={draft.note}
@@ -870,7 +866,7 @@ export function TaskEditor({
               placeholder="备注（Markdown）"
               rows={4}
             />
-          </label>
+          </div>
 
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">链接（每行「标题 URL」）</span>
