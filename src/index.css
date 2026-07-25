@@ -72,9 +72,9 @@
   --color-text-muted: #94A3B8;
   --color-text-inverse: #020617;
 
-  /* Borders: separated enough to remain visible */
-  --color-border: #334155;
-  --color-border-subtle: #1E293B;
+  /* Borders: subtle — rely on surface elevation for separation */
+  --color-border: #1E293B;
+  --color-border-subtle: #162032;
   --color-border-focus: rgba(92, 179, 255, 0.35);
 
   /* Semantic states: vivid but readable */
