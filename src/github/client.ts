@@ -106,3 +106,54 @@ export async function deleteFile(config: GithubConfig, path: string, sha: string
     sha,
   });
 }
+
+/** 写入二进制文件内容（base64 编码），返回新的 SHA */
+export async function uploadBinaryFile(
+  config: GithubConfig,
+  path: string,
+  base64Content: string,
+  sha?: string,
+): Promise<string> {
+  const { data } = await getOctokit().rest.repos.createOrUpdateFileContents({
+    owner: config.owner,
+    repo: config.repo,
+    path,
+    message: `upload ${path}`,
+    content: base64Content,
+    sha,
+  });
+  return data.content?.sha ?? '';
+}
+
+/** 获取文件内容并返回 base64 编码的字符串及 SHA */
+export async function getBinaryFileContent(
+  config: GithubConfig,
+  path: string,
+): Promise<{ sha: string; base64: string }> {
+  const { data } = await getOctokit().rest.repos.getContent({
+    owner: config.owner,
+    repo: config.repo,
+    path,
+  });
+
+  if (Array.isArray(data) || !('content' in data)) {
+    throw new Error(`Path ${path} is not a file`);
+  }
+  const raw = data.content!.replace(/\n/g, '');
+  return { sha: data.sha!, base64: raw };
+}
+
+/** 检查路径是否存在（用于去重判断） */
+export async function fileExists(config: GithubConfig, path: string): Promise<{ exists: boolean; sha?: string }> {
+  try {
+    const { data } = await getOctokit().rest.repos.getContent({
+      owner: config.owner,
+      repo: config.repo,
+      path,
+    });
+    if (Array.isArray(data) || !('sha' in data)) return { exists: false };
+    return { exists: true, sha: data.sha };
+  } catch {
+    return { exists: false };
+  }
+}

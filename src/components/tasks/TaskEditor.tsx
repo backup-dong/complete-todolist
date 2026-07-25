@@ -24,7 +24,9 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Link, Subtask, Task } from '@/types';
+import { Upload } from 'lucide-react';
+import type { FileRef, GithubConfig, Link, Subtask, Task } from '@/types';
+import { createContext, useContext } from 'react';
 import { getDay, parseISO } from 'date-fns';
 import { DateInput } from '@/components/common/DateInput';
 import { NoteEditor } from '@/components/common/NoteEditor';
@@ -38,6 +40,24 @@ import {
   type WeekDay,
 } from '@/utils/repeat';
 import { deleteSubtaskAtPath, emptySubtask, reorderSubtasksAtPath, updateSubtaskAtPath } from '@/utils/subtasks';
+import { FileListDisplay } from './FileAttachments';
+import { useFileDownload } from '@/utils/useFileDownload';
+import { uploadFileToRepo } from '@/utils/fileUpload';
+import { deleteFile } from '@/github/client';
+import { useSyncStore } from '@/stores/syncStore';
+import { useListsStore } from '@/stores/listsStore';
+
+const TaskEditorCtx = createContext<{
+  config: GithubConfig | null;
+  activeListName: string | null;
+  taskId: string;
+} | null>(null);
+
+function useTaskEditorCtx() {
+  const ctx = useContext(TaskEditorCtx);
+  if (!ctx) throw new Error('TaskEditorCtx not found');
+  return ctx;
+}
 
 function detectSubtaskToggle(prev: Subtask[], curr: Subtask[]): boolean {
   if (prev.length !== curr.length) return false;
@@ -113,6 +133,7 @@ interface DraftTask {
   note: string;
   linksText: string;
   subtasks: Subtask[];
+  files: FileRef[];
 }
 
 type DraftAction =
@@ -132,6 +153,7 @@ function buildDraft(task: Task): DraftTask {
     note: task.note ?? '',
     linksText: linksToText(task.links),
     subtasks: task.subtasks,
+    files: task.files ?? [],
   };
 }
 
@@ -187,6 +209,85 @@ function SubtaskLinksEditor({
       rows={2}
       className="input"
     />
+  );
+}
+
+function SubtaskFilesEditor({
+  subtask,
+  path,
+  onChange,
+}: {
+  subtask: Subtask;
+  path: number[];
+  onChange: (path: number[], updated: Subtask) => void;
+}) {
+  const { config, activeListName, taskId } = useTaskEditorCtx();
+  const downloadFile = useFileDownload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (fileList: FileList | null) => {
+    if (!fileList || !config || !activeListName) return;
+    setUploading(true);
+    try {
+      const existingPaths = new Set((subtask.files ?? []).map((f) => f.path));
+      for (const file of Array.from(fileList)) {
+        try {
+          const ref = await uploadFileToRepo(config, file, activeListName, taskId);
+          if (!existingPaths.has(ref.path)) {
+            existingPaths.add(ref.path);
+            onChange(path, { ...subtask, files: [...(subtask.files ?? []), ref] });
+          }
+        } catch (err) {
+          console.error(`Upload failed for ${file.name}:`, err);
+        }
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (file: FileRef) => {
+    onChange(path, {
+      ...subtask,
+      files: (subtask.files ?? []).filter((f) => f.path !== file.path),
+    });
+    if (config) {
+      try {
+        await deleteFile(config, file.path, file.sha);
+      } catch (err) {
+        console.error(`Failed to delete file from GitHub: ${file.path}`, err);
+      }
+    }
+  };
+
+  return (
+    <div>
+      <FileListDisplay
+        files={subtask.files ?? []}
+        onDownload={downloadFile}
+        onDelete={handleDelete}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        onChange={(e) => {
+          handleUpload(e.target.files);
+          e.target.value = '';
+        }}
+        className="hidden"
+      />
+      <button
+        type="button"
+        disabled={uploading || !config || !activeListName}
+        onClick={() => fileInputRef.current?.click()}
+        className="mt-1 flex items-center gap-1.5 rounded-md border border-dashed border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
+      >
+        <Upload className="h-3 w-3" />
+        {uploading ? '上传中...' : '上传文件'}
+      </button>
+    </div>
   );
 }
 
@@ -321,6 +422,7 @@ function SubtaskEditor({
             rows={3}
           />
           <SubtaskLinksEditor subtask={subtask} path={path} onChange={onChange} />
+          <SubtaskFilesEditor subtask={subtask} path={path} onChange={onChange} />
         </div>
       )}
 
@@ -794,6 +896,11 @@ export function TaskEditor({
   onClose: () => void;
 }) {
   const [draft, dispatch] = useReducer(draftReducer, task, buildDraft);
+  const [uploading, setUploading] = useState(false);
+  const downloadFile = useFileDownload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const config = useSyncStore((s) => s.config);
+  const activeListName = useListsStore((s) => s.activeListName);
 
   const makeTask = useCallback((): Task => {
     return {
@@ -811,6 +918,7 @@ export function TaskEditor({
       },
       note: draft.note || undefined,
       links: textToLinks(draft.linksText),
+      files: draft.files.length > 0 ? draft.files : undefined,
       subtasks: draft.subtasks,
     };
   }, [draft, task]);
@@ -818,6 +926,50 @@ export function TaskEditor({
   const saveTask = useCallback(() => {
     onSave(makeTask());
   }, [makeTask, onSave]);
+
+  const handleUploadFiles = useCallback(
+    async (fileList: FileList | null) => {
+      if (!fileList || !config || !activeListName) return;
+      setUploading(true);
+      try {
+        const newFiles: FileRef[] = [];
+        for (const file of Array.from(fileList)) {
+          try {
+            const ref = await uploadFileToRepo(config, file, activeListName, task.id);
+            newFiles.push(ref);
+          } catch (err) {
+            console.error(`Upload failed for ${file.name}:`, err);
+          }
+        }
+        if (newFiles.length > 0) {
+          const existingPaths = new Set(draft.files.map((f) => f.path));
+          const merged = [...draft.files, ...newFiles.filter((f) => !existingPaths.has(f.path))];
+          dispatch({ type: 'set', field: 'files', value: merged });
+        }
+      } finally {
+        setUploading(false);
+      }
+    },
+    [config, activeListName, task.id, draft.files],
+  );
+
+  const handleDeleteFile = useCallback(
+    async (file: FileRef) => {
+      dispatch({
+        type: 'set',
+        field: 'files',
+        value: draft.files.filter((f) => f.path !== file.path),
+      });
+      if (config) {
+        try {
+          await deleteFile(config, file.path, file.sha);
+        } catch (err) {
+          console.error(`Failed to delete file from GitHub: ${file.path}`, err);
+        }
+      }
+    },
+    [draft.files, config],
+  );
 
   const prevSubtasksRef = useRef<Subtask[]>(draft.subtasks);
 
@@ -829,6 +981,7 @@ export function TaskEditor({
   }, [draft.subtasks, saveTask]);
 
   return (
+    <TaskEditorCtx.Provider value={{ config, activeListName, taskId: task.id }}>
     <div
       className="flex h-full flex-col bg-[var(--color-surface-raised)]"
       data-testid="task-editor"
@@ -877,6 +1030,34 @@ export function TaskEditor({
               rows={3}
             />
           </label>
+
+          <div className="block">
+            <span className="mb-2 block text-sm font-medium text-[var(--color-text-secondary)]">附件</span>
+            <FileListDisplay
+              files={draft.files}
+              onDownload={downloadFile}
+              onDelete={handleDeleteFile}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={(e) => {
+                handleUploadFiles(e.target.files);
+                e.target.value = '';
+              }}
+              className="hidden"
+            />
+            <button
+              type="button"
+              disabled={uploading || !config || !activeListName}
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-2 flex items-center gap-1.5 rounded-md border border-dashed border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {uploading ? '上传中...' : '上传文件'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -900,5 +1081,6 @@ export function TaskEditor({
         </button>
       </div>
     </div>
+    </TaskEditorCtx.Provider>
   );
 }

@@ -20,6 +20,15 @@ export interface Link {
   url: string;
 }
 
+export interface FileRef {
+  name: string;
+  path: string;
+  sha: string;
+  size: number;
+  mime: string;
+  uploadedAt: string;
+}
+
 export interface Subtask {
   text: string;
   level: number; // 1 | 2 | 3
@@ -29,6 +38,7 @@ export interface Subtask {
   due?: string; // ISO 日期，v1.1 新增
   note?: string;
   links?: Link[];
+  files?: FileRef[];
   children: Subtask[];
 }
 
@@ -39,6 +49,7 @@ export interface Task {
   subtasks: Subtask[];
   note?: string; // Markdown 文本
   links?: Link[];
+  files?: FileRef[];
   completed_at?: string; // 🏁 时间
   duration?: string; // ⏱ 耗时文字
   group: string; // 所属分组名

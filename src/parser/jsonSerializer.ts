@@ -13,6 +13,7 @@ function serializeSubtask(subtask: Subtask): unknown {
     due: subtask.due ?? null,
     note: subtask.note ?? null,
     links: subtask.links ?? null,
+    files: subtask.files ?? null,
     children: subtask.children.map(serializeSubtask),
   };
 }
@@ -27,6 +28,7 @@ function serializeTask(task: Task): unknown {
     subtasks: normalized.subtasks.map(serializeSubtask),
     note: normalized.note ?? null,
     links: normalized.links ?? null,
+    files: normalized.files ?? null,
     completed_at: normalized.completed_at ?? null,
     duration: normalized.duration ?? null,
   };

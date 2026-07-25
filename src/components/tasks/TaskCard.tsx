@@ -7,9 +7,11 @@ import {
   Repeat,
   Trash2,
 } from 'lucide-react';
-import type { Link, Subtask, Task } from '@/types';
+import type { FileRef, Link, Subtask, Task } from '@/types';
 import { formatDate, isDueToday, isOverdue } from '@/utils/date';
 import { computeEffectiveDueDate, formatRepeat } from '@/utils/repeat';
+import { FileListDisplay } from './FileAttachments';
+import { useFileDownload } from '@/utils/useFileDownload';
 
 function useDueColor(due?: string, status?: Task['meta']['status']): string {
   if (!due) return '';
@@ -134,11 +136,13 @@ function SubtaskItem({
   path,
   onToggle,
   depth,
+  downloadFile,
 }: {
   subtask: Subtask;
   path: number[];
   onToggle: (path: number[]) => void;
   depth: number;
+  downloadFile?: (file: FileRef) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(depth < 2);
 
@@ -161,6 +165,20 @@ function SubtaskItem({
       </label>
 
       <TaskLinks links={subtask.links} compact className="mt-1 flex flex-wrap items-center gap-1.5 pl-6" />
+      {subtask.files && subtask.files.length > 0 && downloadFile && (
+        <div className="pl-6">
+          <FileListDisplay
+            files={subtask.files.slice(0, 5)}
+            onDownload={downloadFile}
+            compact
+          />
+          {subtask.files.length > 5 && (
+            <div className="mt-0.5 pl-6 text-xs text-[var(--color-text-muted)]">
+              +{subtask.files.length - 5} 个文件
+            </div>
+          )}
+        </div>
+      )}
 
       {subtask.children.length > 0 && (
         <>
@@ -172,6 +190,7 @@ function SubtaskItem({
                 path={[...path, i]}
                 onToggle={onToggle}
                 depth={depth + 1}
+                downloadFile={downloadFile}
               />
             ))
           ) : (
@@ -213,6 +232,7 @@ export function TaskCard({
   onDelete: () => void;
   onComplete?: () => void;
 }) {
+  const downloadFile = useFileDownload();
   // 重复任务：显示有效截止日期（自动推进已过期的到最近一次）
   const displayDue = useMemo(() => {
     if (task.meta.repeat && task.meta.due) {
@@ -308,11 +328,21 @@ export function TaskCard({
           </div>
 
           <TaskLinks links={task.links} />
+          {task.files && task.files.length > 0 && (
+            <div className="mt-2">
+              <FileListDisplay files={task.files.slice(0, 5)} onDownload={downloadFile} />
+              {task.files.length > 5 && (
+                <div className="mt-1 text-xs text-[var(--color-text-muted)]">
+                  +{task.files.length - 5} 个文件
+                </div>
+              )}
+            </div>
+          )}
 
           {task.subtasks.length > 0 && (
             <div className="mt-3 border-t border-[var(--color-border-subtle)] pt-3">
               {task.subtasks.slice(0, 3).map((s, i) => (
-                <SubtaskItem key={i} subtask={s} path={[i]} onToggle={onToggle} depth={0} />
+                <SubtaskItem key={i} subtask={s} path={[i]} onToggle={onToggle} depth={0} downloadFile={downloadFile} />
               ))}
               {task.subtasks.length > 3 && (
                 <div className="mt-1 text-xs text-[var(--color-text-muted)]">

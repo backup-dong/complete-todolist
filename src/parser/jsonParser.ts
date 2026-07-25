@@ -1,4 +1,4 @@
-import type { Group, Link, ListMeta, ParsedList, Subtask, Task, TaskMeta } from '@/types';
+import type { FileRef, Group, Link, ListMeta, ParsedList, Subtask, Task, TaskMeta } from '@/types';
 import { todayIso } from '@/utils/date';
 import { generateTaskId } from '@/utils/id';
 
@@ -44,6 +44,19 @@ function normalizeLink(raw: unknown): Link | null {
   return { title: r.title, url: r.url };
 }
 
+function normalizeFileRef(raw: unknown): FileRef | null {
+  const r = raw as Record<string, unknown>;
+  if (typeof r.name !== 'string' || typeof r.path !== 'string' || typeof r.sha !== 'string') return null;
+  return {
+    name: r.name,
+    path: r.path,
+    sha: r.sha,
+    size: typeof r.size === 'number' ? r.size : 0,
+    mime: typeof r.mime === 'string' ? r.mime : 'application/octet-stream',
+    uploadedAt: typeof r.uploadedAt === 'string' ? r.uploadedAt : '',
+  };
+}
+
 function normalizeSubtask(raw: unknown): Subtask {
   const r = raw as Record<string, unknown>;
   const text = typeof r.text === 'string' ? r.text : '';
@@ -64,6 +77,9 @@ function normalizeSubtask(raw: unknown): Subtask {
   if (typeof r.note === 'string') subtask.note = r.note;
   if (Array.isArray(r.links)) {
     subtask.links = r.links.map(normalizeLink).filter(Boolean) as Link[];
+  }
+  if (Array.isArray(r.files)) {
+    subtask.files = r.files.map(normalizeFileRef).filter(Boolean) as FileRef[];
   }
 
   return subtask;
@@ -87,6 +103,9 @@ function normalizeTask(raw: unknown, groupName: string): Task {
   if (typeof r.note === 'string') task.note = r.note;
   if (Array.isArray(r.links)) {
     task.links = r.links.map(normalizeLink).filter(Boolean) as Link[];
+  }
+  if (Array.isArray(r.files)) {
+    task.files = r.files.map(normalizeFileRef).filter(Boolean) as FileRef[];
   }
   if (typeof r.completed_at === 'string') task.completed_at = r.completed_at;
   if (typeof r.duration === 'string') task.duration = r.duration;
