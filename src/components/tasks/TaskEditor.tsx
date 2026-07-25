@@ -2,9 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useReducer, useState } from 'r
 import {
   ChevronDown,
   ChevronUp,
+  Eye,
   GripVertical,
+  Link as LinkIcon,
+  Pencil,
   Plus,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import type { DraggableAttributes, DragEndEvent, DragStartEvent } from '@dnd-kit/core';
@@ -24,7 +28,6 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Upload } from 'lucide-react';
 import type { FileRef, GithubConfig, Link, Subtask, Task } from '@/types';
 import { createContext, useContext } from 'react';
 import { getDay, parseISO } from 'date-fns';
@@ -166,25 +169,72 @@ function draftReducer(state: DraftTask, action: DraftAction): DraftTask {
   }
 }
 
-function LinksTextArea({
+function LinksEditor({
   value,
   onChange,
-  placeholder,
-  rows,
 }: {
   value: string;
   onChange: (value: string) => void;
-  placeholder: string;
-  rows: number;
 }) {
+  const [preview, setPreview] = useState(false);
+  const [draftText, setDraftText] = useState(value);
+  const links = textToLinks(value);
+
+  const handleToggle = () => {
+    if (preview) {
+      setDraftText(value);
+    } else {
+      onChange(draftText);
+    }
+    setPreview((v) => !v);
+  };
+
   return (
-    <textarea
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      rows={rows}
-      className="input"
-      placeholder={placeholder}
-    />
+    <div className="rounded-lg border border-[var(--color-border-subtle)]">
+      <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-3 py-1.5">
+        <span className="text-xs font-medium text-[var(--color-text-secondary)]">链接</span>
+        <button
+          type="button"
+          onClick={handleToggle}
+          className="btn-ghost p-1"
+          aria-label={preview ? '编辑' : '预览'}
+        >
+          {preview ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      {preview ? (
+        <div className="p-3">
+          {links && links.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {links.map((link, i) => (
+                <a
+                  key={i}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex max-w-[200px] items-center gap-1 rounded-md bg-[var(--color-primary-subtle)] px-2 py-1 text-xs font-medium text-[var(--color-primary)] hover:underline"
+                  title={link.url}
+                >
+                  <LinkIcon className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{link.title || '链接'}</span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-[var(--color-text-muted)]">暂无链接</p>
+          )}
+        </div>
+      ) : (
+        <textarea
+          value={draftText}
+          onChange={(e) => setDraftText(e.target.value)}
+          onBlur={() => onChange(draftText)}
+          rows={3}
+          className="input border-0 focus:ring-0"
+          placeholder="每行一条「标题 URL」或 Markdown 格式 [标题](URL)"
+        />
+      )}
+    </div>
   );
 }
 
@@ -197,18 +247,64 @@ function SubtaskLinksEditor({
   path: number[];
   onChange: (path: number[], updated: Subtask) => void;
 }) {
-  const [linksText, setLinksText] = useState(linksToText(subtask.links));
+  const [preview, setPreview] = useState(false);
+  const [draftText, setDraftText] = useState(linksToText(subtask.links));
+
+  const handleToggle = () => {
+    if (preview) {
+      setDraftText(linksToText(subtask.links));
+    } else {
+      onChange(path, { ...subtask, links: textToLinks(draftText) });
+    }
+    setPreview((v) => !v);
+  };
 
   return (
-    <textarea
-      key={linksToText(subtask.links)}
-      value={linksText}
-      onChange={(e) => setLinksText(e.target.value)}
-      onBlur={() => onChange(path, { ...subtask, links: textToLinks(linksText) })}
-      placeholder="链接（每行「标题 URL」）"
-      rows={2}
-      className="input"
-    />
+    <div className="rounded-lg border border-[var(--color-border-subtle)]">
+      <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-2 py-1">
+        <span className="text-[10px] font-medium text-[var(--color-text-secondary)]">链接</span>
+        <button
+          type="button"
+          onClick={handleToggle}
+          className="btn-ghost p-0.5"
+          aria-label={preview ? '编辑' : '预览'}
+        >
+          {preview ? <Pencil className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+        </button>
+      </div>
+      {preview ? (
+        <div className="p-2">
+          {subtask.links && subtask.links.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {subtask.links.map((link, i) => (
+                <a
+                  key={i}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex max-w-[160px] items-center gap-1 rounded-md bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-primary)] hover:underline"
+                  title={link.url}
+                >
+                  <LinkIcon className="h-2.5 w-2.5 shrink-0" />
+                  <span className="truncate">{link.title || '链接'}</span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[10px] text-[var(--color-text-muted)]">暂无链接</p>
+          )}
+        </div>
+      ) : (
+        <textarea
+          value={draftText}
+          onChange={(e) => setDraftText(e.target.value)}
+          onBlur={() => onChange(path, { ...subtask, links: textToLinks(draftText) })}
+          placeholder="每行一条「标题 URL」"
+          rows={2}
+          className="input border-0 focus:ring-0"
+        />
+      )}
+    </div>
   );
 }
 
@@ -1021,15 +1117,10 @@ export function TaskEditor({
             />
           </div>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-[var(--color-text-secondary)]">链接（每行「标题 URL」）</span>
-            <LinksTextArea
-              value={draft.linksText}
-              onChange={(v) => dispatch({ type: 'set', field: 'linksText', value: v })}
-              placeholder="飞书任务 https://example.com"
-              rows={3}
-            />
-          </label>
+          <LinksEditor
+            value={draft.linksText}
+            onChange={(v) => dispatch({ type: 'set', field: 'linksText', value: v })}
+          />
 
           <div className="block">
             <span className="mb-2 block text-sm font-medium text-[var(--color-text-secondary)]">附件</span>

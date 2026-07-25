@@ -95,12 +95,15 @@ function TaskLinks({
   links,
   className,
   compact,
+  max,
 }: {
   links?: Link[];
   className?: string;
   compact?: boolean;
+  max?: number;
 }) {
   if (!links?.length) return null;
+  const displayLinks = max ? links.slice(0, max) : links;
   return (
     <div
       onClick={(e) => e.stopPropagation()}
@@ -111,7 +114,7 @@ function TaskLinks({
           : 'mt-2 flex flex-wrap items-center gap-2')
       }
     >
-      {links.map((link, i) => (
+      {displayLinks.map((link, i) => (
         <a
           key={i}
           href={link.url}
@@ -127,6 +130,11 @@ function TaskLinks({
           <span className="truncate">{link.title || '链接'}</span>
         </a>
       ))}
+      {max && links.length > max && (
+        <span className="text-xs text-[var(--color-text-muted)]">
+          +{links.length - max} 个链接
+        </span>
+      )}
     </div>
   );
 }
@@ -164,7 +172,7 @@ function SubtaskItem({
         <span className={subtask.completed ? 'line-through opacity-60' : ''}>{subtask.text}</span>
       </label>
 
-      <TaskLinks links={subtask.links} compact className="mt-1 flex flex-wrap items-center gap-1.5 pl-6" />
+      <TaskLinks links={subtask.links} compact className="mt-1 flex flex-wrap items-center gap-1.5 pl-6" max={3} />
       {subtask.files && subtask.files.length > 0 && downloadFile && (
         <div className="pl-6">
           <FileListDisplay
@@ -327,7 +335,7 @@ export function TaskCard({
             )}
           </div>
 
-          <TaskLinks links={task.links} />
+          <TaskLinks links={task.links} max={5} />
           {task.files && task.files.length > 0 && (
             <div className="mt-2">
               <FileListDisplay files={task.files.slice(0, 5)} onDownload={downloadFile} />
