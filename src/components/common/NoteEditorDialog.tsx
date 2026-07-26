@@ -102,6 +102,8 @@ function insertFormat(value: string, selStart: number, selEnd: number, type: str
 
 export function NoteEditorDialog({ open, value, onChange, onClose }: NoteEditorDialogProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const syncing = useRef(false);
   const [dialog, setDialog] = useState<'table' | 'link' | 'image' | null>(null);
 
   const handleFormat = useCallback((type: string) => {
@@ -173,6 +175,27 @@ export function NoteEditorDialog({ open, value, onChange, onClose }: NoteEditorD
     if (isCtrl && e.key === 'k') { e.preventDefault(); handleFormat('link'); }
   }, [handleFormat]);
 
+  const syncScroll = useCallback((source: 'edit' | 'preview') => {
+    if (syncing.current) return;
+    syncing.current = true;
+
+    const ta = textareaRef.current;
+    const pv = previewRef.current;
+    if (!ta || !pv) { syncing.current = false; return; }
+
+    const isOverflow = (el: HTMLElement) => el.scrollHeight > el.clientHeight;
+
+    if (source === 'edit' && isOverflow(ta)) {
+      const ratio = ta.scrollTop / (ta.scrollHeight - ta.clientHeight);
+      pv.scrollTop = ratio * (pv.scrollHeight - pv.clientHeight);
+    } else if (source === 'preview' && isOverflow(pv)) {
+      const ratio = pv.scrollTop / (pv.scrollHeight - pv.clientHeight);
+      ta.scrollTop = ratio * (ta.scrollHeight - ta.clientHeight);
+    }
+
+    syncing.current = false;
+  }, []);
+
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (dialog && e.key === 'Escape') {
@@ -242,12 +265,17 @@ export function NoteEditorDialog({ open, value, onChange, onClose }: NoteEditorD
                   value={value}
                   onChange={(e) => onChange(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onScroll={() => syncScroll('edit')}
                   placeholder="备注（Markdown）"
                   className="h-full w-full resize-none border-0 bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
                   autoFocus
                 />
               </div>
-              <div className="w-1/2 overflow-y-auto border-l border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+              <div
+                ref={previewRef}
+                onScroll={() => syncScroll('preview')}
+                className="w-1/2 overflow-y-auto border-l border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4"
+              >
                 <MarkdownPreview content={value} />
               </div>
             </div>
