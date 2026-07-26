@@ -12,6 +12,9 @@ import {
   addPendingWrite,
   clearPendingWrite,
   getPendingWrites,
+  clearAllCachedFiles,
+  clearAllPendingWrites,
+  clearActiveListCache,
 } from '@/utils/storage';
 
 interface ListsState {
@@ -34,6 +37,7 @@ interface ListsState {
   fetchAllListsContent: () => Promise<void>;
   saveListContent: (name: string, list: ParsedList) => Promise<void>;
   getActiveList: () => ParsedList | null;
+  resetListsState: () => void;
   createGroup: (name: string) => Promise<void>;
   renameGroup: (oldName: string, newName: string) => Promise<void>;
   deleteGroup: (name: string) => Promise<void>;
@@ -377,6 +381,29 @@ export const useListsStore = create<ListsState>((set, get) => ({
   getActiveList: () => {
     const { activeListName, fileCache } = get();
     return activeListName ? fileCache[activeListName] ?? null : null;
+  },
+
+  resetListsState: () => {
+    for (const timeout of syncTimeouts.values()) {
+      clearTimeout(timeout);
+    }
+    syncTimeouts.clear();
+
+    clearAllCachedFiles();
+    clearAllPendingWrites();
+    clearActiveListCache();
+
+    set({
+      lists: [],
+      activeListName: null,
+      activeGroup: null,
+      fileCache: {},
+      pendingMigrations: [],
+      initialLoading: true,
+      listsFetched: false,
+    });
+
+    useSyncStore.setState(computeState());
   },
 
   fetchAllListsContent: async () => {

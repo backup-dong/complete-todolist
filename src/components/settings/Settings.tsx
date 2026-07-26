@@ -2,11 +2,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Shield, Save, Trash2, Palette, Globe, RefreshCw } from 'lucide-react';
 import { useSyncStore } from '@/stores/syncStore';
+import { useListsStore } from '@/stores/listsStore';
+import { useTasksStore } from '@/stores/tasksStore';
 import { useHolidayStore } from '@/stores/holidayStore';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 
 export function Settings() {
   const { config, configure, clear } = useSyncStore();
+  const resetListsState = useListsStore((s) => s.resetListsState);
+  const resetTasksState = useTasksStore((s) => s.resetTasksState);
   const { country, status: holidayStatus, setCountry, loadHolidays } = useHolidayStore();
   const navigate = useNavigate();
   const [token, setToken] = useState(config?.token ?? '');
@@ -16,6 +20,8 @@ export function Settings() {
 
   const handleSave = () => {
     configure(token.trim(), owner.trim(), repo.trim(), basePath.trim() || 'todo');
+    resetListsState();
+    resetTasksState();
     navigate('/');
   };
 

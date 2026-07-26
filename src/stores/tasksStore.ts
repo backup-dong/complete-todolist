@@ -37,6 +37,7 @@ interface TasksState {
   getFilteredTasks: () => Task[];
   getSelectedTask: () => Task | null;
   getTodoViewCounts: () => Record<TodoViewKey, number>;
+  resetTasksState: () => void;
 }
 
 interface ActiveListCtx {
@@ -617,6 +618,16 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       },
       {} as Record<TodoViewKey, number>,
     );
+  },
+
+  resetTasksState: () => {
+    set({
+      tasks: [],
+      selectedTaskId: null,
+      searchQuery: '',
+      todoView: null,
+      filter: { status: [], priority: 'all', timeRange: 'all' },
+    });
   },
 }));
 

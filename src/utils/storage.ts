@@ -61,6 +61,22 @@ export function clearCachedFile(name: string): void {
   localStorage.removeItem(`dong-todo:file:${name}`);
 }
 
+export function clearAllCachedFiles(): void {
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('dong-todo:file:')) {
+      localStorage.removeItem(key);
+    }
+  }
+}
+
+export function clearAllPendingWrites(): void {
+  localStorage.removeItem('dong-todo:pending-writes');
+}
+
+export function clearActiveListCache(): void {
+  localStorage.removeItem('dong-todo:active-list');
+}
+
 type PendingWriteStore = Record<string, string>;
 
 function parsePendingWrites(raw: string | null): PendingWriteStore {
