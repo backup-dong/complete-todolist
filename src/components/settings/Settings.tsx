@@ -25,6 +25,14 @@ export function Settings() {
     navigate('/');
   };
 
+  const handleClear = () => {
+    clear();
+    setToken('');
+    setOwner('');
+    setRepo('');
+    setBasePath('todo');
+  };
+
   return (
     <div className="flex h-full">
       <div className="flex flex-1 items-center justify-center p-6">
@@ -149,7 +157,7 @@ export function Settings() {
             {config && (
               <button
                 type="button"
-                onClick={clear}
+                onClick={handleClear}
                 className="btn-secondary"
               >
                 <Trash2 className="mr-1.5 h-4 w-4" />
