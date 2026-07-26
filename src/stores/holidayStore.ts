@@ -51,3 +51,5 @@ export const useHolidayStore = create<HolidayStore>((set, get) => ({
     return get().holidays.includes(iso);
   },
 }));
+
+useHolidayStore.getState().loadHolidays();
