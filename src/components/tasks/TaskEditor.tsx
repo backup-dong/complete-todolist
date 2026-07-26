@@ -178,7 +178,7 @@ function LinksEditor({
   onChange: (value: string) => void;
   className?: string;
 }) {
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState(true);
   const [draftText, setDraftText] = useState(value);
   const links = textToLinks(value);
 
@@ -197,10 +197,10 @@ function LinksEditor({
         <button
           type="button"
           onClick={handleToggle}
-          className="btn-ghost p-1"
-          aria-label={preview ? '编辑' : '预览'}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
         >
-          {preview ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {preview ? <Pencil className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+          {preview ? '编辑' : '预览'}
         </button>
       </div>
       {preview ? (
@@ -233,6 +233,7 @@ function LinksEditor({
           rows={3}
           className="input border-0 focus:ring-0"
           placeholder="每行一条「标题 URL」或 Markdown 格式 [标题](URL)"
+          autoFocus
         />
       )}
     </div>
@@ -248,7 +249,7 @@ function SubtaskLinksEditor({
   path: number[];
   onChange: (path: number[], updated: Subtask) => void;
 }) {
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState(true);
   const [draftText, setDraftText] = useState(linksToText(subtask.links));
 
   const handleToggle = () => {
@@ -267,10 +268,10 @@ function SubtaskLinksEditor({
         <button
           type="button"
           onClick={handleToggle}
-          className="btn-ghost p-0.5"
-          aria-label={preview ? '编辑' : '预览'}
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
         >
-          {preview ? <Pencil className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+          {preview ? <Pencil className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
+          {preview ? '编辑' : '预览'}
         </button>
       </div>
       {preview ? (
@@ -303,6 +304,7 @@ function SubtaskLinksEditor({
           placeholder="每行一条「标题 URL」"
           rows={2}
           className="input border-0 focus:ring-0"
+          autoFocus
         />
       )}
     </div>
