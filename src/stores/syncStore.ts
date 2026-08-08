@@ -72,7 +72,7 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
     const config: GithubConfig = { token, owner, repo, basePath };
     saveConfig(config);
     initGitHub(config);
-    set(computeState());
+    set({ config, ...computeState() });
   },
 
   ensureInitialized: () => {

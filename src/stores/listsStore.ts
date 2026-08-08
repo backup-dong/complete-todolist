@@ -3,6 +3,7 @@ import type { GithubConfig, ListMeta, ParsedList } from '@/types';
 import { getFileContent, listFilesByExtension, writeFileContent, deleteFile } from '@/github/client';
 import { parseJsonToList, parseMarkdownToList, serializeListToJson, createEmptyList } from '@/parser';
 import { useSyncStore, computeState } from './syncStore';
+import { toast } from '@/utils/toast';
 import {
   cacheFileContent,
   getCachedFileContent,
@@ -26,7 +27,7 @@ interface ListsState {
   initialLoading: boolean;
   listsFetched: boolean;
 
-  fetchLists: () => Promise<void>;
+  fetchLists: () => Promise<boolean>;
   setInitialLoading: (value: boolean) => void;
   selectList: (name: string) => void;
   selectGroup: (name: string | null) => void;
@@ -74,6 +75,20 @@ function cleanupActiveList(lists: ListMeta[], currentActive: string | null): str
 }
 
 const syncTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
+let fetchListsInFlight: Promise<boolean> | null = null;
+
+function fetchListsErrorMessage(err: unknown): string {
+  const status = typeof err === 'object' && err !== null && 'status' in err
+    ? (err as { status?: unknown }).status
+    : undefined;
+  if (status === 401 || status === 403) {
+    return 'GitHub 验证失败，Token 可能不正确或无权限';
+  }
+  if (status === 404) {
+    return 'GitHub 仓库路径不存在，请检查所有者 / 仓库名 / 存储路径';
+  }
+  return 'GitHub 连接失败，请检查网络或稍后重试';
+}
 
 async function debouncedPush(name: string): Promise<void> {
   const pending = getPendingWrites();
@@ -164,47 +179,58 @@ export const useListsStore = create<ListsState>((set, get) => ({
   initialLoading: true,
   listsFetched: false,
 
-  fetchLists: async () => {
-    const sync = useSyncStore.getState();
-    if (!sync.ensureInitialized()) return;
+  fetchLists: () => {
+    if (fetchListsInFlight) return fetchListsInFlight;
 
-    try {
-      const [mdFiles, jsonFiles, archivedMdFiles, archivedJsonFiles] = await Promise.all([
-        listFilesByExtension(sync.config!, '.md'),
-        listFilesByExtension(sync.config!, '.json'),
-        listFilesByExtension(sync.config!, '.md', '_archived').catch(() => []),
-        listFilesByExtension(sync.config!, '.json', '_archived').catch(() => []),
-      ]);
+    fetchListsInFlight = (async (): Promise<boolean> => {
+      const sync = useSyncStore.getState();
+      if (!sync.ensureInitialized()) return false;
 
-      const allFiles = [...mdFiles, ...jsonFiles, ...archivedMdFiles, ...archivedJsonFiles];
-      const latestByName = new Map<string, { file: (typeof allFiles)[0]; isJson: boolean }>();
+      try {
+        const [mdFiles, jsonFiles, archivedMdFiles, archivedJsonFiles] = await Promise.all([
+          listFilesByExtension(sync.config!, '.md'),
+          listFilesByExtension(sync.config!, '.json'),
+          listFilesByExtension(sync.config!, '.md', '_archived').catch(() => []),
+          listFilesByExtension(sync.config!, '.json', '_archived').catch(() => []),
+        ]);
 
-      for (const file of allFiles) {
-        const name = fileNameToListName(file.name);
-        const isJson = file.name.endsWith(NEW_EXT);
-        const existing = latestByName.get(name);
-        if (!existing || (!existing.isJson && isJson)) {
-          latestByName.set(name, { file, isJson });
+        const allFiles = [...mdFiles, ...jsonFiles, ...archivedMdFiles, ...archivedJsonFiles];
+        const latestByName = new Map<string, { file: (typeof allFiles)[0]; isJson: boolean }>();
+
+        for (const file of allFiles) {
+          const name = fileNameToListName(file.name);
+          const isJson = file.name.endsWith(NEW_EXT);
+          const existing = latestByName.get(name);
+          if (!existing || (!existing.isJson && isJson)) {
+            latestByName.set(name, { file, isJson });
+          }
         }
+
+        const listMetas: ListMeta[] = [];
+        const defaultCreated = new Date().toISOString().slice(0, 10);
+
+        for (const { file } of latestByName.values()) {
+          listMetas.push(buildListMeta(file, defaultCreated));
+        }
+
+        const pendingMigrations = [...mdFiles, ...archivedMdFiles]
+          .filter((f) => latestByName.get(fileNameToListName(f.name))?.isJson === false)
+          .map((f) => fileNameToListName(f.name));
+
+        const nextActive = cleanupActiveList(listMetas, get().activeListName);
+        set({ lists: listMetas, activeListName: nextActive, pendingMigrations, initialLoading: listMetas.length > 0, listsFetched: true });
+        return true;
+      } catch (err) {
+        console.error('fetchLists failed', err);
+        toast.error(fetchListsErrorMessage(err));
+        set({ initialLoading: false, listsFetched: true });
+        return false;
       }
+    })().finally(() => {
+      fetchListsInFlight = null;
+    });
 
-      const listMetas: ListMeta[] = [];
-      const defaultCreated = new Date().toISOString().slice(0, 10);
-
-      for (const { file } of latestByName.values()) {
-        listMetas.push(buildListMeta(file, defaultCreated));
-      }
-
-      const pendingMigrations = [...mdFiles, ...archivedMdFiles]
-        .filter((f) => latestByName.get(fileNameToListName(f.name))?.isJson === false)
-        .map((f) => fileNameToListName(f.name));
-
-      const nextActive = cleanupActiveList(listMetas, get().activeListName);
-      set({ lists: listMetas, activeListName: nextActive, pendingMigrations, initialLoading: listMetas.length > 0, listsFetched: true });
-    } catch (err) {
-      console.error('fetchLists failed', err);
-      set({ initialLoading: false, listsFetched: true });
-    }
+    return fetchListsInFlight;
   },
 
   setInitialLoading: (value) => set({ initialLoading: value }),

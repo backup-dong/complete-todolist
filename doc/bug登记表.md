@@ -17,4 +17,6 @@
 | 移动端没法清空日期选择 | 是 | `DateInput` 在日期有值时显示右侧清空按钮（×），支持一键清空 |
 | 从待办视图直接选择分组会切换不成功 | 是 | `onSelectGroup` 增加退出待办视图 (`setTodoView(null)`) 和切换所属清单 (`selectList`) 的逻辑，确保从侧边栏点分组时正确切换到对应清单视图 |
 | 自动同步完时间没刷新 | 是 | `debouncedPush` 推送成功后调用 `computeState()` 更新 `syncStore` 的 `status`/`lastSyncAt`/`pendingWrites`，`SyncIndicator` 正确显示"已同步"及时间戳 |
-| _最后更新：2026-07-24_ |
+| 解决错误的github token没有错误提醒（index-CFBl_8s2.js:77 fetchLists failed HttpError: Bad credentials - https://docs.github.com/rest<br/>    at ix (index-CFBl_8s2.js:60:36339)<br/>    at async _A (index-CFBl_8s2.js:62:108804)<br/>    at async R.doExecute (index-CFBl_8s2.js:62:89584)） | 是 | `fetchLists` 失败时按 HTTP 状态码弹出错误提示（401/403 → Token 不正确或无权限、404 → 仓库路径不存在），保存配置时先验证再跳转，失败停留在设置页 |
+| 解决更换完token后确认，系统没有加载新待办 | 是 | `configure` 不再只更新状态，而是把新 `config` 写入 store 并触发重新拉取；保存时先 `fetchLists` 校验成功后再跳转，新 Token 的清单/任务能正常加载 |
+| _最后更新：2026-08-08_ |||

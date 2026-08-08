@@ -9,6 +9,7 @@ import { ThemeToggle } from '@/components/common/ThemeToggle';
 
 export function Settings() {
   const { config, configure, clear } = useSyncStore();
+  const { fetchLists } = useListsStore();
   const resetListsState = useListsStore((s) => s.resetListsState);
   const resetTasksState = useTasksStore((s) => s.resetTasksState);
   const { country, status: holidayStatus, setCountry, loadHolidays } = useHolidayStore();
@@ -18,11 +19,14 @@ export function Settings() {
   const [repo, setRepo] = useState(config?.repo ?? '');
   const [basePath, setBasePath] = useState(config?.basePath ?? 'todo');
 
-  const handleSave = () => {
-    configure(token.trim(), owner.trim(), repo.trim(), basePath.trim() || 'todo');
+  const handleSave = async () => {
     resetListsState();
     resetTasksState();
-    navigate('/');
+    configure(token.trim(), owner.trim(), repo.trim(), basePath.trim() || 'todo');
+    const ok = await fetchLists();
+    if (ok) {
+      navigate('/');
+    }
   };
 
   const handleClear = () => {
