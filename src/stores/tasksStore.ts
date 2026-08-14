@@ -3,6 +3,7 @@ import type { FilterState, ParsedList, SortMode, Task, TaskMeta, TodoViewKey } f
 import { generateTaskId } from '@/utils/id';
 import { isDueToday, isDueThisWeek, isStartThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
 import { computeNextDue, computeEffectiveDueDate } from '@/utils/repeat';
+import { dateStrInMonth, getCalendarOccurrence } from '@/utils/calendar';
 import { cloneSubtasks, resetSubtasks, toggleSubtaskAtPath } from '@/utils/subtasks';
 import { getPendingWrites, getCachedFileContent } from '@/utils/storage';
 import { useListsStore } from './listsStore';
@@ -103,6 +104,8 @@ function requireTaskContext(task?: Task, preferredListName?: string): TaskContex
 }
 
 function matchesTodoView(task: Task, key: TodoViewKey): boolean {
+  // 日历视图由 CalendarView 自行按月份筛选，这里返回全部任务（含已完成）
+  if (key === 'calendar') return true;
   if (task.meta.status === 'done') return false;
 
   // 对重复任务使用有效截止日期（自动推进过期任务到最近一次发生）
@@ -610,10 +613,28 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   getTodoViewCounts: () => {
     const aggregated = flattenAllTasks(useListsStore.getState().fileCache);
-    const keys: TodoViewKey[] = ['today', 'week', 'start-week', 'all', 'high'];
+    const keys: TodoViewKey[] = ['today', 'week', 'start-week', 'all', 'high', 'calendar'];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const holidays = useHolidayStore.getState().holidays;
+    const todayStr = todayIso();
     return keys.reduce(
       (acc, key) => {
-        acc[key] = aggregated.filter((t) => matchesTodoView(t, key)).length;
+        if (key === 'calendar') {
+          // 当月日历角标：展示日期落在当月内的任务数（去重，重复任务只计一次）
+          const counted = new Set<string>();
+          for (const t of aggregated) {
+            if (!t.meta.due) continue;
+            const date = getCalendarOccurrence(t.meta.due, t.meta.repeat ?? '', t.meta.repeat_until, holidays, todayStr);
+            if (date && dateStrInMonth(date, year, month)) {
+              counted.add(t.id);
+            }
+          }
+          acc[key] = counted.size;
+        } else {
+          acc[key] = aggregated.filter((t) => matchesTodoView(t, key)).length;
+        }
         return acc;
       },
       {} as Record<TodoViewKey, number>,

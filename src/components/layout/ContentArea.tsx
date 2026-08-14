@@ -10,6 +10,7 @@ import { TaskList } from '../tasks/TaskList';
 import { TaskEditorDialog } from '../tasks/TaskEditorDialog';
 
 import { TodoView } from '@/components/todo-view/TodoView';
+import { CalendarView } from '@/components/todo-view/CalendarView';
 
 function ProgressBar({ done, total }: { done: number; total: number }) {
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
@@ -246,6 +247,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
     'start-week': '本周开始',
     all: '全部',
     high: '高优先级',
+    calendar: '日历',
   };
 
   const activeList = activeListName ? fileCache[activeListName] : null;
@@ -382,15 +384,19 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
               </h1>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <TodoView
-                tasks={displayTasks}
-                onToggle={toggleSubtask}
-                onSelect={selectTask}
-                onDelete={async (id) => {
-                  if (await confirm('确定删除该任务？')) deleteTask(id);
-                }}
-                onComplete={(id) => void useTasksStore.getState().completeTaskWithoutSubtasks(id)}
-              />
+              {todoView === 'calendar' ? (
+                <CalendarView tasks={displayTasks} onSelect={selectTask} />
+              ) : (
+                <TodoView
+                  tasks={displayTasks}
+                  onToggle={toggleSubtask}
+                  onSelect={selectTask}
+                  onDelete={async (id) => {
+                    if (await confirm('确定删除该任务？')) deleteTask(id);
+                  }}
+                  onComplete={(id) => void useTasksStore.getState().completeTaskWithoutSubtasks(id)}
+                />
+              )}
             </div>
           </>
         ) : (

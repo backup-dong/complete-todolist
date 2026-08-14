@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
   CalendarDays,
+  CalendarRange,
   ChevronRight,
   Flag,
   Folder,
@@ -660,6 +661,7 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   const [editingGroupNewName, setEditingGroupNewName] = useState('');
 
   const todoViews = [
+    { key: 'calendar', icon: CalendarRange, label: '日历' },
     { key: 'today', icon: Calendar, label: '今天' },
     { key: 'week', icon: CalendarDays, label: '本周截止' },
     { key: 'start-week', icon: CalendarDays, label: '本周开始' },
