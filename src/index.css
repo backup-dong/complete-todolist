@@ -54,6 +54,7 @@
 
 /* Dark mode overrides */
 .dark {
+  color-scheme: dark;
   /* Brand: bright sky blue for strong contrast on dark surfaces */
   --color-primary: #5CB3FF;
   --color-primary-hover: #8AC9FF;

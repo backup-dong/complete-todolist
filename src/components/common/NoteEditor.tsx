@@ -159,6 +159,7 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
   }, [value, onChange]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing) return;
     const isCtrl = e.ctrlKey || e.metaKey;
     if (isCtrl && e.key === 'b') { e.preventDefault(); handleFormat('bold'); }
     if (isCtrl && e.key === 'i') { e.preventDefault(); handleFormat('italic'); }

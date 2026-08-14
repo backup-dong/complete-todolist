@@ -19,4 +19,26 @@
 | 自动同步完时间没刷新 | 是 | `debouncedPush` 推送成功后调用 `computeState()` 更新 `syncStore` 的 `status`/`lastSyncAt`/`pendingWrites`，`SyncIndicator` 正确显示"已同步"及时间戳 |
 | 解决错误的github token没有错误提醒（index-CFBl_8s2.js:77 fetchLists failed HttpError: Bad credentials - https://docs.github.com/rest<br/>    at ix (index-CFBl_8s2.js:60:36339)<br/>    at async _A (index-CFBl_8s2.js:62:108804)<br/>    at async R.doExecute (index-CFBl_8s2.js:62:89584)） | 是 | `fetchLists` 失败时按 HTTP 状态码弹出错误提示（401/403 → Token 不正确或无权限、404 → 仓库路径不存在），保存配置时先验证再跳转，失败停留在设置页 |
 | 解决更换完token后确认，系统没有加载新待办 | 是 | `configure` 不再只更新状态，而是把新 `config` 写入 store 并触发重新拉取；保存时先 `fetchLists` 校验成功后再跳转，新 Token 的清单/任务能正常加载 |
-| _最后更新：2026-08-08_ |||
+| 任务 ID 用 title+创建日期哈希生成，同日同名任务 ID 碰撞，删除/勾选/编辑会同时作用到所有同 ID 任务，跨清单还可能改错清单 | 否 | `src/utils/id.ts` 确定性哈希；建议改为随机/递增唯一 ID，`jsonParser.ts:93`、`scanner.ts:403`、`tasksStore.createTask` 三处生成点需同步 |
+| 手动设置的任务状态不持久：序列化时 `normalizeTask` 不带显式状态，保存后按子任务反推覆盖 `meta.status`；有未完成子任务的任务选"已完成"刷新即还原，"待处理"也改不回全完成子任务的任务 | 否 | `src/parser/serializer.ts:66-91`；需在 `serializeTask` 保留显式状态或去掉状态选择 UI |
+| 设置页保存/退出登录会 `resetListsState()`，永久清空所有离线 pending 修改，属于静默数据丢失 | 否 | `Settings.tsx:22-30` → `listsStore.ts:412-433`；保存前应先确认/flush pending writes |
+| 离线删除/重命名清单静默失败，无待删/待改队列，用户无感知；重命名后旧文件名 pending write 未清理，之后会复活旧远端文件 | 否 | `listsStore.ts:273-339` |
+| 无多设备/多标签页同步：无 60s SHA 轮询、无 `storage` 事件监听、无冲突检测，后写覆盖先写且 409 仅 console.error | 否 | 与 CLAUDE.md 描述的轮询不一致，实际代码中不存在 pollSha |
+| 切换 token/repo 后旧仓库 pending writes 会被推进新仓库，造成跨仓库数据污染 | 否 | `configure`/`pushPending` 不清空历史 pending 队列与文件缓存 |
+| 时区硬编码 +08:00（`nowIso`），`todayIso` 用本地时区，`parseISO` 日期按 UTC 零点解析：非 +08:00 用户"今天到期/已逾期"判断、完成时间、durationDays 均可能错一天 | 否 | `src/utils/date.ts` |
+| 快速切换清单存在加载竞态：`loadTasks` await 后不校验清单是否仍为当前，旧请求后返回会刷回错误清单的任务列表 | 否 | `tasksStore.ts:202-239` |
+| 过滤/搜索状态下拖拽排序只重写过滤结果内任务的 order，与未过滤任务 order 撞号，清筛选后排序错乱 | 否 | `tasksStore.ts:493-532`；另有新任务 order 长期为负（minOrder-1） |
+| 每月 N 日重复规则在短月份溢出漂移（31 日 → 3 月初；addMonths 31→28→28 漂移） | 否 | `src/utils/repeat.ts:129-141` |
+| 附件无清理机制：删除任务/清单后仓库 attachments 文件永久残留；taskId 碰撞时两个任务共享附件目录 | 否 | `src/utils/fileUpload.ts` |
+| repeat_count 是死字段：解析/序列化都有但从不递增，重复任务完成历史（次数/上次完成时间）不可追溯；repeat_until 到期后任务保持 active 且永远逾期 | 否 | `advanceRepeatingTask` 直接清掉 completed_at/duration |
+| 每次启动全量拉取所有清单（N+1 次 API），进入"全部"视图再拉一次，清单多时慢且易触发 GitHub 限流；`listFilesByExtension` 只列顶层目录、无分页，>1000 文件截断、子目录清单不可见 | 否 | `App.tsx:31`、`client.ts:26-43` |
+| fetchLists 去重顺序缺陷：非归档 `foo.md` 会遮蔽同名 `_archived/foo.json`，归档 JSON 数据不可达；json/md 并存时残留 md 永不清理 | 否 | `listsStore.ts:190-218` |
+| NotificationProvider 定时器泄漏：清理函数写在 `.then()` 回调里，useEffect 从不清理；每次 fileCache 变化都重新申请权限并叠加一个新的 60s interval | 否 | `NotificationProvider.tsx:9-35` |
+| pending 队列启动时不自动 flush，只有 `online` 事件或手动点"全部重试"才推送，重启浏览器后离线修改可能长期滞留 | 否 | `syncStore.ts:120-126` |
+| `durationDays` 用 `Math.round`：当天开始当天完成 = 0d，半天 = 1d，语义不稳定 | 否 | `src/utils/date.ts:73-81` |
+| 部署子路径图标 404：`index.html` favicon/apple-touch-icon 用根绝对路径 `/`，与 `base: '/complete-todolist/'` 不一致（CLAUDE.md 记录的 `base: '/'` 也已过期） | 否 | `index.html:5,9`、`vite.config.ts:8` |
+| `test:e2e` 硬编码本机绝对路径 `C:/Users/zdy/.claude/skills/...`，不可移植 | 否 | `package.json:13` |
+| GitHub Token 明文存 localStorage，任意 XSS/恶意扩展可窃取 | 否 | 建议 fine-grained token + 最小仓库权限并在 UI 提示 |
+| `deleteList` 失败完全静默（无 toast/回滚提示）；`buildListMeta` 的 created 一律填当天，清单真实创建时间丢失 | 否 | `listsStore.ts:273-302,62-68` |
+| 旧 Markdown 解析：`scanBlocks` 会把任务正文首行形如 `key: value` 的行误判为元数据；子任务层级跳级会生成空文本占位子任务 | 否 | `scanner.ts:16-19,226-235` |
+| _最后更新：2026-08-13_ |||

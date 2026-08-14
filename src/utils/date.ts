@@ -25,6 +25,18 @@ export function formatDate(iso: string): string {
   }
 }
 
+export function formatDateTime(iso: string): string {
+  try {
+    const date = parseISO(iso);
+    const day = format(date, 'MM/dd', { locale: zhCN });
+    if (isToday(date)) return `今天 ${format(date, 'HH:mm')}`;
+    if (isYesterday(date)) return `昨天 ${format(date, 'HH:mm')}`;
+    return `${day} ${format(date, 'HH:mm')}`;
+  } catch {
+    return iso;
+  }
+}
+
 export function isDueToday(iso?: string): boolean {
   if (!iso) return false;
   try {

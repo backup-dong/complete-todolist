@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { isDueToday, isOverdue, isDueThisWeek, formatDate, durationDays, todayIso } from '@/utils/date';
+import { isDueToday, isOverdue, isDueThisWeek, formatDate, formatDateTime, durationDays, todayIso } from '@/utils/date';
 import {
   getCurrentWeekRange,
   isCompletedThisWeek,
@@ -40,6 +40,18 @@ describe('date utils', () => {
   it('formats relative dates', () => {
     const today = todayIso();
     expect(formatDate(today)).toBe('今天');
+  });
+
+  it('formats date-time with time part', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-08T12:00:00'));
+    try {
+      expect(formatDateTime('2026-07-08T09:05:00+08:00')).toBe('今天 09:05');
+      expect(formatDateTime('2026-07-07T18:30:00+08:00')).toBe('昨天 18:30');
+      expect(formatDateTime('2026-07-01T10:00:00+08:00')).toBe('07/01 10:00');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('calculates duration in days', () => {

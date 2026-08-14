@@ -132,8 +132,8 @@ function GroupRow({
           value={editValue}
           onChange={(e) => onEditValueChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') onSaveEdit();
-            if (e.key === 'Escape') onCancelEdit();
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) onSaveEdit();
+            if (e.key === 'Escape' && !e.nativeEvent.isComposing) onCancelEdit();
           }}
           onBlur={onSaveEdit}
           placeholder="分组名称"
@@ -241,8 +241,8 @@ function ListRow({
           value={editValue}
           onChange={(e) => onEditValueChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') onSaveEdit();
-            if (e.key === 'Escape') onCancelEdit();
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) onSaveEdit();
+            if (e.key === 'Escape' && !e.nativeEvent.isComposing) onCancelEdit();
           }}
           onBlur={onSaveEdit}
           placeholder="清单名称"
@@ -401,8 +401,8 @@ function NewGroupInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') onSubmit();
-          if (e.key === 'Escape') onCancel();
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) onSubmit();
+          if (e.key === 'Escape' && !e.nativeEvent.isComposing) onCancel();
         }}
         onBlur={() => onSubmit()}
         placeholder="分组名称"
@@ -430,8 +430,8 @@ function NewListInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') onSubmit();
-          if (e.key === 'Escape') onCancel();
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) onSubmit();
+          if (e.key === 'Escape' && !e.nativeEvent.isComposing) onCancel();
         }}
         onBlur={() => onSubmit()}
         placeholder="清单名称"

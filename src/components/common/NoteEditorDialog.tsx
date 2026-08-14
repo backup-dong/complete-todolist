@@ -169,6 +169,7 @@ export function NoteEditorDialog({ open, value, onChange, onClose }: NoteEditorD
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const ta = textareaRef.current;
     if (!ta) return;
+    if (e.nativeEvent.isComposing) return;
     const isCtrl = e.ctrlKey || e.metaKey;
     if (isCtrl && e.key === 'b') { e.preventDefault(); handleFormat('bold'); }
     if (isCtrl && e.key === 'i') { e.preventDefault(); handleFormat('italic'); }

@@ -8,7 +8,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { FileRef, Link, Subtask, Task } from '@/types';
-import { formatDate, isDueToday, isOverdue } from '@/utils/date';
+import { formatDate, formatDateTime, isDueToday, isOverdue } from '@/utils/date';
 import { computeEffectiveDueDate, formatRepeat } from '@/utils/repeat';
 import { FileListDisplay } from './FileAttachments';
 import { useFileDownload } from '@/utils/useFileDownload';
@@ -315,6 +315,15 @@ export function TaskCard({
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <PriorityBadge priority={task.meta.priority} />
+            {task.meta.status === 'done' && task.completed_at && (
+              <span
+                className="inline-flex items-center gap-1 text-[var(--color-text-muted)]"
+                title={`完成于 ${formatDateTime(task.completed_at)}`}
+              >
+                <Check className="h-3.5 w-3.5" />
+                {formatDateTime(task.completed_at)}
+              </span>
+            )}
             {displayDue && (
               <span className={`inline-flex items-center gap-1 ${dueColor}`}>
                 <CalendarClock className="h-3.5 w-3.5" />
