@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Calendar,
   CalendarDays,
   CalendarRange,
   ChevronRight,
@@ -334,7 +333,7 @@ function TodoViewsSection({
   counts,
   onSelect,
 }: {
-  items: readonly { key: string; icon: typeof Calendar; label: string }[];
+  items: readonly { key: string; icon: typeof CalendarRange; label: string }[];
   activeKey: string | null;
   counts: Record<string, number>;
   onSelect: (key: string) => void;
@@ -662,8 +661,6 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
 
   const todoViews = [
     { key: 'calendar', icon: CalendarRange, label: '日历' },
-    { key: 'today', icon: Calendar, label: '今天' },
-    { key: 'week', icon: CalendarDays, label: '本周截止' },
     { key: 'start-week', icon: CalendarDays, label: '本周开始' },
     { key: 'all', icon: Layers, label: '全部' },
     { key: 'high', icon: Flag, label: '高优先级' },

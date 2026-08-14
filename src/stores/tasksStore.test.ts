@@ -217,25 +217,6 @@ describe('tasksStore todo views', () => {
     };
   }
 
-  it('setTodoView(today) aggregates tasks due today across lists', () => {
-    useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
-
-    useTasksStore.getState().setTodoView('today');
-
-    const tasks = useTasksStore.getState().tasks;
-    expect(tasks.map((t) => t.id).sort()).toEqual(['l1', 'w1']);
-    expect(tasks.every((t) => t.sourceList)).toBe(true);
-  });
-
-  it('setTodoView(week) aggregates tasks due this week', () => {
-    useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
-
-    useTasksStore.getState().setTodoView('week');
-
-    const tasks = useTasksStore.getState().tasks;
-    expect(tasks.map((t) => t.id).sort()).toEqual(['l1', 'w1', 'w2']);
-  });
-
   it('setTodoView(high) aggregates high priority incomplete tasks', () => {
     useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
 
@@ -258,12 +239,12 @@ describe('tasksStore todo views', () => {
     useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
 
     const counts = useTasksStore.getState().getTodoViewCounts();
-    expect(counts).toEqual({ today: 2, week: 3, 'start-week': 0, all: 4, high: 2, calendar: 3 });
+    expect(counts).toEqual({ 'start-week': 0, all: 4, high: 2, calendar: 3 });
   });
 
   it('completing task in todo view routes to source list and refreshes view', async () => {
     useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
-    useTasksStore.getState().setTodoView('today');
+    useTasksStore.getState().setTodoView('all');
 
     await useTasksStore.getState().completeTaskWithoutSubtasks('w1');
 
@@ -272,7 +253,7 @@ describe('tasksStore todo views', () => {
     expect(completedTask?.meta.status).toBe('done');
 
     const remaining = useTasksStore.getState().tasks;
-    expect(remaining.map((t) => t.id)).toEqual(['l1']);
+    expect(remaining.map((t) => t.id).sort()).toEqual(['l1', 'l2', 'w2']);
   });
 
   it('updateTask in todo view routes to source list', async () => {

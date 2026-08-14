@@ -108,14 +108,7 @@ function matchesTodoView(task: Task, key: TodoViewKey): boolean {
   if (key === 'calendar') return true;
   if (task.meta.status === 'done') return false;
 
-  // 对重复任务使用有效截止日期（自动推进过期任务到最近一次发生）
-  const due = dueForView(task);
-
   switch (key) {
-    case 'today':
-      return isDueToday(due);
-    case 'week':
-      return isDueThisWeek(due);
     case 'start-week':
       return isStartThisWeek(task.meta.start);
     case 'all':
@@ -125,14 +118,6 @@ function matchesTodoView(task: Task, key: TodoViewKey): boolean {
     default:
       return false;
   }
-}
-
-/** 对于有 repeat 的任务，返回有效截止日期（自动推进到今天的最近一次），否则返回原始 due */
-function dueForView(task: Task): string | undefined {
-  if (task.meta.repeat && task.meta.due) {
-    return computeEffectiveDueDate(task.meta.due, task.meta.repeat, task.meta.repeat_until);
-  }
-  return task.meta.due;
 }
 
 function matchesFilter(task: Task, filter: FilterState, query: string): boolean {
@@ -613,7 +598,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   getTodoViewCounts: () => {
     const aggregated = flattenAllTasks(useListsStore.getState().fileCache);
-    const keys: TodoViewKey[] = ['today', 'week', 'start-week', 'all', 'high', 'calendar'];
+    const keys: TodoViewKey[] = ['start-week', 'all', 'high', 'calendar'];
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
