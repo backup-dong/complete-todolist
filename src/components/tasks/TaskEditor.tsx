@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useReducer, useState } from 'react';
 import {
+  Check,
   ChevronDown,
   ChevronUp,
   Eye,
@@ -33,7 +34,7 @@ import { createContext, useContext } from 'react';
 import { getDay, parseISO } from 'date-fns';
 import { DateInput } from '@/components/common/DateInput';
 import { NoteEditor } from '@/components/common/NoteEditor';
-import { nowIso, todayIso } from '@/utils/date';
+import { nowIso, todayIso, formatDateTime } from '@/utils/date';
 import {
   getFirstDueDate,
   isMonthlyDaysRule,
@@ -129,6 +130,7 @@ interface DraftTask {
   group: string;
   priority: Task['meta']['priority'];
   status: NonNullable<Task['meta']['status']>;
+  completed_at?: string;
   start: string;
   due: string;
   repeat: string;
@@ -149,6 +151,7 @@ function buildDraft(task: Task): DraftTask {
     group: task.group,
     priority: task.meta.priority,
     status: task.meta.status ?? 'pending',
+    completed_at: task.completed_at,
     start: task.meta.start ?? '',
     due: task.meta.due ?? '',
     repeat: task.meta.repeat ?? '',
@@ -844,13 +847,25 @@ function TaskStatusFields({
           <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">状态</span>
           <select
             value={draft.status}
-            onChange={(e) => dispatch({ type: 'set', field: 'status', value: e.target.value as NonNullable<Task['meta']['status']> })}
+            onChange={(e) => {
+              const status = e.target.value as NonNullable<Task['meta']['status']>;
+              dispatch({ type: 'set', field: 'status', value: status });
+              if (status === 'done' && !draft.completed_at) {
+                dispatch({ type: 'set', field: 'completed_at', value: nowIso() });
+              }
+            }}
             className="select"
           >
             <option value="pending">待处理</option>
             <option value="active">进行中</option>
             <option value="done">已完成</option>
           </select>
+          {draft.status === 'done' && draft.completed_at && (
+            <span className="mt-2 inline-flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+              <Check className="h-3.5 w-3.5" />
+              完成于 {formatDateTime(draft.completed_at)}
+            </span>
+          )}
         </label>
       </div>
     </Section>
@@ -1026,10 +1041,12 @@ export function TaskEditor({
   const activeListName = useListsStore((s) => s.activeListName);
 
   const makeTask = useCallback((): Task => {
+    const completed = draft.status === 'done';
     return {
       ...task,
       title: draft.title.trim() || task.title,
       group: draft.group,
+      completed_at: completed ? (draft.completed_at ?? nowIso()) : undefined,
       meta: {
         ...task.meta,
         priority: draft.priority,
