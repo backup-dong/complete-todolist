@@ -266,37 +266,37 @@ function SubtaskLinksEditor({
 
   return (
     <div className="rounded-lg border border-[var(--color-border-subtle)]">
-      <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-2 py-1">
-        <span className="text-[10px] font-medium text-[var(--color-text-secondary)]">链接</span>
+      <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-3 py-1.5">
+        <span className="text-xs font-medium text-[var(--color-text-secondary)]">链接</span>
         <button
           type="button"
           onClick={handleToggle}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
         >
-          {preview ? <Pencil className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
+          {preview ? <Pencil className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
           {preview ? '编辑' : '预览'}
         </button>
       </div>
       {preview ? (
-        <div className="p-2">
+        <div className="p-3">
           {subtask.links && subtask.links.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               {subtask.links.map((link, i) => (
                 <a
                   key={i}
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex max-w-[160px] items-center gap-1 rounded-md bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-primary)] hover:underline"
+                  className="inline-flex max-w-[200px] items-center gap-1 rounded-md bg-[var(--color-primary-subtle)] px-2 py-1 text-xs font-medium text-[var(--color-primary)] hover:underline"
                   title={link.url}
                 >
-                  <LinkIcon className="h-2.5 w-2.5 shrink-0" />
+                  <LinkIcon className="h-3 w-3 shrink-0" />
                   <span className="truncate">{link.title || '链接'}</span>
                 </a>
               ))}
             </div>
           ) : (
-            <p className="text-[10px] text-[var(--color-text-muted)]">暂无链接</p>
+            <p className="text-xs text-[var(--color-text-muted)]">暂无链接</p>
           )}
         </div>
       ) : (
