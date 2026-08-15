@@ -453,8 +453,19 @@ function SubtaskEditor({
           value={subtask.text}
           onChange={(e) => handleChange({ text: e.target.value })}
           placeholder="子任务标题"
-          className="input min-w-0 flex-1"
+          className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] transition-colors duration-100"
         />
+        <span
+          className="hidden w-24 shrink-0 items-center justify-end gap-1 text-xs text-[var(--color-text-muted)] sm:flex"
+          title={subtask.completed && subtask.completed_at ? `完成于 ${formatDateTime(subtask.completed_at)}` : undefined}
+        >
+          {subtask.completed && subtask.completed_at && (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              {formatDateTime(subtask.completed_at)}
+            </>
+          )}
+        </span>
         {depth < 2 && (
           <button
             type="button"
@@ -498,6 +509,16 @@ function SubtaskEditor({
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
+
+      {subtask.completed && subtask.completed_at && (
+        <div
+          className="mt-1.5 flex items-center justify-end gap-1 text-xs text-[var(--color-text-muted)] sm:hidden"
+          title={`完成于 ${formatDateTime(subtask.completed_at)}`}
+        >
+          <Check className="h-3.5 w-3.5" />
+          {formatDateTime(subtask.completed_at)}
+        </div>
+      )}
 
       {expanded && (
         <div className="mt-3 space-y-3">
@@ -761,7 +782,7 @@ function TaskSubtasksEditor({
       <DragOverlay dropAnimation={null}>
         {activeSubtask ? (
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg opacity-90 rotate-1">
-            <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
               <GripVertical className="h-4 w-4 text-[var(--color-text-muted)]" />
               <span className="text-sm text-[var(--color-text)]">{activeSubtask.text}</span>
             </div>
