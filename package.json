@@ -10,7 +10,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "python C:/Users/zdy/.claude/skills/webapp-testing/scripts/with_server.py --server \"npm run dev\" --port 5173 -- python e2e-test.py"
+    "test:e2e": "python C:/Users/zdy/.claude/skills/webapp-testing/scripts/with_server.py --server \"npm run dev\" --port 5173 -- python e2e-test.py",
+    "migrate:v2": "node scripts/migrate-v1-to-v2.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -37,6 +38,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "archiver": "^8.0.0",
     "eslint": "^10.6.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",

@@ -10,8 +10,8 @@ function makeTask(id: string, due: string, overrides: Partial<Task> = {}): Task 
     id,
     title: `任务 ${id}`,
     group: '默认分组',
+    parentId: null,
     meta: { priority: 'med', created: '2026-08-01', due },
-    subtasks: [],
     ...overrides,
   };
 }

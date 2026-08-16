@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { GithubConfig, ListMeta, ParsedList } from '@/types';
 import { getFileContent, listFilesByExtension, writeFileContent, deleteFile } from '@/github/client';
-import { parseJsonToList, parseMarkdownToList, serializeListToJson, createEmptyList } from '@/parser';
+import { parseJsonToList, serializeListToJson, createEmptyList } from '@/parser';
 import { useSyncStore, computeState } from './syncStore';
 import { toast } from '@/utils/toast';
 import {
@@ -23,7 +23,6 @@ interface ListsState {
   activeListName: string | null;
   activeGroup: string | null;
   fileCache: Record<string, ParsedList>;
-  pendingMigrations: string[];
   initialLoading: boolean;
   listsFetched: boolean;
 
@@ -44,7 +43,6 @@ interface ListsState {
   deleteGroup: (name: string) => Promise<void>;
 }
 
-const LEGACY_EXT = '.md';
 const NEW_EXT = '.json';
 
 function listNameToFileName(name: string): string {
@@ -52,11 +50,11 @@ function listNameToFileName(name: string): string {
 }
 
 function fileNameToListName(fileName: string): string {
-  return fileName.replace(/\.(md|json)$/, '');
+  return fileName.replace(/\.json$/, '');
 }
 
-function filePath(config: { basePath: string }, name: string, ext = NEW_EXT): string {
-  return `${config.basePath}/${name}${ext}`;
+function filePath(config: { basePath: string }, name: string): string {
+  return `${config.basePath}/${name}${NEW_EXT}`;
 }
 
 function buildListMeta(file: { name: string; path: string }, defaultCreated = new Date().toISOString().slice(0, 10)): ListMeta {
@@ -137,35 +135,6 @@ async function deleteRemoteList(config: GithubConfig, name: string, sha: string)
   await deleteFile(config, path, sha);
 }
 
-async function deleteLegacyMdIfExists(config: GithubConfig, name: string, sha?: string): Promise<void> {
-  if (!sha) return;
-  const path = filePath(config, name, LEGACY_EXT);
-  await deleteFile(config, path, sha).catch((err) => {
-    console.warn(`Failed to delete legacy .md for ${name}:`, err);
-  });
-}
-
-async function migrateListToJson(
-  config: GithubConfig,
-  name: string,
-  list: ParsedList,
-  oldMdSha?: string,
-): Promise<string> {
-  const jsonContent = serializeListToJson(list);
-  const jsonPath = filePath(config, name);
-
-  try {
-    const newSha = await writeFileContent(config, jsonPath, jsonContent);
-    if (oldMdSha) {
-      await deleteLegacyMdIfExists(config, name, oldMdSha);
-    }
-    return newSha;
-  } catch (err) {
-    console.error(`migrateListToJson failed for ${name}`, err);
-    throw err;
-  }
-}
-
 function getCachedSha(name: string): string | undefined {
   return getCachedFileContent(name)?.sha;
 }
@@ -175,7 +144,6 @@ export const useListsStore = create<ListsState>((set, get) => ({
   activeListName: getCachedActiveList(),
   activeGroup: null,
   fileCache: {},
-  pendingMigrations: [],
   initialLoading: true,
   listsFetched: false,
 
@@ -187,38 +155,31 @@ export const useListsStore = create<ListsState>((set, get) => ({
       if (!sync.ensureInitialized()) return false;
 
       try {
-        const [mdFiles, jsonFiles, archivedMdFiles, archivedJsonFiles] = await Promise.all([
-          listFilesByExtension(sync.config!, '.md'),
+        const [jsonFiles, archivedJsonFiles] = await Promise.all([
           listFilesByExtension(sync.config!, '.json'),
-          listFilesByExtension(sync.config!, '.md', '_archived').catch(() => []),
           listFilesByExtension(sync.config!, '.json', '_archived').catch(() => []),
         ]);
 
-        const allFiles = [...mdFiles, ...jsonFiles, ...archivedMdFiles, ...archivedJsonFiles];
-        const latestByName = new Map<string, { file: (typeof allFiles)[0]; isJson: boolean }>();
+        const allFiles = [...jsonFiles, ...archivedJsonFiles];
+        const latestByName = new Map<string, (typeof allFiles)[0]>();
 
         for (const file of allFiles) {
           const name = fileNameToListName(file.name);
-          const isJson = file.name.endsWith(NEW_EXT);
           const existing = latestByName.get(name);
-          if (!existing || (!existing.isJson && isJson)) {
-            latestByName.set(name, { file, isJson });
+          if (!existing) {
+            latestByName.set(name, file);
           }
         }
 
         const listMetas: ListMeta[] = [];
         const defaultCreated = new Date().toISOString().slice(0, 10);
 
-        for (const { file } of latestByName.values()) {
+        for (const file of latestByName.values()) {
           listMetas.push(buildListMeta(file, defaultCreated));
         }
 
-        const pendingMigrations = [...mdFiles, ...archivedMdFiles]
-          .filter((f) => latestByName.get(fileNameToListName(f.name))?.isJson === false)
-          .map((f) => fileNameToListName(f.name));
-
         const nextActive = cleanupActiveList(listMetas, get().activeListName);
-        set({ lists: listMetas, activeListName: nextActive, pendingMigrations, initialLoading: listMetas.length > 0, listsFetched: true });
+        set({ lists: listMetas, activeListName: nextActive, initialLoading: listMetas.length > 0, listsFetched: true });
         return true;
       } catch (err) {
         console.error('fetchLists failed', err);
@@ -295,7 +256,6 @@ export const useListsStore = create<ListsState>((set, get) => ({
       }
       clearCachedFile(name);
       clearPendingWrite(listNameToFileName(name));
-      clearPendingWrite(`${name}${LEGACY_EXT}`);
     } catch (err) {
       console.error('deleteList failed', err);
     }
@@ -343,7 +303,6 @@ export const useListsStore = create<ListsState>((set, get) => ({
     if (!sync.ensureInitialized()) return null;
 
     const jsonPath = filePath(sync.config!, name);
-    const mdPath = filePath(sync.config!, name, LEGACY_EXT);
 
     try {
       const jsonFile = await getFileContent(sync.config!, jsonPath).catch(() => null);
@@ -354,9 +313,7 @@ export const useListsStore = create<ListsState>((set, get) => ({
         if (pendingWrites[payloadFileName]) {
           const cached = getCachedFileContent(name);
           if (cached && cached.content !== jsonFile.content) {
-            const cachedList = cached.content.trimStart().startsWith('{')
-              ? parseJsonToList(cached.content, cached.sha)
-              : parseMarkdownToList(cached.content, cached.sha);
+            const cachedList = parseJsonToList(cached.content, cached.sha);
             set((state) => ({ fileCache: { ...state.fileCache, [name]: cachedList } }));
           } else {
             set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
@@ -368,18 +325,11 @@ export const useListsStore = create<ListsState>((set, get) => ({
         return list;
       }
 
-      const mdFile = await getFileContent(sync.config!, mdPath);
-      const list = parseMarkdownToList(mdFile.content, mdFile.sha);
-      const newSha = await migrateListToJson(sync.config!, name, list, mdFile.sha);
-      set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
-      cacheFileContent(name, serializeListToJson(list), newSha);
-      return list;
+      toast.error(`清单文件 ${name}.json 不存在`);
     } catch {
       const cached = getCachedFileContent(name);
       if (cached) {
-        const list = cached.content.trimStart().startsWith('{')
-          ? parseJsonToList(cached.content, cached.sha)
-          : parseMarkdownToList(cached.content, cached.sha);
+        const list = parseJsonToList(cached.content, cached.sha);
         set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
       }
     } finally {
@@ -424,7 +374,6 @@ export const useListsStore = create<ListsState>((set, get) => ({
       activeListName: null,
       activeGroup: null,
       fileCache: {},
-      pendingMigrations: [],
       initialLoading: true,
       listsFetched: false,
     });
@@ -446,9 +395,7 @@ export const useListsStore = create<ListsState>((set, get) => ({
             const cached = getCachedFileContent(list.name);
             if (cached) {
               try {
-                const parsed = cached.content.trimStart().startsWith('{')
-                  ? parseJsonToList(cached.content, cached.sha)
-                  : parseMarkdownToList(cached.content, cached.sha);
+                const parsed = parseJsonToList(cached.content, cached.sha);
                 set((state) => ({
                   fileCache: { ...state.fileCache, [list.name]: parsed },
                   initialLoading: state.initialLoading && state.activeListName === list.name ? false : state.initialLoading,

@@ -28,6 +28,8 @@ e2e-*.png
 
 # Build info
 tsconfig.node.tsbuildinfo
+tsconfig.app.tsbuildinfo
+scripts/*.zip
 vite.config.js
 vite.config.d.ts
 

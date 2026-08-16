@@ -1,5 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import { useMemo } from 'react';
 import type { Task } from '@/types';
+import { useListsStore } from '@/stores/listsStore';
+import { buildSubtaskTree } from '@/utils/subtasks';
 import { TaskEditor } from './TaskEditor';
 
 interface TaskEditorDialogProps {
@@ -11,6 +14,19 @@ interface TaskEditorDialogProps {
 
 export function TaskEditorDialog({ task, groups, onSave, onClose }: TaskEditorDialogProps) {
   const open = task !== null;
+  const fileCache = useListsStore((s) => s.fileCache);
+  const activeListName = useListsStore((s) => s.activeListName);
+
+  // 列表状态里任务以扁平数组保存（子任务无内存 subtasks 字段）；
+  // 打开编辑器时按 parentId 重建子任务树，保证 draft 与持久化数据一致。
+  const taskWithTree = useMemo(() => {
+    if (!task) return null;
+    if (task.subtasks && task.subtasks.length > 0) return task;
+    const listName = task.sourceList ?? activeListName;
+    const list = listName ? fileCache[listName] : null;
+    if (!list) return task;
+    return { ...task, subtasks: buildSubtaskTree(list.groups.flatMap((g) => g.tasks), task.id) };
+  }, [task, fileCache, activeListName]);
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => {
@@ -24,10 +40,10 @@ export function TaskEditorDialog({ task, groups, onSave, onClose }: TaskEditorDi
             aria-describedby={undefined}
           >
             <Dialog.Title className="sr-only">任务详情</Dialog.Title>
-            {task && (
+            {taskWithTree && (
               <TaskEditor
-                key={task.id}
-                task={task}
+                key={taskWithTree.id}
+                task={taskWithTree}
                 groups={groups}
                 onSave={onSave}
                 onClose={onClose}

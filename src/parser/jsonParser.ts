@@ -1,8 +1,8 @@
-import type { FileRef, Group, Link, ListMeta, ParsedList, Subtask, Task, TaskMeta } from '@/types';
+import type { FileRef, Group, Link, ListMeta, ParsedList, Reminder, Task, TaskMeta } from '@/types';
 import { todayIso } from '@/utils/date';
 import { generateTaskId } from '@/utils/id';
 
-export const JSON_FORMAT_VERSION = 1;
+export const JSON_FORMAT_VERSION = 2;
 
 export function inferJsonVersion(content: string): number {
   const trimmed = content.trimStart();
@@ -57,32 +57,10 @@ function normalizeFileRef(raw: unknown): FileRef | null {
   };
 }
 
-function normalizeSubtask(raw: unknown): Subtask {
+function normalizeReminder(raw: unknown): Reminder | null {
   const r = raw as Record<string, unknown>;
-  const text = typeof r.text === 'string' ? r.text : '';
-  const level = typeof r.level === 'number' ? r.level : 1;
-  const completed = Boolean(r.completed);
-  const children = Array.isArray(r.children) ? r.children.map(normalizeSubtask) : [];
-
-  const subtask: Subtask = {
-    text,
-    level,
-    completed,
-    children,
-  };
-
-  if (typeof r.completed_at === 'string') subtask.completed_at = r.completed_at;
-  if (typeof r.start === 'string') subtask.start = r.start;
-  if (typeof r.due === 'string') subtask.due = r.due;
-  if (typeof r.note === 'string') subtask.note = r.note;
-  if (Array.isArray(r.links)) {
-    subtask.links = r.links.map(normalizeLink).filter(Boolean) as Link[];
-  }
-  if (Array.isArray(r.files)) {
-    subtask.files = r.files.map(normalizeFileRef).filter(Boolean) as FileRef[];
-  }
-
-  return subtask;
+  if (typeof r.at !== 'string') return null;
+  return { at: r.at };
 }
 
 function normalizeTask(raw: unknown, groupName: string): Task {
@@ -95,12 +73,16 @@ function normalizeTask(raw: unknown, groupName: string): Task {
   const task: Task = {
     id,
     title,
-    meta: defaultTaskMeta(rawMeta),
-    subtasks: Array.isArray(r.subtasks) ? r.subtasks.map(normalizeSubtask) : [],
+    parentId: typeof r.parentId === 'string' && r.parentId ? r.parentId : null,
     group: typeof r.group === 'string' ? r.group : groupName,
+    meta: defaultTaskMeta(rawMeta),
   };
 
   if (typeof r.note === 'string') task.note = r.note;
+  if (typeof r.reflection === 'string') task.reflection = r.reflection;
+  if (Array.isArray(r.reminders)) {
+    task.reminders = r.reminders.map(normalizeReminder).filter(Boolean) as Reminder[];
+  }
   if (Array.isArray(r.links)) {
     task.links = r.links.map(normalizeLink).filter(Boolean) as Link[];
   }
@@ -141,6 +123,11 @@ export function parseJsonToList(content: string, sha?: string): ParsedList {
   const version = typeof obj.version === 'number' ? obj.version : undefined;
 
   if (version !== JSON_FORMAT_VERSION) {
+    if (version === 1) {
+      throw new Error(
+        'Unsupported JSON list version: 1。清单为旧版格式，请先在本地运行迁移工具 `npm run migrate:v2 -- --dir <待办仓库目录>` 转换后再使用',
+      );
+    }
     throw new Error(`Unsupported JSON list version: ${version}`);
   }
 
@@ -158,5 +145,13 @@ export function parseJsonToList(content: string, sha?: string): ParsedList {
     groups,
     rawContent: content,
     sha,
+  };
+}
+
+export function createEmptyList(name: string): ParsedList {
+  return {
+    meta: { name, created: todayIso(), archived: false },
+    groups: [{ name: '默认分组', tasks: [] }],
+    rawContent: '',
   };
 }

@@ -7,7 +7,7 @@ import {
   Repeat,
   Trash2,
 } from 'lucide-react';
-import type { FileRef, Link, Subtask, Task } from '@/types';
+import type { FileRef, Link, Task } from '@/types';
 import { formatDate, formatDateTime, isDueToday, isOverdue } from '@/utils/date';
 import { computeEffectiveDueDate, formatRepeat } from '@/utils/repeat';
 import { FileListDisplay } from './FileAttachments';
@@ -141,18 +141,18 @@ function TaskLinks({
 
 function SubtaskItem({
   subtask,
-  path,
   onToggle,
   depth,
   downloadFile,
 }: {
-  subtask: Subtask;
-  path: number[];
-  onToggle: (path: number[]) => void;
+  subtask: Task;
+  onToggle: (taskId: string) => void;
   depth: number;
   downloadFile?: (file: FileRef) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(depth < 2);
+  const completed = subtask.meta.status === 'done';
+  const children = subtask.subtasks ?? [];
 
   const checkboxClass =
     'mt-0.5 h-4 w-4 rounded border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-primary)] focus:ring-[var(--color-border-focus)]';
@@ -165,11 +165,11 @@ function SubtaskItem({
       >
         <input
           type="checkbox"
-          checked={subtask.completed}
-          onChange={() => onToggle(path)}
+          checked={completed}
+          onChange={() => onToggle(subtask.id)}
           className={checkboxClass}
         />
-        <span className={subtask.completed ? 'line-through opacity-60' : ''}>{subtask.text}</span>
+        <span className={completed ? 'line-through opacity-60' : ''}>{subtask.title}</span>
       </label>
 
       <TaskLinks links={subtask.links} compact className="mt-1 flex flex-wrap items-center gap-1.5 pl-6" max={3} />
@@ -188,14 +188,13 @@ function SubtaskItem({
         </div>
       )}
 
-      {subtask.children.length > 0 && (
+      {children.length > 0 && (
         <>
           {expanded ? (
-            subtask.children.map((child, i) => (
+            children.map((child) => (
               <SubtaskItem
-                key={i}
+                key={child.id}
                 subtask={child}
-                path={[...path, i]}
                 onToggle={onToggle}
                 depth={depth + 1}
                 downloadFile={downloadFile}
@@ -210,7 +209,7 @@ function SubtaskItem({
               }}
               className="mt-1 text-xs text-[var(--color-primary)] hover:underline focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] rounded"
             >
-              展开 {subtask.children.length} 个子任务
+              展开 {children.length} 个子任务
             </button>
           )}
         </>
@@ -235,7 +234,7 @@ export function TaskCard({
   highlight?: boolean;
   selectable?: boolean;
   onToggleSelect?: () => void;
-  onToggle: (path: number[]) => void;
+  onToggle: (taskId: string) => void;
   onStartEdit: () => void;
   onDelete: () => void;
   onComplete?: () => void;
@@ -251,9 +250,11 @@ export function TaskCard({
 
   const dueColor = useDueColor(displayDue, task.meta.status);
 
+  const subtasks = task.subtasks ?? [];
+
   const progress =
-    task.subtasks.length > 0
-      ? `${task.subtasks.filter((s) => s.completed).length}/${task.subtasks.length}`
+    subtasks.length > 0
+      ? `${subtasks.filter((s) => s.meta.status === 'done').length}/${subtasks.length}`
       : '';
 
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -291,7 +292,7 @@ export function TaskCard({
               data-testid="select-task"
             />
           ) : (
-            <StatusIcon status={task.meta.status} onClick={task.subtasks.length === 0 ? onComplete : undefined} />
+            <StatusIcon status={task.meta.status} onClick={subtasks.length === 0 ? onComplete : undefined} />
           )}
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
@@ -356,14 +357,14 @@ export function TaskCard({
             </div>
           )}
 
-          {task.subtasks.length > 0 && (
+          {subtasks.length > 0 && (
             <div className="mt-3 border-t border-[var(--color-border-subtle)] pt-3">
-              {task.subtasks.slice(0, 3).map((s, i) => (
-                <SubtaskItem key={i} subtask={s} path={[i]} onToggle={onToggle} depth={0} downloadFile={downloadFile} />
+              {subtasks.slice(0, 3).map((s) => (
+                <SubtaskItem key={s.id} subtask={s} onToggle={onToggle} depth={0} downloadFile={downloadFile} />
               ))}
-              {task.subtasks.length > 3 && (
+              {subtasks.length > 3 && (
                 <div className="mt-1 text-xs text-[var(--color-text-muted)]">
-                  +{task.subtasks.length - 3} 个子任务...
+                  +{subtasks.length - 3} 个子任务...
                 </div>
               )}
             </div>

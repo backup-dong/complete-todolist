@@ -8,7 +8,7 @@ export interface TaskMeta {
   created: string; // ISO 8601
   start?: string;
   due?: string;
-  repeat?: 'daily' | 'weekly' | 'monthly' | 'weekdays' | string;
+  repeat?: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'weekdays' | string;
   repeat_until?: string;
   repeat_count?: number;
   order?: number;
@@ -29,31 +29,25 @@ export interface FileRef {
   uploadedAt: string;
 }
 
-export interface Subtask {
-  text: string;
-  level: number; // 1 | 2 | 3
-  completed: boolean;
-  completed_at?: string; // ISO 8601
-  start?: string; // ISO 日期，v1.1 新增
-  due?: string; // ISO 日期，v1.1 新增
-  note?: string;
-  links?: Link[];
-  files?: FileRef[];
-  children: Subtask[];
+export interface Reminder {
+  at: string; // ISO 8601
 }
 
 export interface Task {
   id: string; // 基于标题+创建时间的 hash
   title: string;
+  parentId: string | null;
+  group: string; // 所属分组名
   meta: TaskMeta;
-  subtasks: Subtask[];
   note?: string; // Markdown 文本
+  reflection?: string; // 感想，与 note 平级
+  reminders?: Reminder[];
   links?: Link[];
   files?: FileRef[];
   completed_at?: string; // 🏁 时间
   duration?: string; // ⏱ 耗时文字
-  group: string; // 所属分组名
   sourceList?: string; // 仅在待办视图聚合时使用，标识任务来自哪个清单
+  subtasks?: Task[]; // 仅内存派生（buildSubtaskTree），持久化时丢弃
 }
 
 export interface ListMeta {

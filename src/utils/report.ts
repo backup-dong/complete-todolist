@@ -10,8 +10,9 @@ import {
   startOfWeek,
 } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import type { ParsedList, Subtask, Task } from '@/types';
+import type { ParsedList, Task } from '@/types';
 import { isOverdue } from '@/utils/date';
+import { buildSubtaskTree, getDescendants, topLevelTasks } from '@/utils/subtasks';
 import { toast } from '@/utils/toast';
 
 const DIGITS = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
@@ -97,34 +98,25 @@ export function isCompletedThisWeek(completedAt?: string): boolean {
   }
 }
 
-function hasSubtaskCompletedThisWeek(subtasks: Subtask[]): boolean {
-  return subtasks.some(
-    (s) => isCompletedThisWeek(s.completed_at) || hasSubtaskCompletedThisWeek(s.children),
-  );
+function hasSubtaskCompletedThisWeek(descendants: Task[]): boolean {
+  return descendants.some((t) => isCompletedThisWeek(t.completed_at));
 }
 
-function getLatestSubtaskCompletionTime(subtasks: Subtask[]): Date | null {
-  const dates: Date[] = [];
-  for (const s of subtasks) {
-    const completedAt = s.completed_at;
-    if (completedAt && isCompletedThisWeek(completedAt)) {
-      dates.push(parseISO(completedAt));
-    }
-    const childLatest = getLatestSubtaskCompletionTime(s.children);
-    if (childLatest) {
-      dates.push(childLatest);
-    }
-  }
+function getLatestSubtaskCompletionTime(descendants: Task[]): Date | null {
+  const dates = descendants
+    .map((t) => t.completed_at)
+    .filter((c): c is string => !!c && isCompletedThisWeek(c))
+    .map((c) => parseISO(c));
   return dates.length > 0 ? max(dates) : null;
 }
 
-function getEffectiveCompletionTime(task: Task): Date | null {
+function getEffectiveCompletionTime(task: Task, descendants: Task[]): Date | null {
   const dates: Date[] = [];
   const completedAt = task.completed_at;
   if (completedAt && isCompletedThisWeek(completedAt)) {
     dates.push(parseISO(completedAt));
   }
-  const subtaskLatest = getLatestSubtaskCompletionTime(task.subtasks);
+  const subtaskLatest = getLatestSubtaskCompletionTime(descendants);
   if (subtaskLatest) {
     dates.push(subtaskLatest);
   }
@@ -132,21 +124,22 @@ function getEffectiveCompletionTime(task: Task): Date | null {
 }
 
 function collectCompletedSubtasks(
-  subtasks: Subtask[],
+  children: Task[],
   indent = '  ',
   includeAllCompleted = false,
 ): string[] {
   const lines: string[] = [];
   let index = 1;
-  for (const s of subtasks) {
+  for (const s of children) {
+    const done = s.meta.status === 'done';
     const completedThisWeek = isCompletedThisWeek(s.completed_at);
-    if (completedThisWeek || (includeAllCompleted && s.completed)) {
-      lines.push(`${indent}${index}. ${s.text}`);
+    if (completedThisWeek || (includeAllCompleted && done)) {
+      lines.push(`${indent}${index}. ${s.title}`);
       index++;
     }
     lines.push(
       ...collectCompletedSubtasks(
-        s.children,
+        s.subtasks ?? [],
         `${indent}  `,
         includeAllCompleted || completedThisWeek,
       ),
@@ -155,10 +148,8 @@ function collectCompletedSubtasks(
   return lines;
 }
 
-function shouldIncludeTask(task: Task): boolean {
-  return (
-    isCompletedThisWeek(task.completed_at) || hasSubtaskCompletedThisWeek(task.subtasks)
-  );
+function shouldIncludeTask(task: Task, descendants: Task[]): boolean {
+  return isCompletedThisWeek(task.completed_at) || hasSubtaskCompletedThisWeek(descendants);
 }
 
 export function toChineseNumeral(n: number): string {
@@ -174,23 +165,27 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
   const { start, end } = getCurrentWeekRange();
 
   const groupsWithTasks = list.groups
-    .map((group) => ({
-      name: group.name,
-      tasks: group.tasks
-        .filter(shouldIncludeTask)
-        .sort((a, b) => {
-          const timeA = getEffectiveCompletionTime(a);
-          const timeB = getEffectiveCompletionTime(b);
-          if (!timeA || !timeB) return 0;
-          return compareAsc(timeA, timeB);
-        }),
-    }))
+    .map((group) => {
+      const topLevel = topLevelTasks(group.tasks);
+      return {
+        name: group.name,
+        allTasks: group.tasks,
+        tasks: topLevel
+          .filter((t) => shouldIncludeTask(t, getDescendants(group.tasks, t.id)))
+          .sort((a, b) => {
+            const timeA = getEffectiveCompletionTime(a, getDescendants(group.tasks, a.id));
+            const timeB = getEffectiveCompletionTime(b, getDescendants(group.tasks, b.id));
+            if (!timeA || !timeB) return 0;
+            return compareAsc(timeA, timeB);
+          }),
+      };
+    })
     .filter((group) => group.tasks.length > 0);
 
   const groupsWithPlan = list.groups
     .map((group) => ({
       name: group.name,
-      tasks: group.tasks.filter(shouldIncludeInPlan).sort((a, b) => {
+      tasks: topLevelTasks(group.tasks).filter(shouldIncludeInPlan).sort((a, b) => {
         const aOverdue = isOverdue(a.meta.due);
         const bOverdue = isOverdue(b.meta.due);
         if (aOverdue && !bOverdue) return -1;
@@ -219,7 +214,7 @@ export function generateWeeklyReport(listName: string, list: ParsedList): string
       lines.push(`${j + 1}. ${task.title}`);
       lines.push(
         ...collectCompletedSubtasks(
-          task.subtasks,
+          buildSubtaskTree(group.allTasks, task.id),
           '    ',
           isCompletedThisWeek(task.completed_at),
         ),

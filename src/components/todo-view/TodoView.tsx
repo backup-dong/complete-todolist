@@ -11,7 +11,7 @@ function GroupSection({
 }: {
   name: string;
   tasks: Task[];
-  onToggle: (taskId: string, path: number[]) => void;
+  onToggle: (taskId: string) => void;
   onSelect: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onComplete?: (taskId: string) => void;
@@ -28,7 +28,7 @@ function GroupSection({
             <TaskCard
               key={task.id}
               task={task}
-              onToggle={(path) => onToggle(task.id, path)}
+              onToggle={onToggle}
               onStartEdit={() => onSelect(task.id)}
               onDelete={() => onDelete(task.id)}
               onComplete={onComplete ? () => onComplete(task.id) : undefined}
@@ -48,7 +48,7 @@ export function TodoView({
   onComplete,
 }: {
   tasks: Task[];
-  onToggle: (taskId: string, path: number[]) => void;
+  onToggle: (taskId: string) => void;
   onSelect: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onComplete?: (taskId: string) => void;
@@ -57,7 +57,7 @@ export function TodoView({
     return (
       <div className="flex h-full flex-col items-center justify-center p-4 text-[var(--color-text-muted)]">
         <p className="text-base font-medium text-[var(--color-text-secondary)]">当前没有符合条件的待完成</p>
-        <p className="text-sm">选择一个清单开始添加任务</p>
+<p className="text-sm">选择一个清单开始添加任务</p>
       </div>
     );
   }

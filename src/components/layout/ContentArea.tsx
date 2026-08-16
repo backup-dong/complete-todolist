@@ -5,6 +5,7 @@ import { useTasksStore } from '@/stores/tasksStore';
 import { confirm } from '@/stores/confirmStore';
 import type { Task, TodoViewKey } from '@/types';
 import { copyWeeklyReport } from '@/utils/report';
+import { topLevelTasks, buildSubtaskTree } from '@/utils/subtasks';
 import { SearchBar, FilterDropdown, ViewToggle, MobileFilterToggle } from '../tasks/Toolbar';
 import { TaskList } from '../tasks/TaskList';
 import { TaskEditorDialog } from '../tasks/TaskEditorDialog';
@@ -260,7 +261,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
   }, [activeList, fileCache, getFilteredTasks, selectedTaskId, todoView]);
   const allTasks = useMemo(() => {
     if (todoView) return getFilteredTasks();
-    return activeList?.groups.flatMap((g) => g.tasks) ?? [];
+    return topLevelTasks(activeList?.groups.flatMap((g) => g.tasks) ?? []);
   }, [activeList, getFilteredTasks, todoView]);
   const doneCount = todoView ? 0 : allTasks.filter((t) => t.meta.status === 'done').length;
   const totalCount = allTasks.length;
@@ -268,11 +269,15 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
   const effectiveNewTaskGroup = activeGroup ?? groups[0] ?? '默认分组';
 
   const filtered = getFilteredTasks();
+  // 列表视图需要树形结构（TaskCard 靠 task.subtasks 渲染嵌套子任务）：
+  // 基于全量扁平任务建树（子任务跟在父任务下），顶层再按 filter/search/分组裁剪。
+  // 待办视图（日历等）保持扁平数组渲染。
+  const flatAll = useMemo(() => activeList?.groups.flatMap((g) => g.tasks) ?? [], [activeList]);
+  const treeTasks = useMemo(() => buildSubtaskTree(flatAll, null), [flatAll]);
+  const filteredTopIds = useMemo(() => new Set(filtered.map((t) => t.id)), [filtered]);
   const displayTasks = todoView
     ? filtered
-    : activeGroup
-      ? filtered.filter((t) => t.group === activeGroup)
-      : filtered;
+    : treeTasks.filter((t) => (activeGroup ? t.group === activeGroup : true) && filteredTopIds.has(t.id));
 
   const selectedTask = displayTasks.find((t) => t.id === selectedTaskId) ?? null;
 

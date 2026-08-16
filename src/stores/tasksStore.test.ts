@@ -8,8 +8,8 @@ function makeTask(id: string, title: string, group: string, order: number): Task
     id,
     title,
     group,
+    parentId: null,
     meta: { priority: 'med', created: '2026-07-01', order },
-    subtasks: [],
   };
 }
 
@@ -105,6 +105,40 @@ describe('tasksStore reorder', () => {
     expect(updated!.groups[0].tasks.map((t) => t.id)).toEqual(['t2', 't3']);
     expect(updated!.groups[1].tasks.map((t) => t.id)).toEqual([]);
     expect(useTasksStore.getState().selectedTaskId).toBeNull();
+  });
+
+  it('toggleSubtask updates parent status via descendant inference', async () => {
+    const list = makeList();
+    list.groups[0].tasks = [
+      makeTask('p', '父任务', '项目Alpha', 1),
+      makeTask('c1', '子任务1', '项目Alpha', 1),
+      makeTask('c2', '子任务2', '项目Alpha', 2),
+    ];
+    list.groups[0].tasks[1].parentId = 'p';
+    list.groups[0].tasks[2].parentId = 'p';
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({ tasks: list.groups.flatMap((g) => g.tasks) });
+
+    await useTasksStore.getState().toggleSubtask('c1');
+
+    let cached = useListsStore.getState().fileCache['工作']!;
+    let byId = new Map(cached.groups.flatMap((g) => g.tasks).map((t) => [t.id, t]));
+    expect(byId.get('c1')?.meta.status).toBe('done');
+    expect(byId.get('c1')?.completed_at).toBeTruthy();
+    expect(byId.get('p')?.meta.status).toBe('active');
+
+    await useTasksStore.getState().toggleSubtask('c2');
+
+    cached = useListsStore.getState().fileCache['工作']!;
+    byId = new Map(cached.groups.flatMap((g) => g.tasks).map((t) => [t.id, t]));
+    expect(byId.get('p')?.meta.status).toBe('done');
+    expect(byId.get('p')?.completed_at).toBeTruthy();
+
+    await useTasksStore.getState().toggleSubtask('c1');
+
+    cached = useListsStore.getState().fileCache['工作']!;
+    byId = new Map(cached.groups.flatMap((g) => g.tasks).map((t) => [t.id, t]));
+    expect(byId.get('p')?.meta.status).toBe('active');
   });
 
   it('getFilteredTasks supports multi-select status filter', () => {

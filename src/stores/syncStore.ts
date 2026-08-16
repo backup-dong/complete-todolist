@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { initGitHub, clearGitHub, getFileContent, writeFileContent } from '@/github/client';
 import type { GithubConfig, SyncStatusState, SyncStatus } from '@/types';
+import { JSON_FORMAT_VERSION, inferJsonVersion } from '@/parser';
 import {
   loadConfig,
   saveConfig,
@@ -49,6 +50,14 @@ async function pushSingleFile(
   config: GithubConfig,
 ): Promise<boolean> {
   const path = `${config.basePath}/${fileName}`;
+
+  // 版本守卫：只推送 v2 内容；遗留 v1 待推送数据直接丢弃（迁移请使用本地迁移工具）
+  if (inferJsonVersion(content) !== JSON_FORMAT_VERSION) {
+    console.warn(`Skipping pending write ${fileName}: unsupported JSON version, discarding`);
+    clearPendingWrite(fileName);
+    return true;
+  }
+
   try {
     const remote = await getFileContent(config, path).catch(() => null);
     const sha = await writeFileContent(config, path, content, remote?.sha);

@@ -26,15 +26,32 @@ function buildTask(
     id: `id-${title}`,
     title,
     group: '默认分组',
+    parentId: null,
     meta: {
       priority: 'med',
       created: thisWeekDay(0),
       status: overrides.completed_at ? 'done' : 'pending',
       ...meta,
     },
-    subtasks: overrides.subtasks ?? [],
+    subtasks: overrides.subtasks,
     completed_at: overrides.completed_at,
     ...rest,
+  };
+}
+
+/** 任意层级任务条目（flat 数组内，通过 parentId 关联父子） */
+function st(title: string, completedAt?: string, parentId: string | null = null): Task {
+  return {
+    id: `id-${title}`,
+    title,
+    parentId,
+    group: '默认分组',
+    meta: {
+      priority: 'med',
+      created: thisWeekDay(0),
+      status: completedAt ? 'done' : 'pending',
+    },
+    completed_at: completedAt,
   };
 }
 
@@ -70,65 +87,33 @@ describe('generateWeeklyReport', () => {
   it('任务自身未完成但子任务本周完成时，按子任务完成时间排序', () => {
     const list = buildList([
       buildTask('无子任务完成', { completed_at: thisWeekDay(3) }),
-      buildTask('因子任务被纳入', {
-        subtasks: [
-          {
-            text: '周二子任务',
-            level: 1,
-            completed: true,
-            completed_at: thisWeekDay(1),
-            children: [],
-          },
-        ],
-      }),
+      buildTask('因子任务被纳入'),
+      st('周二子任务', thisWeekDay(1), 'id-因子任务被纳入'),
     ]);
 
     const report = generateWeeklyReport('测试清单', list);
+    expect(report).toContain('因子任务被纳入');
     expect(report.indexOf('因子任务被纳入')).toBeLessThan(report.indexOf('无子任务完成'));
   });
 
   it('嵌套子任务的完成时间会被纳入有效完成时间', () => {
     const list = buildList([
-      buildTask('父任务', {
-        subtasks: [
-          {
-            text: '二级子任务',
-            level: 1,
-            completed: false,
-            children: [
-              {
-                text: '三级子任务',
-                level: 2,
-                completed: true,
-                completed_at: thisWeekDay(4),
-                children: [],
-              },
-            ],
-          },
-        ],
-      }),
+      buildTask('父任务'),
       buildTask('自身完成', { completed_at: thisWeekDay(2) }),
+      st('二级子任务', undefined, 'id-父任务'),
+      st('三级子任务', thisWeekDay(4), 'id-二级子任务'),
     ]);
 
     const report = generateWeeklyReport('测试清单', list);
+    expect(report).toContain('父任务');
     expect(report.indexOf('自身完成')).toBeLessThan(report.indexOf('父任务'));
   });
 
   it('任务与子任务都完成时，取最晚时间作为排序依据', () => {
     const list = buildList([
       buildTask('自身晚完成', { completed_at: thisWeekDay(3) }),
-      buildTask('子任务晚完成', {
-        completed_at: thisWeekDay(0),
-        subtasks: [
-          {
-            text: '周四子任务',
-            level: 1,
-            completed: true,
-            completed_at: thisWeekDay(4),
-            children: [],
-          },
-        ],
-      }),
+      buildTask('子任务晚完成', { completed_at: thisWeekDay(0) }),
+      st('周四子任务', thisWeekDay(4), 'id-子任务晚完成'),
     ]);
 
     const report = generateWeeklyReport('测试清单', list);
@@ -148,31 +133,10 @@ describe('generateWeeklyReport', () => {
 
   it('父任务本周完成时，列出所有已完成的子任务（不仅限于本周完成的）', () => {
     const list = buildList([
-      buildTask('父任务本周完成', {
-        completed_at: thisWeekDay(2),
-        subtasks: [
-          {
-            text: '本周子任务',
-            level: 1,
-            completed: true,
-            completed_at: thisWeekDay(1),
-            children: [],
-          },
-          {
-            text: '上周子任务',
-            level: 1,
-            completed: true,
-            completed_at: '2026-06-30T10:00:00+08:00',
-            children: [],
-          },
-          {
-            text: '未完成子任务',
-            level: 1,
-            completed: false,
-            children: [],
-          },
-        ],
-      }),
+      buildTask('父任务本周完成', { completed_at: thisWeekDay(2) }),
+      st('本周子任务', thisWeekDay(1), 'id-父任务本周完成'),
+      st('上周子任务', '2026-06-30T10:00:00+08:00', 'id-父任务本周完成'),
+      st('未完成子任务', undefined, 'id-父任务本周完成'),
     ]);
 
     const report = generateWeeklyReport('测试清单', list);
@@ -184,32 +148,10 @@ describe('generateWeeklyReport', () => {
 
   it('同一任务下的子任务按原数组顺序用数字编号输出', () => {
     const list = buildList([
-      buildTask('带多个子任务', {
-        completed_at: thisWeekDay(2),
-        subtasks: [
-          {
-            text: '第一个子任务',
-            level: 1,
-            completed: true,
-            completed_at: thisWeekDay(1),
-            children: [],
-          },
-          {
-            text: '第二个子任务',
-            level: 1,
-            completed: true,
-            completed_at: thisWeekDay(2),
-            children: [],
-          },
-          {
-            text: '第三个子任务',
-            level: 1,
-            completed: true,
-            completed_at: thisWeekDay(0),
-            children: [],
-          },
-        ],
-      }),
+      buildTask('带多个子任务', { completed_at: thisWeekDay(2) }),
+      st('第一个子任务', thisWeekDay(1), 'id-带多个子任务'),
+      st('第二个子任务', thisWeekDay(2), 'id-带多个子任务'),
+      st('第三个子任务', thisWeekDay(0), 'id-带多个子任务'),
     ]);
 
     const report = generateWeeklyReport('测试清单', list);

@@ -1,4 +1,4 @@
-import { addDays, addMonths, format, getDay, isWeekend, parseISO, setDate, startOfDay } from 'date-fns';
+import { addDays, addMonths, addYears, format, getDay, isWeekend, parseISO, setDate, startOfDay } from 'date-fns';
 import { todayIso } from '@/utils/date';
 
 type WeekDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
@@ -46,6 +46,9 @@ export function computeNextDue(
     case 'monthly':
       next = addMonths(base, 1);
       break;
+    case 'yearly':
+      next = addYears(base, 1);
+      break;
     case 'weekdays':
       next = nextWeekday(base, holidaySet);
       break;
@@ -80,6 +83,8 @@ export function formatRepeat(repeat: string): string {
       return '每周';
     case 'monthly':
       return '每月';
+    case 'yearly':
+      return '每年';
     case 'weekdays':
       return '工作日';
   }
@@ -159,7 +164,7 @@ export function isMonthlyDaysRule(repeat: string): boolean {
 
 /**
  * 给定重复规则，返回首次发生的截止日期（用于设置新任务时自动填入）。
- * - daily / weekly / monthly → 今天
+ * - daily / weekly / monthly / yearly → 今天
  * - weekdays → 如果今天是工作日返回今天，否则推到下周一
  * - 自定义星期/日期 → 以昨天为基准计算最近一次
  */
@@ -170,6 +175,7 @@ export function getFirstDueDate(repeat: string): string {
     case 'daily':
     case 'weekly':
     case 'monthly':
+    case 'yearly':
       return today;
     case 'weekdays':
       if (!isWeekend(parseISO(today))) return today;
@@ -203,7 +209,8 @@ export function computeEffectiveDueDate(
   // 已经今天或将来，无需推进
   if (current >= today) return current;
 
-  const MAX_ITERATIONS = 365;
+  // 上限覆盖到十年跨度，足以让 daily/weekly/monthly/yearly 任意规则追上今天
+  const MAX_ITERATIONS = 4000;
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     const next = computeNextDue(current, repeat, repeatUntil, holidays);
     if (!next || next === current) break;

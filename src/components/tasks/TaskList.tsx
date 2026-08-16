@@ -38,7 +38,7 @@ function SortableTaskCard({
   selected?: boolean;
   highlight?: boolean;
   selectable?: boolean;
-  onToggle: (path: number[]) => void;
+  onToggle: (taskId: string) => void;
   onSelect: () => void;
   onDelete: () => void;
   onComplete?: () => void;
@@ -105,7 +105,7 @@ function GroupSection({
   selectedIds: Set<string>;
   highlightedTaskId?: string;
   selectable?: boolean;
-  onToggle: (taskId: string, path: number[]) => void;
+  onToggle: (taskId: string) => void;
   onSelect: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onComplete?: (taskId: string) => void;
@@ -145,7 +145,7 @@ function GroupSection({
                 selected={selectedIds.has(task.id)}
                 highlight={highlightedTaskId === task.id}
                 selectable={selectable}
-                onToggle={(path) => onToggle(task.id, path)}
+                onToggle={onToggle}
                 onSelect={() => onSelect(task.id)}
                 onDelete={() => onDelete(task.id)}
                 onComplete={() => onComplete?.(task.id)}
@@ -182,7 +182,7 @@ export function TaskList({
   highlightedTaskId?: string;
   onReorder: (from: number, to: number) => void;
   onReorderInGroup?: (groupName: string, from: number, to: number) => void;
-  onToggle: (taskId: string, path: number[]) => void;
+  onToggle: (taskId: string) => void;
   onSelect: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onComplete?: (taskId: string) => void;
@@ -301,7 +301,7 @@ export function TaskList({
                 selected={selectedIds.has(task.id)}
                 highlight={highlightedTaskId === task.id}
                 selectable={selectable}
-                onToggle={(path) => onToggle(task.id, path)}
+                onToggle={onToggle}
                 onSelect={() => onSelect(task.id)}
                 onDelete={() => onDelete(task.id)}
                 onComplete={() => onComplete?.(task.id)}

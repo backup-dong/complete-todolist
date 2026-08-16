@@ -2,6 +2,7 @@
 """End-to-end test for Dong Todo using a mocked GitHub API."""
 from playwright.sync_api import sync_playwright, Route
 import base64
+import datetime
 import json
 import re
 import sys
@@ -99,6 +100,7 @@ def run_tests():
         page.evaluate('() => { localStorage.clear(); sessionStorage.clear(); }')
 
         page.route('https://api.github.com/**', github_api_handler)
+        page.route('https://date.nager.at/**', lambda route: route.fulfill(status=200, content_type='application/json', body='[]'))
         page.reload()
         page.wait_for_load_state('networkidle')
 
@@ -131,20 +133,13 @@ def run_tests():
         if '工作.json' not in files:
             log_failure('Newly created list was not written as 工作.json')
 
-        # 4. Create a task by pressing Enter and verify the editor dialog opens
+        # 4. Create a task by pressing Enter
         page.locator('input[placeholder*="新建任务"]').fill('测试任务')
         page.keyboard.press('Enter')
         page.wait_for_timeout(800)
 
         if not page.locator('text=测试任务').is_visible():
             log_failure('Newly created task "测试任务" not visible')
-
-        if not page.locator('[data-testid="task-editor"]').is_visible():
-            log_failure('Task editor did not open after pressing Enter to create task')
-
-        # 创建任务后会自动打开编辑器弹窗，先关闭它再继续列表操作
-        page.click('button[aria-label="关闭"]')
-        page.wait_for_timeout(300)
 
         # 5. Edit task - add subtask
         page.click('text=测试任务')
@@ -155,7 +150,11 @@ def run_tests():
         page.click('button:has-text("保存")')
         page.wait_for_timeout(2000)
 
-        # 6. Toggle subtask from the editor and verify auto-save + status inference
+        # 6. Subtask must appear nested inside the parent task card in the list view
+        if page.locator('[data-testid="task-card"]:has-text("测试任务")').locator('text=子任务 A').count() < 1:
+            log_failure('Subtask not rendered inside parent task card in list view')
+
+        # 7. Toggle subtask from the editor and verify auto-save + status inference
         page.click('text=测试任务')
         page.wait_for_timeout(300)
         page.locator('[data-testid="task-editor"] [data-testid="subtask-checkbox"]').first.click()
@@ -178,31 +177,48 @@ def run_tests():
         page.click('button[aria-label="关闭"]')  # close editor
         page.wait_for_timeout(300)
 
-        # 7. Repeating task - complete and verify due date advances
+        # 7. Toggle subtask from the list view - parent status infers immediately
+        page.locator(
+            '[data-testid="task-card"]:has-text("测试任务") label:has-text("子任务 A") input[type="checkbox"]'
+        ).check()
+        page.wait_for_timeout(2000)
+        data = json.loads(files.get('工作.json', '{}'))
+        task = get_task_by_title(data, '测试任务')
+        if not task or task.get('meta', {}).get('status') != 'done':
+            log_failure(f'Parent status did not become done after toggling subtask in list view. JSON:\n{files.get("工作.json", "")}')
+        page.locator(
+            '[data-testid="task-card"]:has-text("测试任务") label:has-text("子任务 A") input[type="checkbox"]'
+        ).uncheck()
+        page.wait_for_timeout(2000)
+
+        # 9. Repeating task - complete and verify due date advances
         page.locator('input[placeholder*="新建任务"]').fill('每周任务')
         page.locator('input[placeholder*="新建任务"] + button').click()
         page.wait_for_timeout(800)
 
-        # 创建任务后自动打开编辑器弹窗，先关闭它再继续列表操作
-        page.click('button[aria-label="关闭"]')
-        page.wait_for_timeout(300)
-
         page.click('text=每周任务')
         page.wait_for_timeout(300)
-        page.locator('input[type="date"]').nth(1).fill('2026-07-03')
-        page.locator('text=重复规则 >> xpath=../select').select_option('weekly')
+        # daily 规则语义固定（每天），便于断言推进结果
+        page.locator('text=重复规则 >> xpath=../select').select_option('daily')
         page.click('button:has-text("保存")')
         page.wait_for_timeout(2000)
 
-        page.locator('[data-testid="status-icon"]').last.click()
-        page.wait_for_timeout(2000)
+        data = json.loads(files.get('工作.json', '{}'))
+        repeat_task = get_task_by_title(data, '每周任务')
+        due_before = repeat_task.get('meta', {}).get('due') if repeat_task else None
+        if not due_before:
+            log_failure(f'Repeating task due missing after setup. JSON:\n{files.get("工作.json", "")}')
+
+        page.click('[data-testid="task-card"]:has-text("每周任务") [data-testid="status-icon"]')
+        page.wait_for_timeout(6000)
 
         data = json.loads(files.get('工作.json', '{}'))
         weekly = get_task_by_title(data, '每周任务')
-        if not weekly or weekly.get('meta', {}).get('due') != '2026-07-10':
+        expected_due = (datetime.date.fromisoformat(due_before) + datetime.timedelta(days=1)).isoformat()
+        if not weekly or weekly.get('meta', {}).get('due') != expected_due or weekly.get('meta', {}).get('status') != 'pending':
             log_failure(f'Repeating task did not advance due date correctly. JSON:\n{files.get("工作.json", "")}')
 
-        # 8. Delete task
+        # 10. Delete task
         page.locator('[data-testid="task-card"]:has-text("测试任务") [data-testid="delete-task"]').click(force=True)
         page.wait_for_timeout(200)
         page.click('[data-testid="confirm-ok"]')
@@ -210,47 +226,6 @@ def run_tests():
 
         if page.locator('text=测试任务').is_visible():
             log_failure('Task still visible after delete')
-
-        # 9. Markdown -> JSON lazy migration test
-        files.clear()
-        files['legacy.md'] = '''# 旧清单
-
-<!-- todo:list-meta
-  created: 2026-07-01
-  archived: false
--->
-
-## 默认分组
-
-### 旧任务
-priority: med | created: 2026-07-01
-
-- [ ] 遗留子任务
-
----
-'''
-        page.evaluate('() => { localStorage.clear(); sessionStorage.clear(); }')
-        page.goto('http://localhost:5173/complete-todolist/settings')
-        page.wait_for_load_state('networkidle')
-
-        page.fill('input[placeholder="ghp_xxxxxxxxxxxx"]', 'ghp_testtoken')
-        page.fill('input[placeholder="your-github-username"]', OWNER)
-        page.fill('input[placeholder="todo-data"]', REPO)
-        page.click('button:has-text("保存并同步")')
-        page.wait_for_timeout(1500)
-
-        page.wait_for_selector('text=legacy', state='visible', timeout=10000)
-        page.click('text=legacy')
-        page.wait_for_timeout(1500)
-
-        if 'legacy.json' not in files:
-            log_failure('Legacy .md list was not migrated to legacy.json')
-        if 'legacy.md' in files:
-            log_failure('Legacy .md list was not deleted after migration')
-
-        migrated = json.loads(files.get('legacy.json', '{}'))
-        if migrated.get('meta', {}).get('name') != '旧清单':
-            log_failure(f'Migrated JSON meta.name mismatch. JSON:\n{files.get("legacy.json", "")}')
 
         browser.close()
 

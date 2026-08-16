@@ -29,12 +29,13 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { FileRef, GithubConfig, Link, Subtask, Task } from '@/types';
+import type { FileRef, GithubConfig, Link, Task, TaskMeta } from '@/types';
 import { createContext, useContext } from 'react';
 import { getDay, parseISO } from 'date-fns';
 import { DateInput } from '@/components/common/DateInput';
 import { NoteEditor } from '@/components/common/NoteEditor';
 import { nowIso, todayIso, formatDateTime } from '@/utils/date';
+import { generateTaskId } from '@/utils/id';
 import {
   getFirstDueDate,
   isMonthlyDaysRule,
@@ -43,7 +44,6 @@ import {
   WEEKDAY_OPTIONS,
   type WeekDay,
 } from '@/utils/repeat';
-import { deleteSubtaskAtPath, emptySubtask, reorderSubtasksAtPath, updateSubtaskAtPath } from '@/utils/subtasks';
 import { FileListDisplay } from './FileAttachments';
 import { useFileDownload } from '@/utils/useFileDownload';
 import { uploadFileToRepo } from '@/utils/fileUpload';
@@ -63,13 +63,13 @@ function useTaskEditorCtx() {
   return ctx;
 }
 
-function detectSubtaskToggle(prev: Subtask[], curr: Subtask[]): boolean {
+function detectSubtaskToggle(prev: Task[], curr: Task[]): boolean {
   if (prev.length !== curr.length) return false;
   return prev.some((p, i) => {
     const c = curr[i];
-    if (p.completed !== c.completed) return true;
-    if (p.children.length > 0 || c.children.length > 0) {
-      return detectSubtaskToggle(p.children, c.children);
+    if ((p.meta.status ?? 'pending') !== (c.meta.status ?? 'pending')) return true;
+    if ((p.subtasks?.length ?? 0) > 0 || (c.subtasks?.length ?? 0) > 0) {
+      return detectSubtaskToggle(p.subtasks ?? [], c.subtasks ?? []);
     }
     return false;
   });
@@ -137,7 +137,7 @@ interface DraftTask {
   repeat_until: string;
   note: string;
   linksText: string;
-  subtasks: Subtask[];
+  subtasks: Task[];
   files: FileRef[];
 }
 
@@ -158,7 +158,7 @@ function buildDraft(task: Task): DraftTask {
     repeat_until: task.meta.repeat_until ?? '',
     note: task.note ?? '',
     linksText: linksToText(task.links),
-    subtasks: task.subtasks,
+    subtasks: task.subtasks ?? [],
     files: task.files ?? [],
   };
 }
@@ -245,12 +245,10 @@ function LinksEditor({
 
 function SubtaskLinksEditor({
   subtask,
-  path,
   onChange,
 }: {
-  subtask: Subtask;
-  path: number[];
-  onChange: (path: number[], updated: Subtask) => void;
+  subtask: Task;
+  onChange: (updated: Task) => void;
 }) {
   const [preview, setPreview] = useState(true);
   const [draftText, setDraftText] = useState(linksToText(subtask.links));
@@ -259,7 +257,7 @@ function SubtaskLinksEditor({
     if (preview) {
       setDraftText(linksToText(subtask.links));
     } else {
-      onChange(path, { ...subtask, links: textToLinks(draftText) });
+      onChange({ ...subtask, links: textToLinks(draftText) });
     }
     setPreview((v) => !v);
   };
@@ -303,7 +301,7 @@ function SubtaskLinksEditor({
         <textarea
           value={draftText}
           onChange={(e) => setDraftText(e.target.value)}
-          onBlur={() => onChange(path, { ...subtask, links: textToLinks(draftText) })}
+          onBlur={() => onChange({ ...subtask, links: textToLinks(draftText) })}
           placeholder="每行一条「标题 URL」"
           rows={3}
           className="input min-h-[80px] resize-y border-0 focus:ring-0"
@@ -316,12 +314,10 @@ function SubtaskLinksEditor({
 
 function SubtaskFilesEditor({
   subtask,
-  path,
   onChange,
 }: {
-  subtask: Subtask;
-  path: number[];
-  onChange: (path: number[], updated: Subtask) => void;
+  subtask: Task;
+  onChange: (updated: Task) => void;
 }) {
   const { config, activeListName, taskId } = useTaskEditorCtx();
   const downloadFile = useFileDownload();
@@ -338,7 +334,7 @@ function SubtaskFilesEditor({
           const ref = await uploadFileToRepo(config, file, activeListName, taskId);
           if (!existingPaths.has(ref.path)) {
             existingPaths.add(ref.path);
-            onChange(path, { ...subtask, files: [...(subtask.files ?? []), ref] });
+            onChange({ ...subtask, files: [...(subtask.files ?? []), ref] });
           }
         } catch (err) {
           console.error(`Upload failed for ${file.name}:`, err);
@@ -350,7 +346,7 @@ function SubtaskFilesEditor({
   };
 
   const handleDelete = async (file: FileRef) => {
-    onChange(path, {
+    onChange({
       ...subtask,
       files: (subtask.files ?? []).filter((f) => f.path !== file.path),
     });
@@ -395,33 +391,37 @@ function SubtaskFilesEditor({
 
 function SubtaskEditor({
   subtask,
-  path,
   onChange,
   onDelete,
+  onAddChild,
   depth,
-  expandedPath,
+  expandedId,
   onExpand,
   dragHandleAttributes,
   dragHandleListeners,
 }: {
-  subtask: Subtask;
-  path: number[];
-  onChange: (path: number[], updated: Subtask) => void;
-  onDelete: (path: number[]) => void;
+  subtask: Task;
+  onChange: (updated: Task) => void;
+  onDelete: (taskId: string) => void;
+  onAddChild: (parentId: string) => void;
   depth: number;
-  expandedPath: number[] | null;
-  onExpand: (path: number[] | null) => void;
+  expandedId: string | null;
+  onExpand: (taskId: string | null) => void;
   dragHandleAttributes?: DraggableAttributes;
   dragHandleListeners?: ReturnType<typeof useSortable>['listeners'];
 }) {
-  const expanded = pathsEqual(expandedPath, path);
+  const expanded = expandedId === subtask.id;
+  const completed = subtask.meta.status === 'done';
 
-  const handleChange = (patch: Partial<Subtask>) => {
-    // 当勾选/取消勾选子任务时，同步设置/清除 completed_at
-    if ('completed' in patch) {
-      patch.completed_at = patch.completed ? nowIso() : undefined;
+  const handleChange = (patch: Omit<Partial<Task>, 'meta'> & { meta?: Partial<TaskMeta> }) => {
+    const nextMeta = patch.meta ? { ...subtask.meta, ...patch.meta } : subtask.meta;
+    const status = patch.meta?.status;
+    let completedAt = subtask.completed_at;
+    if (status) {
+      // 勾选/取消勾选子任务时，同步设置/清除 completed_at
+      completedAt = status === 'done' ? nowIso() : undefined;
     }
-    onChange(path, { ...subtask, ...patch });
+    onChange({ ...subtask, ...patch, meta: nextMeta, completed_at: completedAt });
   };
 
   return (
@@ -443,23 +443,23 @@ function SubtaskEditor({
         )}
         <input
           type="checkbox"
-          checked={subtask.completed}
-          onChange={(e) => handleChange({ completed: e.target.checked })}
+          checked={completed}
+          onChange={(e) => handleChange({ meta: { status: e.target.checked ? 'done' : 'pending' } })}
           data-testid="subtask-checkbox"
           className="mt-0.5 h-4 w-4 rounded border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-primary)] focus:ring-[var(--color-border-focus)]"
         />
         <input
           type="text"
-          value={subtask.text}
-          onChange={(e) => handleChange({ text: e.target.value })}
+          value={subtask.title}
+          onChange={(e) => handleChange({ title: e.target.value })}
           placeholder="子任务标题"
           className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] transition-colors duration-100"
         />
         <span
           className="hidden w-24 shrink-0 items-center justify-end gap-1 text-xs text-[var(--color-text-muted)] sm:flex"
-          title={subtask.completed && subtask.completed_at ? `完成于 ${formatDateTime(subtask.completed_at)}` : undefined}
+          title={completed && subtask.completed_at ? `完成于 ${formatDateTime(subtask.completed_at)}` : undefined}
         >
-          {subtask.completed && subtask.completed_at && (
+          {completed && subtask.completed_at && (
             <>
               <Check className="h-3.5 w-3.5" />
               {formatDateTime(subtask.completed_at)}
@@ -469,12 +469,7 @@ function SubtaskEditor({
         {depth < 2 && (
           <button
             type="button"
-            onClick={() =>
-              onChange(path, {
-                ...subtask,
-                children: [...subtask.children, emptySubtask(subtask.level + 1)],
-              })
-            }
+            onClick={() => onAddChild(subtask.id)}
             title="添加子任务"
             className="btn-ghost p-1.5"
             aria-label="添加子任务"
@@ -484,7 +479,7 @@ function SubtaskEditor({
         )}
         <button
           type="button"
-          onClick={() => onExpand(expanded ? null : path)}
+          onClick={() => onExpand(expanded ? null : subtask.id)}
           title="备注/链接"
           className={[
             'btn-ghost p-1.5',
@@ -497,10 +492,10 @@ function SubtaskEditor({
         <button
           type="button"
           onClick={() => {
-            if (expanded || pathStartsWith(expandedPath, path)) {
+            if (expanded || isDescendantExpanded(expandedId, subtask)) {
               onExpand(null);
             }
-            onDelete(path);
+            onDelete(subtask.id);
           }}
           title="删除"
           className="btn-ghost p-1.5 text-[var(--color-danger)] hover:bg-[var(--color-danger-subtle)]"
@@ -510,7 +505,7 @@ function SubtaskEditor({
         </button>
       </div>
 
-      {subtask.completed && subtask.completed_at && (
+      {completed && subtask.completed_at && (
         <div
           className="mt-1.5 flex items-center justify-end gap-1 text-xs text-[var(--color-text-muted)] sm:hidden"
           title={`完成于 ${formatDateTime(subtask.completed_at)}`}
@@ -526,15 +521,15 @@ function SubtaskEditor({
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">开始时间</span>
               <DateInput
-                value={subtask.start ?? ''}
-                onChange={(value) => handleChange({ start: value || undefined })}
+                value={subtask.meta.start ?? ''}
+                onChange={(value) => handleChange({ meta: { start: value || undefined } })}
               />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">截止时间</span>
               <DateInput
-                value={subtask.due ?? ''}
-                onChange={(value) => handleChange({ due: value || undefined })}
+                value={subtask.meta.due ?? ''}
+                onChange={(value) => handleChange({ meta: { due: value || undefined } })}
               />
             </label>
           </div>
@@ -545,19 +540,19 @@ function SubtaskEditor({
             rows={3}
             title="备注"
           />
-          <SubtaskLinksEditor subtask={subtask} path={path} onChange={onChange} />
-          <SubtaskFilesEditor subtask={subtask} path={path} onChange={onChange} />
+          <SubtaskLinksEditor subtask={subtask} onChange={handleChange} />
+          <SubtaskFilesEditor subtask={subtask} onChange={handleChange} />
         </div>
       )}
 
       <div className="mt-2">
         <SubtaskList
-          subtasks={subtask.children}
-          parentPath={path}
+          subtasks={subtask.subtasks ?? []}
           onChange={onChange}
           onDelete={onDelete}
+          onAddChild={onAddChild}
           depth={depth + 1}
-          expandedPath={expandedPath}
+          expandedId={expandedId}
           onExpand={onExpand}
         />
       </div>
@@ -567,23 +562,22 @@ function SubtaskEditor({
 
 function SortableSubtaskEditor({
   subtask,
-  path,
   onChange,
   onDelete,
+  onAddChild,
   depth,
-  expandedPath,
+  expandedId,
   onExpand,
 }: {
-  subtask: Subtask;
-  path: number[];
-  onChange: (path: number[], updated: Subtask) => void;
-  onDelete: (path: number[]) => void;
+  subtask: Task;
+  onChange: (updated: Task) => void;
+  onDelete: (taskId: string) => void;
+  onAddChild: (parentId: string) => void;
   depth: number;
-  expandedPath: number[] | null;
-  onExpand: (path: number[] | null) => void;
+  expandedId: string | null;
+  onExpand: (taskId: string | null) => void;
 }) {
-  const id = path.join('.');
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: subtask.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -597,11 +591,11 @@ function SortableSubtaskEditor({
     <div ref={setNodeRef} style={style} className="group">
       <SubtaskEditor
         subtask={subtask}
-        path={path}
         onChange={onChange}
         onDelete={onDelete}
+        onAddChild={onAddChild}
         depth={depth}
-        expandedPath={expandedPath}
+        expandedId={expandedId}
         onExpand={onExpand}
         dragHandleAttributes={attributes}
         dragHandleListeners={listeners}
@@ -612,35 +606,35 @@ function SortableSubtaskEditor({
 
 function SubtaskList({
   subtasks,
-  parentPath,
   onChange,
   onDelete,
+  onAddChild,
   depth,
-  expandedPath,
+  expandedId,
   onExpand,
 }: {
-  subtasks: Subtask[];
-  parentPath: number[];
-  onChange: (path: number[], updated: Subtask) => void;
-  onDelete: (path: number[]) => void;
+  subtasks: Task[];
+  onChange: (updated: Task) => void;
+  onDelete: (taskId: string) => void;
+  onAddChild: (parentId: string) => void;
   depth: number;
-  expandedPath: number[] | null;
-  onExpand: (path: number[] | null) => void;
+  expandedId: string | null;
+  onExpand: (taskId: string | null) => void;
 }) {
-  const ids = useMemo(() => subtasks.map((_, i) => [...parentPath, i].join('.')), [subtasks, parentPath]);
+  const ids = useMemo(() => subtasks.map((s) => s.id), [subtasks]);
 
   return (
     <SortableContext items={ids} strategy={verticalListSortingStrategy}>
       <div>
-        {subtasks.map((s, i) => (
+        {subtasks.map((s) => (
           <SortableSubtaskEditor
-            key={[...parentPath, i].join('.')}
+            key={s.id}
             subtask={s}
-            path={[...parentPath, i]}
             onChange={onChange}
             onDelete={onDelete}
+            onAddChild={onAddChild}
             depth={depth}
-            expandedPath={expandedPath}
+            expandedId={expandedId}
             onExpand={onExpand}
           />
         ))}
@@ -649,64 +643,114 @@ function SubtaskList({
   );
 }
 
-function idToPath(id: string): number[] {
-  return id.split('.').map(Number);
-}
-
-function areSiblings(a: number[], b: number[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length - 1; i++) {
-    if (a[i] !== b[i]) return false;
+function findInTree(tree: Task[], id: string): Task | null {
+  for (const t of tree) {
+    if (t.id === id) return t;
+    const found = findInTree(t.subtasks ?? [], id);
+    if (found) return found;
   }
-  return true;
+  return null;
 }
 
-function getChildrenAtPath(subtasks: Subtask[], path: number[]): Subtask[] {
-  let current = subtasks;
-  for (const idx of path) {
-    current = current[idx]?.children ?? [];
-  }
-  return current;
+function updateInTree(tree: Task[], id: string, updater: (t: Task) => Task): Task[] {
+  return tree.map((t) => {
+    if (t.id === id) return updater(t);
+    if (t.subtasks && t.subtasks.length > 0) {
+      return { ...t, subtasks: updateInTree(t.subtasks, id, updater) };
+    }
+    return t;
+  });
 }
 
-function pathsEqual(a: number[] | null, b: number[] | null): boolean {
-  if (a === null || b === null) return a === b;
-  if (a.length !== b.length) return false;
-  return a.every((v, i) => v === b[i]);
+function deleteInTree(tree: Task[], id: string): Task[] {
+  return tree
+    .filter((t) => t.id !== id)
+    .map((t) =>
+      t.subtasks && t.subtasks.length > 0 ? { ...t, subtasks: deleteInTree(t.subtasks, id) } : t,
+    );
 }
 
-function pathStartsWith(path: number[] | null, prefix: number[]): boolean {
-  if (!path || path.length < prefix.length) return false;
-  return prefix.every((v, i) => path[i] === v);
+function moveTaskInTree(tree: Task[], activeId: string, overId: string): Task[] {
+  const walk = (nodes: Task[]): { list: Task[]; matched: boolean } => {
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (node.id === activeId || node.id === overId) {
+        const hasBoth = nodes.some((n) => n.id === activeId) && nodes.some((n) => n.id === overId);
+        if (!hasBoth) return { list: nodes, matched: false };
+        const clean = [...nodes];
+        const from = clean.findIndex((n) => n.id === activeId);
+        const to = clean.findIndex((n) => n.id === overId);
+        const [moved] = clean.splice(from, 1);
+        clean.splice(to, 0, moved);
+        return { list: clean, matched: true };
+      }
+      if (node.subtasks && node.subtasks.length > 0) {
+        const inner = walk(node.subtasks);
+        if (inner.matched) {
+          return { list: nodes.map((n, idx) => (idx === i ? { ...n, subtasks: inner.list } : n)), matched: true };
+        }
+      }
+    }
+    return { list: nodes, matched: false };
+  };
+  return walk(tree).list;
+}
+
+function isDescendantExpanded(expandedId: string | null, subtree: Task): boolean {
+  if (!expandedId) return false;
+  return findInTree(subtree.subtasks ?? [], expandedId) !== null;
+}
+
+function createEmptySubtask(parentId: string | null): Task {
+  const created = todayIso();
+  return {
+    id: generateTaskId('', nowIso()),
+    title: '',
+    group: '',
+    parentId,
+    meta: {
+      priority: 'med' as const,
+      status: 'pending' as const,
+      created,
+      order: 1,
+    },
+    completed_at: undefined,
+    duration: undefined,
+  };
 }
 
 function TaskSubtasksEditor({
   subtasks,
   onChange,
 }: {
-  subtasks: Subtask[];
-  onChange: (subtasks: Subtask[]) => void;
+  subtasks: Task[];
+  onChange: (subtasks: Task[]) => void;
 }) {
-  const [expandedPath, setExpandedPath] = useState<number[] | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const handleChange = (path: number[], updated: Subtask) => {
-    onChange(updateSubtaskAtPath(subtasks, path, () => updated));
+  const handleChange = (updated: Task) => {
+    onChange(updateInTree(subtasks, updated.id, () => updated));
   };
 
-  const handleDelete = (path: number[]) => {
-    if (pathsEqual(expandedPath, path) || pathStartsWith(expandedPath, path)) {
-      setExpandedPath(null);
+  const handleDelete = (id: string) => {
+    const target = findInTree(subtasks, id);
+    if (expandedId === id || (target && isDescendantExpanded(expandedId, target))) {
+      setExpandedId(null);
     }
-    onChange(deleteSubtaskAtPath(subtasks, path));
+    onChange(deleteInTree(subtasks, id));
+  };
+
+  const handleAddChild = (parentId: string) => {
+    onChange(
+      updateInTree(subtasks, parentId, (t) => ({
+        ...t,
+        subtasks: [...(t.subtasks ?? []), createEmptySubtask(parentId)],
+      })),
+    );
   };
 
   const handleAddRoot = () => {
-    onChange([...subtasks, emptySubtask()]);
-  };
-
-  const handleReorder = (parentPath: number[], fromIndex: number, toIndex: number) => {
-    setExpandedPath(null);
-    onChange(reorderSubtasksAtPath(subtasks, parentPath, fromIndex, toIndex));
+    onChange([...subtasks, createEmptySubtask(null)]);
   };
 
   const sensors = useSensors(
@@ -719,40 +763,22 @@ function TaskSubtasksEditor({
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
+    setExpandedId(null);
     if (!over || active.id === over.id) return;
-
-    const fromPath = idToPath(active.id as string);
-    const toPath = idToPath(over.id as string);
-    if (!areSiblings(fromPath, toPath)) return;
-
-    const parentPath = fromPath.slice(0, -1);
-    const ids = getChildrenAtPath(subtasks, parentPath).map((_, i) => [...parentPath, i].join('.'));
-    const from = ids.indexOf(active.id as string);
-    const to = ids.indexOf(over.id as string);
-    if (from < 0 || to < 0) return;
-
-    handleReorder(parentPath, from, to);
+    onChange(moveTaskInTree(subtasks, active.id as string, over.id as string));
   };
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const handleDragStart = (event: DragStartEvent) => {
-    setExpandedPath(null);
+    setExpandedId(null);
     setActiveId(event.active.id as string);
   };
 
-  const activeSubtask = useMemo(() => {
-    if (!activeId) return null;
-    const path = idToPath(activeId);
-    let current: Subtask | null = null;
-    let list = subtasks;
-    for (let i = 0; i < path.length; i++) {
-      current = list[path[i]] ?? null;
-      if (!current) return null;
-      list = current.children;
-    }
-    return current;
-  }, [activeId, subtasks]);
+  const activeSubtask = useMemo(
+    () => (activeId ? findInTree(subtasks, activeId) : null),
+    [activeId, subtasks],
+  );
 
   return (
     <DndContext
@@ -764,12 +790,12 @@ function TaskSubtasksEditor({
       <div className="space-y-2">
         <SubtaskList
           subtasks={subtasks}
-          parentPath={[]}
           onChange={handleChange}
           onDelete={handleDelete}
+          onAddChild={handleAddChild}
           depth={0}
-          expandedPath={expandedPath}
-          onExpand={setExpandedPath}
+          expandedId={expandedId}
+          onExpand={setExpandedId}
         />
         <button
           type="button"
@@ -785,7 +811,7 @@ function TaskSubtasksEditor({
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg opacity-90 rotate-1">
       <div className="flex flex-wrap items-center gap-2">
               <GripVertical className="h-4 w-4 text-[var(--color-text-muted)]" />
-              <span className="text-sm text-[var(--color-text)]">{activeSubtask.text}</span>
+              <span className="text-sm text-[var(--color-text)]">{activeSubtask.title}</span>
             </div>
           </div>
         ) : null}
@@ -899,7 +925,7 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
 
   const repeatMode = useMemo(() => {
     if (!draft.repeat) return '';
-    if (['daily', 'monthly', 'weekdays'].includes(draft.repeat)) return draft.repeat;
+    if (['daily', 'monthly', 'yearly', 'weekdays'].includes(draft.repeat)) return draft.repeat;
     if (isWeekdayRule(draft.repeat)) return 'weekly';
     if (isMonthlyDaysRule(draft.repeat)) return 'monthly';
     return '';
@@ -932,6 +958,9 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
       const defaultDay = weekdayFromDate(draft.due || todayIso());
       dispatch({ type: 'set', field: 'repeat', value: defaultDay });
       dispatch({ type: 'set', field: 'due', value: getFirstDueDate(defaultDay) });
+    } else if (mode === 'yearly') {
+      dispatch({ type: 'set', field: 'repeat', value: 'yearly' });
+      dispatch({ type: 'set', field: 'due', value: todayIso() });
     }
   };
 
@@ -998,6 +1027,7 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
               <option value="daily">每天</option>
               <option value="weekly">每周</option>
               <option value="monthly">每月</option>
+              <option value="yearly">每年</option>
               <option value="weekdays">工作日</option>
             </select>
 
@@ -1064,6 +1094,10 @@ export function TaskEditor({
 
   const makeTask = useCallback((): Task => {
     const completed = draft.status === 'done';
+    // 未手动修改状态时不下发显式状态，让 store 按子任务树推断；
+    // 仅当用户显式切换（draft.status ≠ 初始推断值）时才下发，覆盖推断。
+    const statusExplicit =
+      task.meta.status !== undefined && draft.status !== task.meta.status ? draft.status : undefined;
     return {
       ...task,
       title: draft.title.trim() || task.title,
@@ -1072,7 +1106,7 @@ export function TaskEditor({
       meta: {
         ...task.meta,
         priority: draft.priority,
-        status: draft.status,
+        status: statusExplicit,
         start: draft.start || undefined,
         due: draft.due || undefined,
         repeat: draft.repeat || undefined,
@@ -1081,7 +1115,11 @@ export function TaskEditor({
       note: draft.note || undefined,
       links: textToLinks(draft.linksText),
       files: draft.files.length > 0 ? draft.files : undefined,
-      subtasks: draft.subtasks,
+      // 子任务树随任务保存；扁平化写回由 store 侧 replaceSubtree 完成，
+      // 子任务统一继承任务当前分组，避免新子任务遗留空 group
+      subtasks: draft.subtasks.length > 0
+        ? draft.subtasks.map((t) => ({ ...t, group: draft.group }))
+        : undefined,
     };
   }, [draft, task]);
 
@@ -1133,7 +1171,7 @@ export function TaskEditor({
     [draft.files, config],
   );
 
-  const prevSubtasksRef = useRef<Subtask[]>(draft.subtasks);
+  const prevSubtasksRef = useRef<Task[]>(draft.subtasks);
 
   useEffect(() => {
     if (detectSubtaskToggle(prevSubtasksRef.current, draft.subtasks)) {

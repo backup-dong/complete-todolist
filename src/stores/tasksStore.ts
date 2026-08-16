@@ -4,11 +4,11 @@ import { generateTaskId } from '@/utils/id';
 import { isDueToday, isDueThisWeek, isStartThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
 import { computeNextDue, computeEffectiveDueDate } from '@/utils/repeat';
 import { dateStrInMonth, getCalendarOccurrence } from '@/utils/calendar';
-import { cloneSubtasks, resetSubtasks, toggleSubtaskAtPath } from '@/utils/subtasks';
+import { topLevelTasks, toggleSubtaskState, resetDescendants, getDescendants, replaceSubtree, deleteSubtaskTree } from '@/utils/subtasks';
 import { getPendingWrites, getCachedFileContent } from '@/utils/storage';
 import { useListsStore } from './listsStore';
 import { useHolidayStore } from './holidayStore';
-import { normalizeTask, parseJsonToList, parseMarkdownToList } from '@/parser';
+import { normalizeTask, parseJsonToList } from '@/parser';
 
 interface TasksState {
   tasks: Task[];
@@ -23,7 +23,7 @@ interface TasksState {
   updateTask: (id: string, patch: Omit<Partial<Task>, 'meta'> & { meta?: Partial<TaskMeta> }) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   deleteTasks: (ids: string[]) => Promise<void>;
-  toggleSubtask: (taskId: string, path: number[]) => Promise<void>;
+  toggleSubtask: (taskId: string) => Promise<void>;
   completeTaskWithoutSubtasks: (taskId: string) => Promise<void>;
   reorderTasks: (fromIdx: number, toIdx: number) => Promise<void>;
   reorderTasksInGroup: (groupName: string, fromIdx: number, toIdx: number) => Promise<void>;
@@ -50,7 +50,7 @@ interface ActiveListCtx {
 function flattenTasks(listName: string): Task[] {
   const list = useListsStore.getState().fileCache[listName];
   if (!list) return [];
-  return list.groups.flatMap((g) => g.tasks);
+  return topLevelTasks(list.groups.flatMap((g) => g.tasks));
 }
 
 function requireActiveList(): ActiveListCtx | null {
@@ -65,7 +65,7 @@ function flattenAllTasks(fileCache: Record<string, ParsedList>): Task[] {
   const tasks: Task[] = [];
   for (const [listName, list] of Object.entries(fileCache)) {
     for (const group of list.groups) {
-      for (const task of group.tasks) {
+      for (const task of topLevelTasks(group.tasks)) {
         tasks.push({ ...task, sourceList: listName });
       }
     }
@@ -92,6 +92,22 @@ interface TaskContext {
   listName: string;
   list: ParsedList;
   saveListContent: (name: string, list: ParsedList) => Promise<void>;
+}
+
+/** 把扁平任务数组按 group 映射回 ParsedList.groups（保持原组顺序）。 */
+function rebuildGroups(list: ParsedList, flatTasks: Task[]): ParsedList {
+  return {
+    ...list,
+    groups: list.groups.map((g) => ({
+      ...g,
+      tasks: flatTasks.filter((t) => t.group === g.name),
+    })),
+  };
+}
+
+/** 获取某清单的全部扁平任务（含子任务）。 */
+function flatTasksOfList(list: ParsedList): Task[] {
+  return list.groups.flatMap((g) => g.tasks);
 }
 
 function requireTaskContext(task?: Task, preferredListName?: string): TaskContext | null {
@@ -154,29 +170,29 @@ function sortTasks(tasks: Task[], mode: SortMode): Task[] {
   return sorted;
 }
 
-function advanceRepeatingTask(task: Task, holidays: string[]): Task {
-  if (!task.meta.repeat || !task.meta.due) return task;
+function advanceRepeatingTask(tasks: Task[], taskId: string, holidays: string[]): Task[] {
+  const task = tasks.find((t) => t.id === taskId);
+  if (!task || !task.meta.repeat || !task.meta.due) return tasks;
 
   // 对于已过期的重复任务，先推进到有效日期再算下一次，避免从旧日期算出错误结果
   const baseDue = computeEffectiveDueDate(task.meta.due, task.meta.repeat, task.meta.repeat_until, holidays);
   const nextDue = computeNextDue(baseDue, task.meta.repeat, task.meta.repeat_until, holidays);
-  if (!nextDue) return task;
+  if (!nextDue) return tasks;
 
-  return {
+  const advanced: Task = {
     ...task,
     meta: {
       ...task.meta,
       status: 'pending',
       due: nextDue,
     },
-    subtasks: resetSubtasks(task.subtasks),
     completed_at: undefined,
     duration: undefined,
   };
-}
-
-function buildTaskPatch(patch: Partial<Task>, explicitStatus?: TaskMeta['status']): Task {
-  return normalizeTask(patch as Task, explicitStatus);
+  return resetDescendants(
+    tasks.map((t) => (t.id === taskId ? advanced : t)),
+    taskId,
+  );
 }
 
 export const useTasksStore = create<TasksState>((set, get) => ({
@@ -202,9 +218,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       if (cached && !store.fileCache[listName]) {
         try {
           const cachedContent = cached.content;
-          const list = cachedContent.trimStart().startsWith('{')
-            ? parseJsonToList(cachedContent, cached.sha)
-            : parseMarkdownToList(cachedContent, cached.sha);
+          const list = parseJsonToList(cachedContent, cached.sha);
           useListsStore.setState((s) => ({
             fileCache: { ...s.fileCache, [listName]: list },
             initialLoading: s.initialLoading && s.activeListName === listName ? false : s.initialLoading,
@@ -241,12 +255,12 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       id: generateTaskId(title, created),
       title,
       group: targetGroup,
+      parentId: null,
       meta: {
         priority: 'med',
         created,
         order: groupTasks.length > 0 ? minOrder - 1 : 1,
       },
-      subtasks: [],
     };
 
     const groupIndex = list.groups.findIndex((g) => g.name === targetGroup);
@@ -276,42 +290,34 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
     // sourceList 是运行时聚合字段，不写入清单数据
     delete (merged as Partial<Task>).sourceList;
-    const updatedTask = buildTaskPatch(merged as Task, explicitStatus);
 
-    // 如果修改了任务所属分组，需要在 groups 数组间物理移动，
-    // 否则侧边栏分组计数和刷新后的分组归属都会出错。
-    const oldGroupName = found.task.group;
-    const newGroupName = updatedTask.group;
-    let nextGroups: typeof list.groups;
+    // 编辑器保存时携带子任务树，展平替换进扁平结构（替换旧后代、写排父链与 order）
+    let flatAll = flatTasksOfList(list);
+    if (merged.subtasks) {
+      flatAll = replaceSubtree(flatAll, id, merged.subtasks);
+      delete (merged as Partial<Task>).subtasks;
+    }
+    const updatedTask = normalizeTask(merged as Task, {
+      explicitStatus,
+      descendants: getDescendants(flatAll, id),
+    });
+    flatAll = flatAll.map((t) => (t.id === id ? updatedTask : t));
 
-    if (newGroupName === oldGroupName) {
-      nextGroups = list.groups.map((g) => ({
-        ...g,
-        tasks: g.name === oldGroupName ? g.tasks.map((t) => (t.id === id ? updatedTask : t)) : g.tasks,
-      }));
-    } else {
-      const targetExists = list.groups.some((g) => g.name === newGroupName);
-      if (!targetExists) {
-        // 目标分组不存在时回退到原分组，避免任务丢失
-        updatedTask.group = oldGroupName;
-        nextGroups = list.groups.map((g) => ({
-          ...g,
-          tasks: g.name === oldGroupName ? g.tasks.map((t) => (t.id === id ? updatedTask : t)) : g.tasks,
-        }));
+    // 如果修改了任务所属分组，目标分组不存在时回退到原分组，避免任务丢失。
+    // 分组间的物理移动由重建 groups 时按新 group 字段自动完成。
+    if (updatedTask.group !== found.task.group) {
+      if (!list.groups.some((g) => g.name === updatedTask.group)) {
+        updatedTask.group = found.task.group;
       } else {
-        nextGroups = list.groups.map((g) => {
-          if (g.name === oldGroupName) {
-            return { ...g, tasks: g.tasks.filter((t) => t.id !== id) };
-          }
-          if (g.name === newGroupName) {
-            return { ...g, tasks: [...g.tasks, updatedTask] };
-          }
-          return g;
-        });
+        // 移入目标组末尾：重置 order 并把任务挪到 flat 数组末尾，避免与目标组已有任务的 order/位置冲突
+        const targetTasks = flatAll.filter((t) => t.id !== id && t.group === updatedTask.group);
+        const maxOrder = targetTasks.length > 0 ? Math.max(...targetTasks.map((t) => t.meta.order ?? 0)) : 0;
+        updatedTask.meta = { ...updatedTask.meta, order: maxOrder + 1 };
+        flatAll = [...flatAll.filter((t) => t.id !== id), updatedTask];
       }
     }
 
-    const nextList = { ...list, groups: nextGroups };
+    const nextList = rebuildGroups(list, flatAll);
     await saveListContent(listName, nextList);
 
     if (get().todoView) {
@@ -328,11 +334,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     if (!ctx) return;
     const { listName, list, saveListContent } = ctx;
 
-    const nextList = { ...list };
-    nextList.groups = nextList.groups.map((g) => ({
-      ...g,
-      tasks: g.tasks.filter((t) => t.id !== id),
-    }));
+    // 删除任务时连带删除全部后代，避免孤儿悬挂
+    const flatAll = deleteSubtaskTree(flatTasksOfList(list), id);
+    const nextList = rebuildGroups(list, flatAll);
 
     await saveListContent(listName, nextList);
 
@@ -353,7 +357,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const { fileCache, saveListContent, activeListName } = useListsStore.getState();
     const idSet = new Set(ids);
 
-    // 按清单分组，分别删除
+    // 按清单分组，分别删除（连带删除每个任务的全部后代）
     const tasksByList = new Map<string, Task[]>();
     for (const [listName, list] of Object.entries(fileCache)) {
       const matched = list.groups.flatMap((g) => g.tasks.filter((t) => idSet.has(t.id)));
@@ -367,12 +371,13 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       const hasMatch = list.groups.some((g) => g.tasks.some((t) => idSet.has(t.id)));
       if (!hasMatch) continue;
 
-      const nextList = { ...list };
-      nextList.groups = nextList.groups.map((g) => ({
-        ...g,
-        tasks: g.tasks.filter((t) => !idSet.has(t.id)),
-      }));
-      await saveListContent(listName, nextList);
+      let flatAll = flatTasksOfList(list);
+      for (const t of list.groups.flatMap((g) => g.tasks)) {
+        if (idSet.has(t.id)) {
+          flatAll = deleteSubtaskTree(flatAll, t.id);
+        }
+      }
+      await saveListContent(listName, rebuildGroups(list, flatAll));
     }
 
     if (get().todoView) {
@@ -388,7 +393,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
   },
 
-  toggleSubtask: async (taskId, path) => {
+  toggleSubtask: async (taskId) => {
     const found = findTaskAcrossLists(taskId);
     if (!found) return;
     const ctx = requireTaskContext(found.task, found.listName);
@@ -401,20 +406,15 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
     const holidays = holidayStore.holidays;
 
-    const nextList = { ...list };
-    nextList.groups = nextList.groups.map((g) => ({
-      ...g,
-      tasks: g.tasks.map((t) => {
-        if (t.id !== taskId) return t;
-        const nextSubtasks = toggleSubtaskAtPath(cloneSubtasks(t.subtasks), path);
-        let normalized = normalizeTask({ ...t, subtasks: nextSubtasks });
-        if (normalized.meta.status === 'done' && normalized.meta.repeat) {
-          normalized = advanceRepeatingTask(normalized, holidays);
-        }
-        return normalized;
-      }),
-    }));
+    let flatAll = toggleSubtaskState(flatTasksOfList(list), taskId, nowIso());
 
+    // 被勾选完成的任务若带重复规则，推进到下一次（后代同步重置）
+    const toggled = flatAll.find((t) => t.id === taskId);
+    if (toggled?.meta.status === 'done' && toggled.meta.repeat) {
+      flatAll = advanceRepeatingTask(flatAll, taskId, holidays);
+    }
+
+    const nextList = rebuildGroups(list, flatAll);
     await saveListContent(listName, nextList);
 
     if (get().todoView) {
@@ -442,27 +442,45 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
     const holidays = holidayStore.holidays;
 
-    const nextList = { ...list };
-    nextList.groups = nextList.groups.map((g) => ({
-      ...g,
-      tasks: g.tasks.map((t) => {
-        if (t.id !== taskId || t.subtasks.length > 0) return t;
-        const completedAt = nowIso();
-        let normalized = normalizeTask({
-          ...t,
-          meta: { ...t.meta, status: 'done' },
-          completed_at: completedAt,
-          duration: t.meta.start
-            ? durationDays(t.meta.start, completedAt)
-            : durationDays(t.meta.created, completedAt),
-        });
-        if (normalized.meta.repeat) {
-          normalized = advanceRepeatingTask(normalized, holidays);
-        }
-        return normalized;
-      }),
-    }));
+    const flatAll = flatTasksOfList(list);
+    const target = flatAll.find((t) => t.id === taskId);
+    if (!target || getDescendants(flatAll, taskId).length > 0) return;
 
+    const completedAt = nowIso();
+    let updated = normalizeTask(
+      {
+        ...target,
+        meta: { ...target.meta, status: 'done' },
+        completed_at: completedAt,
+        duration: target.meta.start
+          ? durationDays(target.meta.start, completedAt)
+          : durationDays(target.meta.created, completedAt),
+      },
+      { explicitStatus: 'done' },
+    );
+    if (updated.meta.repeat) {
+      // 无后代任务完成即重复：推进到下一次（后代不存在，无需重置）
+      const advanced = advanceRepeatingTask(
+        flatAll.map((t) => (t.id === taskId ? updated : t)),
+        taskId,
+        holidays,
+      );
+      updated = advanced.find((t) => t.id === taskId) ?? updated;
+    }
+
+    // 父链状态推断：子任务完成后祖先可能随之完成/变为进行中
+    let nextFlat = flatAll.map((t) => (t.id === taskId ? updated : t));
+    let cur: Task | undefined = updated;
+    while (cur?.parentId) {
+      const parent = nextFlat.find((t) => t.id === cur!.parentId);
+      if (!parent) break;
+      nextFlat = nextFlat.map((t) =>
+        t.id === parent.id ? normalizeTask(parent, { descendants: getDescendants(nextFlat, parent.id) }) : t,
+      );
+      cur = parent;
+    }
+
+    const nextList = rebuildGroups(list, nextFlat);
     await saveListContent(listName, nextList);
 
     if (get().todoView) {
