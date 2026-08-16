@@ -305,8 +305,8 @@ function SubtaskLinksEditor({
           onChange={(e) => setDraftText(e.target.value)}
           onBlur={() => onChange(path, { ...subtask, links: textToLinks(draftText) })}
           placeholder="每行一条「标题 URL」"
-          rows={2}
-          className="input border-0 focus:ring-0"
+          rows={3}
+          className="input min-h-[80px] resize-y border-0 focus:ring-0"
           autoFocus
         />
       )}
@@ -543,6 +543,7 @@ function SubtaskEditor({
             onChange={(v) => handleChange({ note: v || undefined })}
             placeholder="备注（Markdown）"
             rows={3}
+            title="备注"
           />
           <SubtaskLinksEditor subtask={subtask} path={path} onChange={onChange} />
           <SubtaskFilesEditor subtask={subtask} path={path} onChange={onChange} />

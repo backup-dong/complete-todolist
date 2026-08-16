@@ -13,6 +13,7 @@ interface NoteEditorProps {
   placeholder?: string;
   rows?: number;
   className?: string;
+  title?: string;
 }
 
 function insertFormat(value: string, selStart: number, selEnd: number, type: string, extra?: { rows?: number; cols?: number; text?: string; url?: string; alt?: string }): { newValue: string; newCursor: number } {
@@ -101,7 +102,7 @@ function insertFormat(value: string, selStart: number, selEnd: number, type: str
   }
 }
 
-export function NoteEditor({ value, onChange, placeholder = '备注（Markdown）', rows = 4, className = '' }: NoteEditorProps) {
+export function NoteEditor({ value, onChange, placeholder = '备注（Markdown）', rows = 4, className = '', title }: NoteEditorProps) {
   const [mode, setMode] = useState<'edit' | 'preview'>('preview');
   const [fullscreen, setFullscreen] = useState(false);
   const [dialog, setDialog] = useState<'table' | 'link' | 'image' | null>(null);
@@ -169,7 +170,10 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
   return (
     <div className={`rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface)] ${className}`}>
       {mode === 'preview' ? (
-        <div className="flex items-center justify-end border-b border-[var(--color-border-subtle)] px-3 py-1.5">
+        <div className={`flex items-center border-b border-[var(--color-border-subtle)] px-3 py-1.5 ${title ? 'justify-between' : 'justify-end'}`}>
+          {title && (
+            <span className="text-xs font-medium text-[var(--color-text-secondary)]">{title}</span>
+          )}
           <button
             type="button"
             onClick={() => setMode('edit')}
@@ -181,6 +185,9 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
         </div>
       ) : (
         <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)]">
+          {title && (
+            <span className="shrink-0 pl-3 text-xs font-medium text-[var(--color-text-secondary)]">{title}</span>
+          )}
           <div className="relative flex-1">
             <NoteToolbar onFormat={handleFormat} />
             {dialog === 'table' && (
