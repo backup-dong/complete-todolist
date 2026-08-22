@@ -368,6 +368,11 @@ button {
   animation: task-highlight 1.2s ease-out;
 }
 
+/* react-photo-view 挂载在 body 下，会被 Radix 弹窗的 body pointer-events:none 波及，导致整层不可交互 */
+.PhotoView-Portal {
+  pointer-events: auto !important;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -1,6 +1,9 @@
-import { Download, FileIcon, Image, FileSpreadsheet, FileText, FileArchive, FileType, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Download, Eye, FileIcon, Image, FileSpreadsheet, FileText, FileArchive, FileType, Trash2 } from 'lucide-react';
 import type { FileRef } from '@/types';
 import { formatFileSize, getFileMimeIcon } from '@/utils/file';
+import { getPreviewKind } from '@/utils/filePreview';
+import { FilePreviewDialog } from './FilePreviewDialog';
 
 const FILE_ICONS: Record<string, typeof FileIcon> = {
   image: Image,
@@ -30,45 +33,63 @@ export function FileListDisplay({
   onDelete?: (file: FileRef) => void;
   compact?: boolean;
 }) {
+  const [previewFile, setPreviewFile] = useState<FileRef | null>(null);
   if (!files.length) return null;
 
   return (
-    <div className={compact ? 'flex flex-wrap items-center gap-1.5' : 'mt-2 flex flex-wrap items-center gap-2'}>
-      {files.map((file, i) => (
-        <div
-          key={i}
-          className={[
-            'inline-flex items-center gap-1.5 rounded-md',
-            compact
-              ? 'bg-[var(--color-surface-hover)] px-1.5 py-0.5 text-[10px]'
-              : 'bg-[var(--color-surface-hover)] px-2 py-1 text-xs',
-          ].join(' ')}
-        >
-          <button
-            type="button"
-            onClick={() => onDownload(file)}
-            title={`下载 ${file.name}`}
-            className="inline-flex min-w-0 max-w-[160px] items-center gap-1 text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
-          >
-            <FileIconDisplay mime={file.mime} />
-            <span className="truncate">{file.name}</span>
-            <Download className="h-3 w-3 shrink-0" />
-          </button>
-          {!compact && (
-            <span className="text-[var(--color-text-muted)]">{formatFileSize(file.size)}</span>
-          )}
-          {onDelete && (
-            <button
-              type="button"
-              onClick={() => onDelete(file)}
-              className="text-[var(--color-text-muted)] hover:text-[var(--color-danger)]"
-              aria-label={`删除 ${file.name}`}
+    <>
+      <div className={compact ? 'flex flex-wrap items-center gap-1.5' : 'mt-2 flex flex-wrap items-center gap-2'}>
+        {files.map((file, i) => {
+          const previewable = getPreviewKind(file.mime, file.name) !== null;
+          return (
+            <div
+              key={i}
+              className={[
+                'inline-flex items-center gap-1.5 rounded-md',
+                compact
+                  ? 'bg-[var(--color-surface-hover)] px-1.5 py-0.5 text-[10px]'
+                  : 'bg-[var(--color-surface-hover)] px-2 py-1 text-xs',
+              ].join(' ')}
             >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
+              <button
+                type="button"
+                onClick={() => onDownload(file)}
+                title={`下载 ${file.name}`}
+                className="inline-flex min-w-0 max-w-[160px] items-center gap-1 text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+              >
+                <FileIconDisplay mime={file.mime} />
+                <span className="truncate">{file.name}</span>
+                <Download className="h-3 w-3 shrink-0" />
+              </button>
+              {previewable && (
+                <button
+                  type="button"
+                  onClick={() => setPreviewFile(file)}
+                  title={`预览 ${file.name}`}
+                  className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                  aria-label={`预览 ${file.name}`}
+                >
+                  <Eye className="h-3 w-3" />
+                </button>
+              )}
+              {!compact && (
+                <span className="text-[var(--color-text-muted)]">{formatFileSize(file.size)}</span>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(file)}
+                  className="text-[var(--color-text-muted)] hover:text-[var(--color-danger)]"
+                  aria-label={`删除 ${file.name}`}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <FilePreviewDialog file={previewFile} onClose={() => setPreviewFile(null)} />
+    </>
   );
 }
