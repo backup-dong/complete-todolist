@@ -180,7 +180,7 @@
 | `repeat_until` | string | 否 | 重复截止日期；超过则不再推进 |
 | `repeat_count` | number | 否 | 已推进次数计数 |
 | `order` | number | 否 | 同父级内位置，1 起；`buildSubtaskTree` 依据它排序 |
-| `tags` | string[] | 否 | 标签列表 |
+| `tags` | string[] | 否 | 标签列表（编辑/筛选行为见 9.8 标签） |
 
 #### 链接（`Link`）、附件（`FileRef`）、提醒（`Reminder`）
 
@@ -443,7 +443,7 @@ return JSON.stringify(payload, null, 2)
 ```
 activeList(fileCache) → flatAll = groups.flatMap(g => g.tasks)
   → buildSubtaskTree(flatAll, null)          ← 树化（含全部层级）
-  → 顶层按 filteredTopIds(筛选/搜索结果) ∩ activeGroup 过滤
+  → 顶层按 filteredTopIds(筛选/搜索/标签结果) ∩ activeGroup 过滤
   → displayTasks（树形，TaskCard 递归渲染 subtasks）
 待办视图：不走树化，保持扁平 + matchesTodoView 过滤 + sourceList 标记来源
 ```
@@ -480,9 +480,13 @@ activeList(fileCache) → flatAll = groups.flatMap(g => g.tasks)
 
 ### 9.4 搜索与过滤
 
-- `FilterState = { status[], priority, timeRange }`；
-  `timeRange ∈ all|today|week|overdue`（基于 `src/utils/date.ts` 谓词）。
+- `FilterState = { status[], priority, timeRange, tags[] }`；
+  `timeRange ∈ all|today|week|overdue`（基于 `src/utils/date.ts` 谓词）；
+  `tags` 为标签数组，空数组表示全部。
+- 标签过滤为 OR 语义：`filter.tags` 非空时，任务任一标签命中即匹配（`matchesFilter`）。
+- 搜索文本已包含标签（haystack = `title + note + tags.join(' ')`）。
 - 搜索命中顶层后，`filteredTopIds` 保留整棵子树显示。
+- 按标签筛选入口在侧边栏「标签」区块，行为见 9.8 标签。
 
 ### 9.5 周报导出
 
@@ -497,6 +501,44 @@ activeList(fileCache) → flatAll = groups.flatMap(g => g.tasks)
 ### 9.7 主题
 
 - 明/暗主题持久化于 localStorage；Tailwind 变量驱动。
+
+### 9.8 标签（Tags）
+
+**数据模型**
+
+- 标签存储于 `TaskMeta.tags?: string[]`，随任务 JSON 持久化（序列化随 `meta` 原样写出）。
+- 解析归一化：仅接受字符串数组；逐项 `trim()`、丢弃空串与非字符串，否则置为
+  `undefined`——防止畸形 JSON（如 `"tags": "oops"`）在搜索/过滤的 `.join`/`.some` 处崩溃。
+
+**展示（`TagPill`）**
+
+- 任务卡片 meta 行以胶囊渲染标签（`src/components/tasks/TagPill.tsx`），
+  中性灰底 + 边框 + 次级文字色，与高/中/低优先级（红/琥珀/蓝填充）明显区分，
+  明暗主题均随 CSS 变量适配；卡片与编辑器共用同一组件。
+
+**编辑（TaskEditor「标签」区块）**
+
+- 自由输入：文本框回车或逗号分隔提交，`trim()` 后精确去重，逐标签生成。
+- 建议：列出当前清单（含子任务）已存在的标签，点击即可添加（最多显示 8 个）；
+  全部已用则隐藏建议行。
+- 每个标签带 ✕ 可移除；空数组保存时折叠为 `undefined`（JSON 不残留空数组）。
+
+**筛选（侧边栏「标签」区块，位于「我的清单」下方）**
+
+- 标签列表从当前上下文任务（活动清单顶层任务 / 待办视图聚合任务）统计，按计数降序展示。
+- 点击标签 → `setFilter({ tags: [tag] })` 并清除 `activeGroup`，作为跨分组视图；
+  再次点击同一标签取消。
+- 语义：标签之间为 OR，与状态/优先级/时间/搜索过滤组合为 AND（`matchesFilter`）。
+- 待办视图：`setTodoView` 会重置 `filter`（含 `tags`），进入待办视图自动清空标签过滤；
+  待在视图内点标签则在聚合任务上叠加过滤。
+- 工具栏「清除筛选」与移动端筛选徽标均计入标签过滤。
+
+**实现位置**
+
+- `src/components/tasks/TagPill.tsx`（组件）、`TaskEditor.tsx`（编辑）、
+  `TaskCard.tsx`（展示）、`Sidebar.tsx`（侧边栏区块）、
+  `src/stores/tasksStore.ts`（`matchesFilter` / `setFilter`）、
+  `src/types/index.ts`（`FilterState.tags`）。
 
 ## 十、备注（Note）、链接（Links）与附件（Files）详解
 
