@@ -750,7 +750,7 @@ function isDescendantExpanded(expandedId: string | null, subtree: Task): boolean
 function createEmptySubtask(parentId: string | null): Task {
   const created = todayIso();
   return {
-    id: generateTaskId('', nowIso()),
+    id: generateTaskId(),
     title: '',
     group: '',
     parentId,

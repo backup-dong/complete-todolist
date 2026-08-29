@@ -19,7 +19,7 @@
 | 自动同步完时间没刷新 | 是 | `debouncedPush` 推送成功后调用 `computeState()` 更新 `syncStore` 的 `status`/`lastSyncAt`/`pendingWrites`，`SyncIndicator` 正确显示"已同步"及时间戳 |
 | 解决错误的github token没有错误提醒（index-CFBl_8s2.js:77 fetchLists failed HttpError: Bad credentials - https://docs.github.com/rest<br/>    at ix (index-CFBl_8s2.js:60:36339)<br/>    at async _A (index-CFBl_8s2.js:62:108804)<br/>    at async R.doExecute (index-CFBl_8s2.js:62:89584)） | 是 | `fetchLists` 失败时按 HTTP 状态码弹出错误提示（401/403 → Token 不正确或无权限、404 → 仓库路径不存在），保存配置时先验证再跳转，失败停留在设置页 |
 | 解决更换完token后确认，系统没有加载新待办 | 是 | `configure` 不再只更新状态，而是把新 `config` 写入 store 并触发重新拉取；保存时先 `fetchLists` 校验成功后再跳转，新 Token 的清单/任务能正常加载 |
-| 任务 ID 用 title+创建日期哈希生成，同日同名任务 ID 碰撞，删除/勾选/编辑会同时作用到所有同 ID 任务，跨清单还可能改错清单 | 否 | `src/utils/id.ts` 确定性哈希；建议改为随机/递增唯一 ID，`jsonParser.ts:93`、`scanner.ts:403`、`tasksStore.createTask` 三处生成点需同步 |
+| 任务 ID 用 title+创建日期哈希生成，同日同名任务 ID 碰撞，删除/勾选/编辑会同时作用到所有同 ID 任务，跨清单还可能改错清单 | 是 | `src/utils/id.ts` 改为 `crypto.randomUUID()` 生成随机唯一 ID（非安全上下文兜底 `getRandomValues`/`Math.random`），多设备生成也全局唯一；`title`/`created` 参数保留为兼容签名，`createTask`、解析缺 ID 补全、空子任务三处生成点同步更新，遗留 `scanner.ts` 不受影响；存量哈希 ID 数据无需迁移（解析时 `r.id` 优先） |
 | 手动设置的任务状态不持久：序列化时 `normalizeTask` 不带显式状态，保存后按子任务反推覆盖 `meta.status`；有未完成子任务的任务选"已完成"刷新即还原，"待处理"也改不回全完成子任务的任务 | 否 | `src/parser/serializer.ts:66-91`；需在 `serializeTask` 保留显式状态或去掉状态选择 UI |
 | 设置页保存/退出登录会 `resetListsState()`，永久清空所有离线 pending 修改，属于静默数据丢失 | 否 | `Settings.tsx:22-30` → `listsStore.ts:412-433`；保存前应先确认/flush pending writes |
 | 离线删除/重命名清单静默失败，无待删/待改队列，用户无感知；重命名后旧文件名 pending write 未清理，之后会复活旧远端文件 | 否 | `listsStore.ts:273-339` |

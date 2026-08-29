@@ -152,7 +152,7 @@
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `id` | string | 是 | 稳定 ID；基于标题+创建时间的确定性 hash（缺失时生成并会在写回时补齐） |
+| `id` | string | 是 | 稳定 ID；`crypto.randomUUID()` 生成的随机唯一 ID（缺失时生成并会在写回时补齐），多设备生成亦全局唯一，避免碰撞 |
 | `title` | string | 是 | 任务标题 |
 | `parentId` | string \| null | 是 | 父任务 id；`null` 表示顶层任务。指向不存在的 id 即视为顶层 |
 | `group` | string | 是 | 所属分组名（归一化后与所在 Group.name 一致） |
@@ -251,7 +251,7 @@
 | --- | --- |
 | `src/parser/jsonParser.ts` | JSON 字符串 → `ParsedList`；版本校验、字段归一化、缺失 id 生成、分组兜底 |
 | `src/parser/jsonSerializer.ts` | `ParsedList` → 规范 JSON 字符串；状态推断、`completed_at`/`duration` 派生、剔除内存字段 |
-| `src/utils/id.ts` | 确定性任务 id（标题+创建时间 → 字符串 hash → 36 进制） |
+| `src/utils/id.ts` | 随机唯一任务 id（`crypto.randomUUID()`；非安全上下文兜底 `getRandomValues`/`Math.random`，16 字节 hex） |
 | `src/utils/date.ts` | ISO 格式化、相对日期、due 谓词（today/week/overdue）、`durationDays` |
 
 ### 3.2 解析流程（`parseJsonToList(content, sha?)`）
@@ -473,7 +473,7 @@ activeList(fileCache) → flatAll = groups.flatMap(g => g.tasks)
 
 ### 9.3 任务 CRUD
 
-- 创建：`generateTaskId(title, created)` 确定性 id + 默认 meta + 追加到当前分组顶层。
+- 创建：`generateTaskId()` 随机唯一 id（`crypto.randomUUID()`）+ 默认 meta + 追加到当前分组顶层。
 - 更新：编辑器成套保存（note/links/meta…）→ `saveListContent`。
 - 删除：`deleteSubtaskTree` 级联删后代；带确认弹窗。
 - 拖拽：dnd-kit 支持跨组/跨父移动，`replaceSubtree` + `order` 重排写回。

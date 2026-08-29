@@ -184,9 +184,14 @@ describe('repeat utils', () => {
 });
 
 describe('id utils', () => {
-  it('generates deterministic ids', () => {
-    expect(generateTaskId('title', '2026-07-01')).toBe(generateTaskId('title', '2026-07-01'));
-    expect(generateTaskId('title1', '2026-07-01')).not.toBe(generateTaskId('title2', '2026-07-01'));
+  it('generates unique ids', () => {
+    const ids = Array.from({ length: 50 }, () => generateTaskId());
+    expect(new Set(ids).size).toBe(50);
+    expect(ids.every((id) => typeof id === 'string' && id.length > 0)).toBe(true);
+  });
+
+  it('generates different ids for identical title/created input', () => {
+    expect(generateTaskId('title', '2026-07-01')).not.toBe(generateTaskId('title', '2026-07-01'));
   });
 });
 

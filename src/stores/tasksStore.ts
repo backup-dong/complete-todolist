@@ -257,7 +257,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const minOrder = groupTasks.length > 0 ? Math.min(...groupTasks.map((t) => t.meta.order ?? 0)) : 1;
 
     const newTask: Task = {
-      id: generateTaskId(title, created),
+      id: generateTaskId(),
       title,
       group: targetGroup,
       parentId: null,

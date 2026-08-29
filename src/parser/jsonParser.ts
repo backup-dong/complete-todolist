@@ -73,8 +73,7 @@ function normalizeTask(raw: unknown, groupName: string): Task {
   const r = raw as Record<string, unknown>;
   const title = typeof r.title === 'string' ? r.title : '';
   const rawMeta = (typeof r.meta === 'object' && r.meta !== null ? r.meta : {}) as Partial<TaskMeta>;
-  const created = rawMeta.created ?? todayIso();
-  const id = typeof r.id === 'string' && r.id ? r.id : generateTaskId(title, created);
+  const id = typeof r.id === 'string' && r.id ? r.id : generateTaskId();
 
   const task: Task = {
     id,
