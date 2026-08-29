@@ -3,9 +3,12 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ClipboardPaste,
   Eye,
   GripVertical,
   Link as LinkIcon,
+  Maximize2,
+  Minimize2,
   Pencil,
   Plus,
   Trash2,
@@ -46,6 +49,8 @@ import {
 } from '@/utils/repeat';
 import { FileListDisplay } from './FileAttachments';
 import { TagPill } from './TagPill';
+import { useClipboardPaste } from '@/utils/useClipboardPaste';
+import { toast } from '@/utils/toast';
 import { useFileDownload } from '@/utils/useFileDownload';
 import { uploadFileToRepo } from '@/utils/fileUpload';
 import { deleteFile } from '@/github/client';
@@ -327,7 +332,7 @@ function SubtaskFilesEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  const handleUpload = async (fileList: FileList | null) => {
+  const handleUpload = async (fileList: File[] | FileList | null) => {
     if (!fileList || !config || !activeListName) return;
     setUploading(true);
     try {
@@ -346,6 +351,15 @@ function SubtaskFilesEditor({
     } finally {
       setUploading(false);
     }
+  };
+
+  // 子任务附件的剪贴板上传：点击「粘贴」后开启一次性粘贴模式，再按 Ctrl+V。
+  const { arm: armPaste } = useClipboardPaste(handleUpload, !!config && !!activeListName);
+
+  const handlePasteClipboard = () => {
+    if (!config || !activeListName) return;
+    armPaste();
+    toast.info('已开启粘贴模式，请按 Ctrl+V 粘贴剪贴板中的文件/图片');
   };
 
   const handleDelete = async (file: FileRef) => {
@@ -379,15 +393,27 @@ function SubtaskFilesEditor({
         }}
         className="hidden"
       />
-      <button
-        type="button"
-        disabled={uploading || !config || !activeListName}
-        onClick={() => fileInputRef.current?.click()}
-        className="mt-1 flex items-center gap-1.5 rounded-md border border-dashed border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
-      >
-        <Upload className="h-3 w-3" />
-        {uploading ? '上传中...' : '上传文件'}
-      </button>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={uploading || !config || !activeListName}
+          onClick={() => fileInputRef.current?.click()}
+          className="flex items-center gap-1.5 rounded-md border border-dashed border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
+        >
+          <Upload className="h-3 w-3" />
+          {uploading ? '上传中...' : '上传文件'}
+        </button>
+        <button
+          type="button"
+          disabled={uploading || !config || !activeListName}
+          onClick={handlePasteClipboard}
+          title="粘贴剪贴板中的文件/图片（也可先复制文件后按 Ctrl+V）"
+          className="flex items-center gap-1.5 rounded-md border border-dashed border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
+        >
+          <ClipboardPaste className="h-3 w-3" />
+          粘贴
+        </button>
+      </div>
     </div>
   );
 }
@@ -1157,11 +1183,15 @@ export function TaskEditor({
   groups,
   onSave,
   onClose,
+  isFullscreen = false,
+  onToggleFullscreen,
 }: {
   task: Task;
   groups: string[];
   onSave: (updated: Task) => void;
   onClose: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }) {
   const [draft, dispatch] = useReducer(draftReducer, task, buildDraft);
   const [uploading, setUploading] = useState(false);
@@ -1219,7 +1249,7 @@ export function TaskEditor({
   }, [makeTask, onSave]);
 
   const handleUploadFiles = useCallback(
-    async (fileList: FileList | null) => {
+    async (fileList: File[] | FileList | null) => {
       if (!fileList || !config || !activeListName) return;
       setUploading(true);
       try {
@@ -1243,6 +1273,16 @@ export function TaskEditor({
     },
     [config, activeListName, task.id, draft.files],
   );
+
+  // 剪贴板上传改为按钮控制：默认不监听粘贴，点击「粘贴」后开启一次性粘贴模式，
+  // 再按 Ctrl+V 才会上传（系统复制的文件无法用 navigator.clipboard.read() 直接读取）。
+  const { arm: armPaste } = useClipboardPaste(handleUploadFiles, !!config && !!activeListName);
+
+  const handlePasteClipboard = useCallback(() => {
+    if (!config || !activeListName) return;
+    armPaste();
+    toast.info('已开启粘贴模式，请按 Ctrl+V 粘贴剪贴板中的文件/图片');
+  }, [config, activeListName, armPaste]);
 
   const handleDeleteFile = useCallback(
     async (file: FileRef) => {
@@ -1279,18 +1319,31 @@ export function TaskEditor({
     >
       <div className="flex items-center justify-between border-b border-[var(--color-border)] p-4">
         <h2 className="text-base font-semibold text-[var(--color-text)]">任务详情</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="btn-ghost p-1.5"
-          aria-label="关闭"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {onToggleFullscreen && (
+            <button
+              type="button"
+              onClick={onToggleFullscreen}
+              className="btn-ghost p-1.5"
+              aria-label={isFullscreen ? '退出全屏' : '全屏'}
+              title={isFullscreen ? '退出全屏' : '全屏'}
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-ghost p-1.5"
+            aria-label="关闭"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="mx-auto max-w-5xl space-y-4">
+        <div className="mx-auto space-y-4">
           <TaskMetaFields draft={draft} groups={groups} dispatch={dispatch} />
           <Section title="标签">
             <TaskTagsEditor
@@ -1345,15 +1398,27 @@ export function TaskEditor({
               }}
               className="hidden"
             />
-            <button
-              type="button"
-              disabled={uploading || !config || !activeListName}
-              onClick={() => fileInputRef.current?.click()}
-              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
-            >
-              <Upload className="h-4 w-4" />
-              {uploading ? '上传中...' : '上传文件'}
-            </button>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={uploading || !config || !activeListName}
+                onClick={() => fileInputRef.current?.click()}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
+              >
+                <Upload className="h-4 w-4" />
+                {uploading ? '上传中...' : '上传文件'}
+              </button>
+              <button
+                type="button"
+                disabled={uploading || !config || !activeListName}
+                onClick={handlePasteClipboard}
+                title="点击开启粘贴模式，再按 Ctrl+V 粘贴文件/图片"
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] px-3 py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
+              >
+                <ClipboardPaste className="h-4 w-4" />
+                粘贴
+              </button>
+            </div>
           </Section>
         </div>
       </div>

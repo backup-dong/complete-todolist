@@ -895,7 +895,7 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   return (
     <aside
       className={[
-        'flex h-full w-60 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-raised)]',
+        'flex h-full w-60 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-raised)] md:w-72',
         onClose ? 'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : '',
       ].join(' ')}
     >

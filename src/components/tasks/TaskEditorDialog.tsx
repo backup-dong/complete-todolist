@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Task } from '@/types';
 import { useListsStore } from '@/stores/listsStore';
 import { buildSubtaskTree } from '@/utils/subtasks';
@@ -14,6 +14,7 @@ interface TaskEditorDialogProps {
 
 export function TaskEditorDialog({ task, groups, onSave, onClose }: TaskEditorDialogProps) {
   const open = task !== null;
+  const [fullscreen, setFullscreen] = useState(false);
   const fileCache = useListsStore((s) => s.fileCache);
   const activeListName = useListsStore((s) => s.activeListName);
 
@@ -34,9 +35,19 @@ export function TaskEditorDialog({ task, groups, onSave, onClose }: TaskEditorDi
     }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-[var(--color-backdrop)] backdrop-blur-sm" />
-        <div className="fixed inset-0 z-50 flex pointer-events-none md:items-center md:justify-center md:p-4">
+        <div
+          className={[
+            'fixed inset-0 z-50 flex pointer-events-none',
+            fullscreen ? '' : 'md:items-center md:justify-center md:p-4',
+          ].join(' ')}
+        >
           <Dialog.Content
-            className="pointer-events-auto z-50 flex h-full w-full flex-col overflow-hidden bg-[var(--color-surface-raised)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] outline-none md:h-[90vh] md:max-w-4xl md:rounded-xl md:border md:border-[var(--color-border)] md:shadow-lg md:pt-0 md:pb-0"
+            className={[
+              'pointer-events-auto z-50 flex h-full w-full flex-col overflow-hidden bg-[var(--color-surface-raised)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] outline-none md:pt-0 md:pb-0',
+              fullscreen
+                ? 'md:h-full md:max-w-none md:rounded-none md:border-0 md:shadow-none'
+                : 'md:h-[90vh] md:max-w-4xl md:rounded-xl md:border md:border-[var(--color-border)] md:shadow-lg',
+            ].join(' ')}
             aria-describedby={undefined}
           >
             <Dialog.Title className="sr-only">任务详情</Dialog.Title>
@@ -47,6 +58,8 @@ export function TaskEditorDialog({ task, groups, onSave, onClose }: TaskEditorDi
                 groups={groups}
                 onSave={onSave}
                 onClose={onClose}
+                isFullscreen={fullscreen}
+                onToggleFullscreen={() => setFullscreen((v) => !v)}
               />
             )}
           </Dialog.Content>

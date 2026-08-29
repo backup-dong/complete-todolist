@@ -235,7 +235,7 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
           />
         </div>
       ) : (
-        <div className="p-3 cursor-pointer" onClick={() => setMode('edit')}>
+        <div className="p-3">
           <MarkdownPreview content={value} />
         </div>
       )}
