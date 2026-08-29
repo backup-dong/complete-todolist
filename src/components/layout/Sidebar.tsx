@@ -21,6 +21,7 @@ import { useTasksStore } from '@/stores/tasksStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { confirm } from '@/stores/confirmStore';
 import { toast } from '@/utils/toast';
+import { topLevelTasks } from '@/utils/subtasks';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { getPendingWrites } from '@/utils/storage';
 import type { ListMeta, ParsedList } from '@/types';
@@ -536,13 +537,14 @@ function ListGroups({
   return (
     <div className="ml-4 mt-0.5 space-y-0.5 border-l border-[var(--color-border)] pl-2">
       {listData.groups.map((g) => {
-        const done = g.tasks.filter((t) => t.meta.status === 'done').length;
+        const topLevel = topLevelTasks(g.tasks);
+        const done = topLevel.filter((t) => t.meta.status === 'done').length;
         return (
           <GroupRow
             key={g.name}
             name={g.name}
             done={done}
-            total={g.tasks.length}
+            total={topLevel.length}
             active={activeGroup === g.name}
             editing={editingGroupName === g.name}
             editValue={editingGroupName === g.name ? editingGroupNewName : g.name}
