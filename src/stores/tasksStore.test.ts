@@ -46,7 +46,7 @@ describe('tasksStore reorder', () => {
       tasks: [],
       selectedTaskId: null,
       sortMode: 'drag',
-      filter: { status: [], priority: 'all', timeRange: 'all' },
+      filter: { status: [], priority: 'all', timeRange: 'all', tags: [] },
       searchQuery: '',
       todoView: null,
     });
@@ -146,14 +146,14 @@ describe('tasksStore reorder', () => {
     useListsStore.setState({ fileCache: { 工作: list } });
     useTasksStore.setState({
       tasks: list.groups.flatMap((g) => g.tasks),
-      filter: { status: ['pending', 'active'], priority: 'all', timeRange: 'all' },
+      filter: { status: ['pending', 'active'], priority: 'all', timeRange: 'all', tags: [] },
     });
 
     const filtered = useTasksStore.getState().getFilteredTasks();
     expect(filtered).toHaveLength(4);
 
     useTasksStore.setState({
-      filter: { status: ['done'], priority: 'all', timeRange: 'all' },
+      filter: { status: ['done'], priority: 'all', timeRange: 'all', tags: [] },
     });
     expect(useTasksStore.getState().getFilteredTasks()).toHaveLength(0);
   });
@@ -181,7 +181,7 @@ describe('tasksStore reorder', () => {
     useListsStore.setState({ fileCache: { 工作: list } });
     useTasksStore.setState({
       tasks: list.groups.flatMap((g) => g.tasks),
-      filter: { status: [], priority: 'all', timeRange: 'overdue' },
+      filter: { status: [], priority: 'all', timeRange: 'overdue', tags: [] },
     });
 
     try {
@@ -208,7 +208,7 @@ describe('tasksStore todo views', () => {
       tasks: [],
       selectedTaskId: null,
       sortMode: 'drag',
-      filter: { status: [], priority: 'all', timeRange: 'all' },
+      filter: { status: [], priority: 'all', timeRange: 'all', tags: [] },
       searchQuery: '',
       todoView: null,
     });
@@ -299,5 +299,123 @@ describe('tasksStore todo views', () => {
     const lifeList = useListsStore.getState().fileCache['生活'];
     expect(lifeList!.groups[0].tasks.find((t) => t.id === 'l2')?.title).toBe('修改后的生活任务');
     expect(useTasksStore.getState().tasks.find((t) => t.id === 'l2')?.title).toBe('修改后的生活任务');
+  });
+});
+
+describe('tasksStore tags', () => {
+  beforeEach(() => {
+    useListsStore.setState({
+      lists: [],
+      activeListName: '工作',
+      activeGroup: null,
+      fileCache: {},
+    });
+    useTasksStore.setState({
+      tasks: [],
+      selectedTaskId: null,
+      sortMode: 'drag',
+      filter: { status: [], priority: 'all', timeRange: 'all', tags: [] },
+      searchQuery: '',
+      todoView: null,
+    });
+  });
+
+  function taggedTask(id: string, tags: string[], extra: Partial<Task> = {}): Task {
+    return {
+      ...makeTask(id, id, '项目Alpha', 1),
+      meta: { ...makeTask(id, id, '项目Alpha', 1).meta, tags },
+      ...extra,
+    };
+  }
+
+  it('getFilteredTasks filters by tag with OR semantics', () => {
+    const list: ParsedList = {
+      meta: { name: '工作', created: '2026-07-01', archived: false },
+      groups: [
+        {
+          name: '项目Alpha',
+          tasks: [taggedTask('a', ['x']), taggedTask('b', ['y']), taggedTask('c', ['x', 'y']), taggedTask('d', [])],
+        },
+      ],
+      rawContent: '',
+    };
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({ tasks: list.groups.flatMap((g) => g.tasks) });
+
+    useTasksStore.setState({ filter: { status: [], priority: 'all', timeRange: 'all', tags: ['x'] } });
+    expect(useTasksStore.getState().getFilteredTasks().map((t) => t.id).sort()).toEqual(['a', 'c']);
+
+    useTasksStore.setState({ filter: { status: [], priority: 'all', timeRange: 'all', tags: ['x', 'y'] } });
+    expect(useTasksStore.getState().getFilteredTasks().map((t) => t.id).sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('tag filter composes with status filter', () => {
+    const list: ParsedList = {
+      meta: { name: '工作', created: '2026-07-01', archived: false },
+      groups: [
+        {
+          name: '项目Alpha',
+          tasks: [
+            {
+              ...makeTask('a', '已完成带标签', '项目Alpha', 1),
+              meta: { ...makeTask('a', '已完成带标签', '项目Alpha', 1).meta, tags: ['x'], status: 'done' },
+            },
+            taggedTask('b', ['x']),
+          ],
+        },
+      ],
+      rawContent: '',
+    };
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({ tasks: list.groups.flatMap((g) => g.tasks) });
+    useTasksStore.setState({
+      filter: { status: ['done'], priority: 'all', timeRange: 'all', tags: ['x'] },
+    });
+    expect(useTasksStore.getState().getFilteredTasks().map((t) => t.id)).toEqual(['a']);
+  });
+
+  it('clearFilters resets tags', () => {
+    useTasksStore.setState({ filter: { status: [], priority: 'all', timeRange: 'all', tags: ['x'] } });
+    useTasksStore.getState().clearFilters();
+    expect(useTasksStore.getState().filter.tags).toEqual([]);
+  });
+
+  it('setTodoView resets tags filter', () => {
+    useListsStore.setState({ fileCache: { 工作: makeList() } });
+    useTasksStore.setState({ filter: { status: [], priority: 'all', timeRange: 'all', tags: ['x'] } });
+    useTasksStore.getState().setTodoView('all');
+    expect(useTasksStore.getState().filter.tags).toEqual([]);
+  });
+
+  it('updateTask saves and clears tags', async () => {
+    const list = makeList();
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({ tasks: list.groups.flatMap((g) => g.tasks) });
+
+    await useTasksStore.getState().updateTask('t1', { meta: { tags: ['x', 'y'] } });
+    let cached = useListsStore.getState().fileCache['工作']!;
+    let byId = new Map(cached.groups.flatMap((g) => g.tasks).map((t) => [t.id, t]));
+    expect(byId.get('t1')?.meta.tags).toEqual(['x', 'y']);
+
+    await useTasksStore.getState().updateTask('t1', { meta: { tags: undefined } });
+    cached = useListsStore.getState().fileCache['工作']!;
+    byId = new Map(cached.groups.flatMap((g) => g.tasks).map((t) => [t.id, t]));
+    expect(byId.get('t1')?.meta.tags).toBeUndefined();
+  });
+
+  it('search matches tags', () => {
+    const list: ParsedList = {
+      meta: { name: '工作', created: '2026-07-01', archived: false },
+      groups: [
+        {
+          name: '项目Alpha',
+          tasks: [taggedTask('a', ['urgent'])],
+        },
+      ],
+      rawContent: '',
+    };
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({ tasks: list.groups.flatMap((g) => g.tasks), searchQuery: 'urgent' });
+    expect(useTasksStore.getState().getFilteredTasks().map((t) => t.id)).toEqual(['a']);
   });
 });

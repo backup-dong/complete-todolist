@@ -11,6 +11,7 @@ import type { FileRef, Link, Task } from '@/types';
 import { formatDate, formatDateTime, isDueToday, isOverdue } from '@/utils/date';
 import { computeEffectiveDueDate, formatRepeat } from '@/utils/repeat';
 import { FileListDisplay } from './FileAttachments';
+import { TagPill } from './TagPill';
 import { useFileDownload } from '@/utils/useFileDownload';
 
 function useDueColor(due?: string, status?: Task['meta']['status']): string {
@@ -316,6 +317,9 @@ export function TaskCard({
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <PriorityBadge priority={task.meta.priority} />
+            {(task.meta.tags ?? []).map((tag) => (
+              <TagPill key={tag} label={tag} />
+            ))}
             {task.meta.status === 'done' && task.completed_at && (
               <span
                 className="inline-flex items-center gap-1 text-[var(--color-text-muted)]"

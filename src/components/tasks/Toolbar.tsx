@@ -244,7 +244,8 @@ export function MobileFilterToggle({
   const activeCount =
     filter.status.length +
     (filter.priority !== 'all' ? 1 : 0) +
-    (filter.timeRange !== 'all' ? 1 : 0);
+    (filter.timeRange !== 'all' ? 1 : 0) +
+    filter.tags.length;
 
   return (
     <button

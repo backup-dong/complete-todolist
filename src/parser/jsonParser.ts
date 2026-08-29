@@ -34,7 +34,13 @@ function defaultTaskMeta(partial: Partial<TaskMeta> = {}): TaskMeta {
     repeat_until: partial.repeat_until,
     repeat_count: partial.repeat_count,
     order: partial.order,
-    tags: partial.tags,
+    // 归一化 tags，防止畸形 JSON（如字符串）在 join/some 处崩溃
+    tags: Array.isArray(partial.tags)
+      ? partial.tags
+          .filter((t): t is string => typeof t === 'string')
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : undefined,
   };
 }
 

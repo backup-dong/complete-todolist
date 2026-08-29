@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Settings2,
+  Tag,
   Trash2,
   X,
 } from 'lucide-react';
@@ -383,6 +384,62 @@ function TodoViewsSection({
   );
 }
 
+function TagsSection({
+  tags,
+  activeTags,
+  onToggle,
+}: {
+  tags: { name: string; count: number }[];
+  activeTags: string[];
+  onToggle: (tag: string) => void;
+}) {
+  return (
+    <>
+      <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+        标签
+      </div>
+      {tags.length === 0 ? (
+        <div className="mb-4 px-3 py-1.5 text-sm text-[var(--color-text-muted)]">暂无标签</div>
+      ) : (
+        <div className="mb-4 space-y-1">
+          {tags.map(({ name, count }) => {
+            const isActive = activeTags.includes(name);
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => onToggle(name)}
+                className={[
+                  'group flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-1.5 text-left text-sm transition-colors duration-100',
+                  isActive
+                    ? 'bg-[var(--color-primary-subtle)] text-[var(--color-primary)]'
+                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
+                ].join(' ')}
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Tag className="h-[18px] w-[18px] shrink-0" />
+                  <span className="truncate">{name}</span>
+                </div>
+                <span
+                  className={[
+                    'rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+                    count === 0 && 'opacity-40',
+                    isActive
+                      ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                      : 'bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]',
+                  ].join(' ')}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
 function NewGroupInput({
   value,
   onChange,
@@ -639,7 +696,7 @@ function ListsSection({
 export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   const { lists, activeListName, activeGroup, selectList, selectGroup, createGroup, renameGroup, createList, renameList, deleteList, deleteGroup, fileCache } =
     useListsStore();
-  const { todoView, setTodoView, getTodoViewCounts } = useTasksStore();
+  const { todoView, setTodoView, getTodoViewCounts, tasks, filter, setFilter } = useTasksStore();
   const { pushPending, config, pendingWrites } = useSyncStore();
   const navigate = useNavigate();
   const [newListName, setNewListName] = useState('');
@@ -667,6 +724,26 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   ] as const;
 
   const todoViewCounts = getTodoViewCounts();
+
+  // 标签计数：基于当前上下文任务（清单顶层任务 / 待办视图聚合任务）派生
+  const tagEntries = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of tasks) {
+      for (const tag of t.meta.tags ?? []) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [tasks]);
+
+  const handleTagClick = (tag: string) => {
+    const isActive = filter.tags.includes(tag);
+    setFilter({ tags: isActive ? [] : [tag] });
+    selectGroup(null);
+    onClose?.();
+  };
 
   const handleTodoViewClick = (key: string) => {
     setTodoView(key as typeof todoViews[number]['key']);
@@ -911,6 +988,12 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
             <span>新建清单</span>
           </button>
         )}
+
+        <TagsSection
+          tags={tagEntries}
+          activeTags={filter.tags}
+          onToggle={handleTagClick}
+        />
       </div>
 
       <div className="border-t border-[var(--color-border)] p-3">

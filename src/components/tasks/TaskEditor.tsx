@@ -45,6 +45,7 @@ import {
   type WeekDay,
 } from '@/utils/repeat';
 import { FileListDisplay } from './FileAttachments';
+import { TagPill } from './TagPill';
 import { useFileDownload } from '@/utils/useFileDownload';
 import { uploadFileToRepo } from '@/utils/fileUpload';
 import { deleteFile } from '@/github/client';
@@ -139,6 +140,7 @@ interface DraftTask {
   linksText: string;
   subtasks: Task[];
   files: FileRef[];
+  tags: string[];
 }
 
 type DraftAction =
@@ -160,6 +162,7 @@ function buildDraft(task: Task): DraftTask {
     linksText: linksToText(task.links),
     subtasks: task.subtasks ?? [],
     files: task.files ?? [],
+    tags: task.meta.tags ?? [],
   };
 }
 
@@ -1074,6 +1077,81 @@ function TaskDateFields({ draft, dispatch }: { draft: DraftTask; dispatch: (acti
   );
 }
 
+function TaskTagsEditor({
+  tags,
+  suggestions,
+  onChange,
+}: {
+  tags: string[];
+  suggestions: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [input, setInput] = useState('');
+
+  // 回车或逗号提交：按逗号拆分、trim、跳过空、精确去重
+  const commitInput = (raw: string) => {
+    const parts = raw
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return;
+    const next = [...tags];
+    for (const p of parts) {
+      if (!next.includes(p)) next.push(p);
+    }
+    onChange(next);
+    setInput('');
+  };
+
+  const remainingSuggestions = suggestions.filter((s) => !tags.includes(s)).slice(0, 8);
+
+  return (
+    <div className="space-y-3">
+      {tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {tags.map((tag) => (
+            <TagPill
+              key={tag}
+              label={tag}
+              onRemove={() => onChange(tags.filter((t) => t !== tag))}
+            />
+          ))}
+        </div>
+      )}
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing) return;
+          if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            commitInput(input);
+          }
+        }}
+        placeholder="输入标签后回车，或用逗号分隔多个标签"
+        className="input w-full"
+        aria-label="添加标签"
+      />
+      {remainingSuggestions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[var(--color-text-muted)]">已有标签：</span>
+          {remainingSuggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onChange([...tags, s])}
+              className="badge cursor-pointer bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)]"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TaskEditor({
   task,
   groups,
@@ -1091,6 +1169,18 @@ export function TaskEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const config = useSyncStore((s) => s.config);
   const activeListName = useListsStore((s) => s.activeListName);
+
+  // 已有标签建议：从任务所属清单的全部任务（含子任务）收集，去重排序
+  const suggestions = useMemo(() => {
+    const listName = task.sourceList ?? activeListName;
+    const list = listName ? useListsStore.getState().fileCache[listName] : null;
+    if (!list) return [];
+    const set = new Set<string>();
+    for (const t of list.groups.flatMap((g) => g.tasks)) {
+      for (const tag of t.meta.tags ?? []) set.add(tag);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [task.sourceList, activeListName]);
 
   const makeTask = useCallback((): Task => {
     const completed = draft.status === 'done';
@@ -1111,6 +1201,7 @@ export function TaskEditor({
         due: draft.due || undefined,
         repeat: draft.repeat || undefined,
         repeat_until: draft.repeat_until || undefined,
+        tags: draft.tags.length > 0 ? draft.tags : undefined,
       },
       note: draft.note || undefined,
       links: textToLinks(draft.linksText),
@@ -1201,6 +1292,13 @@ export function TaskEditor({
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mx-auto max-w-5xl space-y-4">
           <TaskMetaFields draft={draft} groups={groups} dispatch={dispatch} />
+          <Section title="标签">
+            <TaskTagsEditor
+              tags={draft.tags}
+              suggestions={suggestions}
+              onChange={(tags) => dispatch({ type: 'set', field: 'tags', value: tags })}
+            />
+          </Section>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <TaskStatusFields draft={draft} dispatch={dispatch} />
             <TaskDateFields draft={draft} dispatch={dispatch} />

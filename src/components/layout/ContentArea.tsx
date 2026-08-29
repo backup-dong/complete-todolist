@@ -444,6 +444,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
                         filter.status.length > 0 ||
                         filter.priority !== 'all' ||
                         filter.timeRange !== 'all' ||
+                        filter.tags.length > 0 ||
                         !!searchQuery
                       }
                     />
@@ -459,6 +460,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
                       filter.status.length > 0 ||
                       filter.priority !== 'all' ||
                       filter.timeRange !== 'all' ||
+                      filter.tags.length > 0 ||
                       !!searchQuery
                     }
                   />

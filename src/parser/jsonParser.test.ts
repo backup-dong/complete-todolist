@@ -112,6 +112,59 @@ describe('json parser round-trip', () => {
     expect(tasks[2].meta.status).toBe('pending');
   });
 
+  it('round-trips tags and trims whitespace on parse', () => {
+    const raw = JSON.stringify({
+      version: 2,
+      meta: { name: 'M', created: '2026-07-01' },
+      groups: [{
+        name: 'G',
+        tasks: [{
+          id: 't1',
+          title: '带标签任务',
+          parentId: null,
+          group: 'G',
+          meta: { priority: 'med', created: '2026-07-01', tags: ['工作', ' urgent '] },
+        }],
+      }],
+    });
+    const parsed = parseJsonToList(raw);
+    expect(parsed.groups[0].tasks[0].meta.tags).toEqual(['工作', 'urgent']);
+
+    const serialized = serializeListToJson(parsed);
+    const reparsed = parseJsonToList(serialized);
+    expect(reparsed.groups[0].tasks[0].meta.tags).toEqual(['工作', 'urgent']);
+  });
+
+  it('normalizes malformed tags values defensively', () => {
+    const raw = JSON.stringify({
+      version: 2,
+      meta: { name: 'M', created: '2026-07-01' },
+      groups: [{
+        name: 'G',
+        tasks: [
+          {
+            id: 't1',
+            title: '字符串标签',
+            parentId: null,
+            group: 'G',
+            meta: { priority: 'med', created: '2026-07-01', tags: 'oops' },
+          },
+          {
+            id: 't2',
+            title: '混合数组标签',
+            parentId: null,
+            group: 'G',
+            meta: { priority: 'med', created: '2026-07-01', tags: [123, ' ok ', '', 'x'] },
+          },
+        ],
+      }],
+    });
+    const parsed = parseJsonToList(raw);
+    const tasks = parsed.groups[0].tasks;
+    expect(tasks[0].meta.tags).toBeUndefined();
+    expect(tasks[1].meta.tags).toEqual(['ok', 'x']);
+  });
+
   it('generates id for tasks missing id field', () => {
     const raw = JSON.stringify({
       version: 2,

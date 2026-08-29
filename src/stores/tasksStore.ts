@@ -144,6 +144,11 @@ function matchesFilter(task: Task, filter: FilterState, query: string): boolean 
     if (filter.timeRange === 'week' && !isDueThisWeek(task.meta.due)) return false;
     if (filter.timeRange === 'overdue' && (!isOverdue(task.meta.due) || task.meta.status === 'done')) return false;
   }
+  // 标签过滤：filter.tags 非空时，任务任一标签命中即匹配（OR）
+  if (filter.tags.length > 0) {
+    const taskTags = task.meta.tags ?? [];
+    if (!taskTags.some((t) => filter.tags.includes(t))) return false;
+  }
   if (query) {
     const q = query.toLowerCase();
     const haystack = `${task.title} ${task.note ?? ''} ${task.meta.tags?.join(' ') ?? ''}`.toLowerCase();
@@ -199,7 +204,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   tasks: [],
   selectedTaskId: null,
   sortMode: 'drag',
-  filter: { status: [], priority: 'all', timeRange: 'all' },
+  filter: { status: [], priority: 'all', timeRange: 'all', tags: [] },
   searchQuery: '',
   todoView: null,
 
@@ -581,14 +586,14 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   setSearchQuery: (q) => set({ searchQuery: q }),
   clearFilters: () =>
     set({
-      filter: { status: [], priority: 'all', timeRange: 'all' },
+      filter: { status: [], priority: 'all', timeRange: 'all', tags: [] },
       searchQuery: '',
     }),
   setTodoView: (key) => {
     if (key) {
       useListsStore.setState({ activeListName: null, activeGroup: null });
       useListsStore.getState().fetchAllListsContent();
-      set({ todoView: key, selectedTaskId: null, filter: { status: [], priority: 'all', timeRange: 'all' }, searchQuery: '' });
+      set({ todoView: key, selectedTaskId: null, filter: { status: [], priority: 'all', timeRange: 'all', tags: [] }, searchQuery: '' });
       const aggregated = flattenAllTasks(useListsStore.getState().fileCache);
       const filtered = aggregated.filter((t) => matchesTodoView(t, key));
       set({ tasks: sortTasks(filtered, get().sortMode) });
@@ -650,7 +655,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       selectedTaskId: null,
       searchQuery: '',
       todoView: null,
-      filter: { status: [], priority: 'all', timeRange: 'all' },
+      filter: { status: [], priority: 'all', timeRange: 'all', tags: [] },
     });
   },
 }));

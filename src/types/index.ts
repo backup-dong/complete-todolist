@@ -84,6 +84,7 @@ export interface FilterState {
   status: TaskStatus[]; // 空数组表示全部
   priority: 'all' | 'high' | 'med' | 'low';
   timeRange: 'all' | 'today' | 'week' | 'overdue';
+  tags: string[]; // 空数组表示全部
 }
 
 export interface FilterDropdownProps {
