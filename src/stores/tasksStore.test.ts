@@ -141,6 +141,64 @@ describe('tasksStore reorder', () => {
     expect(byId.get('p')?.meta.status).toBe('active');
   });
 
+  it('updateTask with subtask tree infers parent status (dialog save path)', async () => {
+    const list = makeList();
+    list.groups[0].tasks = [
+      makeTask('p', '父任务', '项目Alpha', 1),
+      makeTask('c1', '子任务1', '项目Alpha', 1),
+      makeTask('c2', '子任务2', '项目Alpha', 2),
+    ];
+    list.groups[0].tasks[1].parentId = 'p';
+    list.groups[0].tasks[2].parentId = 'p';
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({ tasks: list.groups.flatMap((g) => g.tasks) });
+
+    const [, c1, c2] = list.groups[0].tasks;
+
+    // 编辑器保存：携带子任务树但不下发主任务显式状态，store 按子树推断
+    await useTasksStore
+      .getState()
+      .updateTask('p', { subtasks: [{ ...c1, meta: { ...c1.meta, status: 'done' } }, c2] });
+
+    let byId = new Map(
+      useListsStore.getState().fileCache['工作']!.groups.flatMap((g) => g.tasks).map((t) => [t.id, t]),
+    );
+    expect(byId.get('c1')?.meta.status).toBe('done');
+    expect(byId.get('p')?.meta.status).toBe('active');
+
+    // 全部子任务完成 → 主任务随之完成
+    await useTasksStore
+      .getState()
+      .updateTask('p', {
+        subtasks: [
+          { ...c1, meta: { ...c1.meta, status: 'done' } },
+          { ...c2, meta: { ...c2.meta, status: 'done' } },
+        ],
+      });
+
+    byId = new Map(
+      useListsStore.getState().fileCache['工作']!.groups.flatMap((g) => g.tasks).map((t) => [t.id, t]),
+    );
+    expect(byId.get('p')?.meta.status).toBe('done');
+    expect(byId.get('p')?.completed_at).toBeTruthy();
+
+    // 取消一个子任务 → 主任务回到进行中
+    await useTasksStore
+      .getState()
+      .updateTask('p', {
+        subtasks: [
+          { ...c1, meta: { ...c1.meta, status: 'pending' } },
+          { ...c2, meta: { ...c2.meta, status: 'done' } },
+        ],
+      });
+
+    byId = new Map(
+      useListsStore.getState().fileCache['工作']!.groups.flatMap((g) => g.tasks).map((t) => [t.id, t]),
+    );
+    expect(byId.get('p')?.meta.status).toBe('active');
+    expect(byId.get('p')?.completed_at).toBeFalsy();
+  });
+
   it('getFilteredTasks supports multi-select status filter', () => {
     const list = makeList();
     useListsStore.setState({ fileCache: { 工作: list } });

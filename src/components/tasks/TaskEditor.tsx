@@ -69,6 +69,23 @@ function useTaskEditorCtx() {
   return ctx;
 }
 
+/** 收集子树中全部后代任务的状态（含嵌套），用于推断主任务状态。 */
+function collectSubtaskStatuses(subtasks: Task[]): TaskMeta['status'][] {
+  return subtasks.flatMap((t) => [
+    t.meta.status ?? 'pending',
+    ...collectSubtaskStatuses(t.subtasks ?? []),
+  ]);
+}
+
+/** 按与 store `inferStatus` 相同的规则推断主任务状态：全部完成→done、部分完成→active、均未完成→pending。 */
+function inferParentStatus(subtasks: Task[]): TaskMeta['status'] | null {
+  const statuses = collectSubtaskStatuses(subtasks);
+  if (statuses.length === 0) return null;
+  if (statuses.every((s) => s === 'done')) return 'done';
+  if (statuses.some((s) => s === 'done')) return 'active';
+  return 'pending';
+}
+
 function detectSubtaskToggle(prev: Task[], curr: Task[]): boolean {
   if (prev.length !== curr.length) return false;
   return prev.some((p, i) => {
@@ -1306,10 +1323,19 @@ export function TaskEditor({
 
   useEffect(() => {
     if (detectSubtaskToggle(prevSubtasksRef.current, draft.subtasks)) {
+      // 子任务勾选变化时，主任务状态跟随子树推断（全部完成→已完成、部分完成→进行中），
+      // 保证「子任务全部完成，主任务自动完成」在详情弹窗内即时体现
+      const inferred = inferParentStatus(draft.subtasks);
+      if (inferred) {
+        dispatch({ type: 'set', field: 'status', value: inferred });
+        if (inferred === 'done' && !draft.completed_at) {
+          dispatch({ type: 'set', field: 'completed_at', value: nowIso() });
+        }
+      }
       saveTask();
     }
     prevSubtasksRef.current = draft.subtasks;
-  }, [draft.subtasks, saveTask]);
+  }, [draft.subtasks, draft.completed_at, saveTask]);
 
   return (
     <TaskEditorCtx.Provider value={{ config, activeListName, taskId: task.id }}>
