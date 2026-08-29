@@ -75,6 +75,15 @@ function cleanupActiveList(lists: ListMeta[], currentActive: string | null): str
 const syncTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 let fetchListsInFlight: Promise<boolean> | null = null;
 
+function isContentParseError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return (
+    err.message === 'JSON list must be an object' ||
+    err.message.startsWith('Invalid JSON list content:') ||
+    err.message.startsWith('Unsupported JSON list version:')
+  );
+}
+
 function fetchListsErrorMessage(err: unknown): string {
   const status = typeof err === 'object' && err !== null && 'status' in err
     ? (err as { status?: unknown }).status
@@ -326,11 +335,19 @@ export const useListsStore = create<ListsState>((set, get) => ({
       }
 
       toast.error(`清单文件 ${name}.json 不存在`);
-    } catch {
+    } catch (err) {
       const cached = getCachedFileContent(name);
       if (cached) {
-        const list = parseJsonToList(cached.content, cached.sha);
-        set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
+        try {
+          const list = parseJsonToList(cached.content, cached.sha);
+          set((state) => ({ fileCache: { ...state.fileCache, [name]: list } }));
+          return list;
+        } catch {
+          // 缓存也是旧版/损坏内容时，走下方统一错误提示
+        }
+      }
+      if (isContentParseError(err)) {
+        toast.error(`${name}：${err instanceof Error ? err.message : String(err)}`);
       }
     } finally {
       if (get().activeListName === name && get().initialLoading) {
