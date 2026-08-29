@@ -260,6 +260,10 @@ export function TaskCard({
 
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+    // 附件预览等通过 Portal 渲染的弹窗会沿 React 树把点击冒泡到卡片；
+    // 只有当点击目标确实落在卡片 DOM 内部时才视为卡片点击，
+    // 避免点击弹窗（遮罩或内容空白区）误触发任务编辑。
+    if (!e.currentTarget.contains(target)) return;
     if (target.closest('button, a, input, textarea, label, [role="button"]')) return;
     onStartEdit();
   };

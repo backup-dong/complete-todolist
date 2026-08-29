@@ -41,4 +41,5 @@
 | GitHub Token 明文存 localStorage，任意 XSS/恶意扩展可窃取 | 否 | 建议 fine-grained token + 最小仓库权限并在 UI 提示 |
 | `deleteList` 失败完全静默（无 toast/回滚提示）；`buildListMeta` 的 created 一律填当天，清单真实创建时间丢失 | 否 | `listsStore.ts:273-302,62-68` |
 | 旧 Markdown 解析：`scanBlocks` 会把任务正文首行形如 `key: value` 的行误判为元数据；子任务层级跳级会生成空文本占位子任务 | 否 | `scanner.ts:16-19,226-235` |
-| _最后更新：2026-08-13_ |||
+| 待办列表预览附件，弹窗外点击会触发待办列表的事件 | 是 | 根因：`FilePreviewDialog` 经 Portal 渲染在 `TaskCard` 的 React 树内，遮罩/内容点击会沿 React 树冒泡到卡片，误触发 `handleCardClick` 打开任务编辑。修复：① `FilePreviewDialog` 遮罩 `onClick` 阻止冒泡并手动关闭弹窗；② `TaskCard.handleCardClick` 增加 `e.currentTarget.contains(target)` 守卫，只响应卡片 DOM 内的点击 |
+| _最后更新：2026-08-29_ |||

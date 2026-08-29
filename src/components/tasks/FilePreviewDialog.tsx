@@ -180,7 +180,15 @@ export function FilePreviewDialog({ file, onClose }: { file: FileRef | null; onC
   return (
     <Dialog.Root open={file !== null} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-[var(--color-backdrop)] backdrop-blur-sm" />
+        <Dialog.Overlay
+          className="fixed inset-0 z-50 bg-[var(--color-backdrop)] backdrop-blur-sm"
+          onClick={(e) => {
+            // 遮罩属于弹窗自身，点击不应沿 React 树继续冒泡到下层待办卡片等组件；
+            // 同时手动关闭弹窗（Radix 的 deferred dismissal 会因事件被阻止而跳过）。
+            e.stopPropagation();
+            onClose();
+          }}
+        />
         <div className="fixed inset-0 z-50 flex pointer-events-none md:items-center md:justify-center md:p-6">
           <Dialog.Content className="pointer-events-auto z-50 flex h-full w-full flex-col overflow-hidden bg-[var(--color-surface-raised)] outline-none md:h-[85vh] md:max-w-3xl md:rounded-xl md:border md:border-[var(--color-border)] md:shadow-lg">
             <Dialog.Title className="sr-only">附件预览</Dialog.Title>
