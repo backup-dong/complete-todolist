@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bold, Italic, Link, Image, Table, List, ListOrdered, CheckSquare, Code } from 'lucide-react';
+import { Bold, Italic, Link, Image, Table, List, ListOrdered, CheckSquare, Code, Clock } from 'lucide-react';
 
 interface NoteToolbarProps {
   onFormat: (type: string) => void;
@@ -71,6 +71,10 @@ export function NoteToolbar({ onFormat }: NoteToolbarProps) {
       <ToolbarSeparator />
 
       <Btn icon={Code} onClick={() => onFormat('code-block')} title="代码块" />
+
+      <ToolbarSeparator />
+
+      <Btn icon={Clock} onClick={() => onFormat('datetime')} title="插入当前时间 (Ctrl+Alt+D)" />
 
 
     </div>

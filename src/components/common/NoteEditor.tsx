@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
+import { format } from 'date-fns';
 import { Eye, Pencil, Maximize } from 'lucide-react';
 import { MarkdownPreview } from './MarkdownPreview';
 import { NoteToolbar } from './NoteToolbar';
@@ -97,6 +98,10 @@ function insertFormat(value: string, selStart: number, selEnd: number, type: str
       const wrapped = selected ? `\n\`\`\`\n${selected}\n\`\`\`\n` : marker;
       return { newValue: before + wrapped + after, newCursor: selected ? selStart + wrapped.length : selStart + 5 };
     }
+    case 'datetime': {
+      const text = format(new Date(), 'yyyyMMdd HH:mm:ss');
+      return { newValue: before + text + after, newCursor: selStart + text.length };
+    }
     default:
       return { newValue: value, newCursor: selStart };
   }
@@ -165,6 +170,7 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
     if (isCtrl && e.key === 'b') { e.preventDefault(); handleFormat('bold'); }
     if (isCtrl && e.key === 'i') { e.preventDefault(); handleFormat('italic'); }
     if (isCtrl && e.key === 'k') { e.preventDefault(); handleFormat('link'); }
+    if (isCtrl && e.altKey && e.key === 'd') { e.preventDefault(); handleFormat('datetime'); }
   }, [handleFormat]);
 
   return (
