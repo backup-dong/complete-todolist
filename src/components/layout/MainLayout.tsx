@@ -1,13 +1,25 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { ContentArea } from './ContentArea';
+import { CalendarDrawer } from '@/components/todo-view/CalendarDrawer';
+import { useListsStore } from '@/stores/listsStore';
+import { useTasksStore } from '@/stores/tasksStore';
 import { getSidebarCollapsed, setSidebarCollapsed } from '@/utils/storage';
 
 export function MainLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsedState] = useState(() => getSidebarCollapsed());
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number; triggered: boolean }>({ x: 0, y: 0, triggered: false });
+
+  const { activeListName, fileCache } = useListsStore();
+  const selectTask = useTasksStore((s) => s.selectTask);
+
+  const calendarTasks = useMemo(() => {
+    const list = activeListName ? fileCache[activeListName] : null;
+    return list ? list.groups.flatMap((g) => g.tasks) : [];
+  }, [activeListName, fileCache]);
 
   const toggleSidebarCollapsed = useCallback(() => {
     setSidebarCollapsedState((prev) => {
@@ -15,6 +27,31 @@ export function MainLayout() {
       setSidebarCollapsed(next);
       return next;
     });
+  }, []);
+
+  const setSidebarCollapsedTo = useCallback(
+    (value: boolean) => {
+      setSidebarCollapsedState((prev) => {
+        if (prev === value) return prev;
+        setSidebarCollapsed(value);
+        return value;
+      });
+    },
+    [],
+  );
+
+  const toggleCalendar = useCallback(() => {
+    setCalendarOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setSidebarCollapsedTo(true);
+      }
+      return next;
+    });
+  }, [setSidebarCollapsedTo]);
+
+  const closeCalendar = useCallback(() => {
+    setCalendarOpen(false);
   }, []);
 
   // 打开抽屉时先挂载 DOM，再等下一帧再加 translate，确保 transition 生效
@@ -100,7 +137,24 @@ export function MainLayout() {
         />
       )}
 
-      <ContentArea onOpenMenu={openMenu} />
+      <ContentArea onOpenMenu={openMenu} onToggleCalendar={toggleCalendar} />
+
+      {/* Desktop right calendar drawer */}
+      <div
+        aria-hidden={!calendarOpen}
+        className={[
+          'hidden md:block h-full overflow-hidden transition-[width] duration-200 ease-in-out',
+          calendarOpen ? 'w-96' : 'w-0',
+        ].join(' ')}
+      >
+        {calendarOpen && (
+          <CalendarDrawer
+            onClose={closeCalendar}
+            tasks={calendarTasks}
+            onSelect={selectTask}
+          />
+        )}
+      </div>
     </div>
   );
 }

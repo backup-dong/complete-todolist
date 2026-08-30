@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Inbox, ListChecks, Menu, Plus, X } from 'lucide-react';
+import { Calendar, Copy, Inbox, ListChecks, Menu, Plus, X } from 'lucide-react';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
 import { confirm } from '@/stores/confirmStore';
@@ -70,6 +70,7 @@ function ListHeader({
   total,
   activeGroup,
   onCopyWeeklyReport,
+  onToggleCalendar,
   sortMode,
   onSortModeChange,
   batchMode,
@@ -80,6 +81,7 @@ function ListHeader({
   total: number;
   activeGroup: string | null;
   onCopyWeeklyReport: () => void;
+  onToggleCalendar: () => void;
   sortMode: 'drag' | 'due' | 'priority';
   onSortModeChange: (mode: 'drag' | 'due' | 'priority') => void;
   batchMode: boolean;
@@ -99,6 +101,15 @@ function ListHeader({
 
       <div className="flex items-center justify-between gap-2 pb-1 md:pb-0">
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onToggleCalendar}
+            title="日历视图"
+            className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
+          >
+            <Calendar className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">日历</span>
+          </button>
           <button
             type="button"
             onClick={onCopyWeeklyReport}
@@ -206,7 +217,7 @@ function BatchActionBar({
   );
 }
 
-export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
+export function ContentArea({ onOpenMenu, onToggleCalendar }: { onOpenMenu?: () => void; onToggleCalendar?: () => void } = {}) {
   const { activeListName, activeGroup, fileCache } = useListsStore();
   const {
     sortMode,
@@ -415,6 +426,7 @@ export function ContentArea({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
                     copyWeeklyReport(activeListName!, activeList);
                   }
                 }}
+                onToggleCalendar={onToggleCalendar ?? (() => {})}
                 sortMode={sortMode}
                 onSortModeChange={setSortMode}
                 batchMode={batchMode}
