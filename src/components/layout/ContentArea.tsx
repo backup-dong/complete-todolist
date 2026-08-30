@@ -5,7 +5,7 @@ import { useTasksStore } from '@/stores/tasksStore';
 import { confirm } from '@/stores/confirmStore';
 import type { Task, TodoViewKey } from '@/types';
 import { copyWeeklyReport } from '@/utils/report';
-import { topLevelTasks, buildSubtaskTree } from '@/utils/subtasks';
+import { topLevelTasks, buildSubtaskTree, topLevelAncestorId } from '@/utils/subtasks';
 import { SearchBar, FilterDropdown, ViewToggle, MobileFilterToggle } from '../tasks/Toolbar';
 import { TaskList } from '../tasks/TaskList';
 import { TaskEditorDialog } from '../tasks/TaskEditorDialog';
@@ -306,6 +306,43 @@ export function ContentArea({ onOpenMenu, onToggleCalendar }: { onOpenMenu?: () 
     }
   }
 
+  // 日历视图点击子任务时打开其顶层主任务，与右侧日历抽屉行为一致
+  const handleCalendarSelect = (taskId: string) => {
+    const allTasks = Object.values(fileCache).flatMap((list) => list.groups.flatMap((g) => g.tasks));
+    selectTask(topLevelAncestorId(allTasks, taskId));
+  };
+
+  // 仅日历视图附加子任务（与右侧日历抽屉一致）：在过滤命中的顶层任务旁带上其全部后代
+  const calendarViewTasks = useMemo(() => {
+    if (todoView !== 'calendar') return [];
+    const byId = new Map<string, Task>();
+    const childrenBy = new Map<string, Task[]>();
+    for (const [listName, list] of Object.entries(fileCache)) {
+      if (!list) continue;
+      for (const t of list.groups.flatMap((g) => g.tasks)) {
+        const tagged = { ...t, sourceList: listName };
+        byId.set(t.id, tagged);
+        if (t.parentId) {
+          const arr = childrenBy.get(t.parentId) ?? [];
+          arr.push(tagged);
+          childrenBy.set(t.parentId, arr);
+        }
+      }
+    }
+    const result: Task[] = [];
+    const seen = new Set<string>();
+    const push = (id: string) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      const t = byId.get(id);
+      if (!t) return;
+      result.push(t);
+      for (const c of childrenBy.get(id) ?? []) push(c.id);
+    };
+    for (const id of filtered.map((t) => t.id)) push(id);
+    return result;
+  }, [todoView, fileCache, filtered]);
+
   const handleCreateTask = async () => {
     const title = newTaskTitle.trim();
     if (!title) return;
@@ -413,7 +450,7 @@ export function ContentArea({ onOpenMenu, onToggleCalendar }: { onOpenMenu?: () 
             </div>
             <div className="flex-1 overflow-y-auto">
               {todoView === 'calendar' ? (
-                <CalendarView tasks={displayTasks} onSelect={selectTask} />
+                <CalendarView tasks={calendarViewTasks} onSelect={handleCalendarSelect} />
               ) : (
                 <TodoView
                   tasks={displayTasks}

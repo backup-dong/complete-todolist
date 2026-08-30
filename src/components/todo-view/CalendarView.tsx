@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { format, isSameWeek, isToday } from 'date-fns';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CornerDownRight, X } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { Task } from '@/types';
 import { dateIsInMonth, getMonthGrid, groupTasksByDay, isOverdueDay } from '@/utils/calendar';
@@ -36,7 +36,7 @@ function TaskChip({
         e.stopPropagation();
         onSelect(task.id);
       }}
-      title={`${task.title}${task.sourceList ? `（${task.sourceList}）` : ''}`}
+      title={`${task.title}${task.parentId ? '（子任务）' : ''}${task.sourceList ? `（${task.sourceList}）` : ''}`}
       className={[
         'flex w-full min-w-0 items-center gap-1.5 rounded-md border-l-[3px] px-1.5 py-0.5 text-left text-[11px] leading-tight transition-colors',
         done
@@ -47,7 +47,13 @@ function TaskChip({
       ].join(' ')}
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${done ? 'bg-[var(--color-text-muted)]' : style.dot}`} />
-      <span className={`truncate ${done ? 'line-through' : ''}`}>{task.title}</span>
+      {task.parentId && (
+        <CornerDownRight className="h-3 w-3 shrink-0 text-[var(--color-text-muted)]" aria-label="子任务" />
+      )}
+      <span className={`min-w-0 flex-1 truncate ${done ? 'line-through' : ''}`}>{task.title}</span>
+      {task.sourceList && (
+        <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">{task.sourceList}</span>
+      )}
     </button>
   );
 }
@@ -184,6 +190,9 @@ function DayTasksDialog({
                         ].join(' ')}
                       >
                         <span className={`h-2 w-2 shrink-0 rounded-full ${done ? 'bg-[var(--color-text-muted)]' : style.dot}`} />
+                        {task.parentId && (
+                          <CornerDownRight className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-muted)]" aria-label="子任务" />
+                        )}
                         <span className={`min-w-0 flex-1 truncate ${done ? 'line-through' : ''}`}>{task.title}</span>
                         {task.sourceList && (
                           <span className="shrink-0 text-[11px] text-[var(--color-text-muted)]">{task.sourceList}</span>

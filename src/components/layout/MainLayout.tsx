@@ -5,6 +5,7 @@ import { CalendarDrawer } from '@/components/todo-view/CalendarDrawer';
 import { useListsStore } from '@/stores/listsStore';
 import { useTasksStore } from '@/stores/tasksStore';
 import { getSidebarCollapsed, setSidebarCollapsed } from '@/utils/storage';
+import { topLevelAncestorId } from '@/utils/subtasks';
 
 export function MainLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -30,12 +31,7 @@ export function MainLayout() {
   const handleCalendarSelect = useCallback(
     (taskId: string) => {
       const allTasks = Object.values(fileCache).flatMap((list) => list.groups.flatMap((g) => g.tasks));
-      const byId = new Map(allTasks.map((t) => [t.id, t]));
-      let cur = byId.get(taskId);
-      while (cur?.parentId && byId.has(cur.parentId)) {
-        cur = byId.get(cur.parentId);
-      }
-      selectTask(cur?.id ?? taskId);
+      selectTask(topLevelAncestorId(allTasks, taskId));
     },
     [fileCache, selectTask],
   );

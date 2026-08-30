@@ -88,6 +88,16 @@ export function getAncestors(tasks: Task[], taskId: string): Task[] {
   return result;
 }
 
+/** 返回 taskId 的最顶层祖先 id；taskId 自身为顶层或不存在时返回 taskId。 */
+export function topLevelAncestorId(tasks: Task[], taskId: string): string {
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  let cur = byId.get(taskId);
+  while (cur?.parentId && byId.has(cur.parentId)) {
+    cur = byId.get(cur.parentId);
+  }
+  return cur ? cur.id : taskId;
+}
+
 function setTaskDone(task: Task, now: string): Task {
   return normalizeTask(
     {
