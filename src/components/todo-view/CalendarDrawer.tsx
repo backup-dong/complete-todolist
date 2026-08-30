@@ -17,6 +17,8 @@ const PRIORITY_STYLE: Record<Task['meta']['priority'], { dot: string }> = {
   low: { dot: 'bg-blue-500' },
 };
 
+const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
 function DayTaskRow({
   task,
   dayIso,
@@ -101,7 +103,9 @@ function DayBlock({
         >
           {format(date, 'd')}
         </span>
-        <span className="text-xs text-[var(--color-text-muted)]">{format(date, 'M月d日')}</span>
+        <span className="text-xs text-[var(--color-text-muted)]">
+          {format(date, 'M月d日')} {WEEKDAY_NAMES[date.getDay()]}
+        </span>
         {holiday && inMonth && <span className="text-[10px] text-[var(--color-danger)]">节日</span>}
         {tasks.length > 0 && (
           <span className="ml-auto text-xs tabular-nums text-[var(--color-text-muted)]">{tasks.length} 项</span>
