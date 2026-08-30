@@ -30,9 +30,11 @@ export function computeNextDue(
   repeat: string,
   repeatUntil?: string,
   holidays?: string[],
+  workdays?: string[],
 ): string | null {
   const base = startOfDay(parseISO(due));
   const holidaySet = new Set(holidays ?? []);
+  const workdaySet = new Set(workdays ?? []);
   let next: Date | null;
 
   switch (repeat) {
@@ -50,7 +52,7 @@ export function computeNextDue(
       next = addYears(base, 1);
       break;
     case 'weekdays':
-      next = nextWeekday(base, holidaySet);
+      next = nextWeekday(base, holidaySet, workdaySet);
       break;
     default: {
       const parts = repeat.split(',').map((s) => s.trim().toLowerCase());
@@ -106,9 +108,12 @@ export function formatRepeat(repeat: string): string {
   return repeat;
 }
 
-function nextWeekday(base: Date, holidays: Set<string>): Date {
+function nextWeekday(base: Date, holidays: Set<string>, workdays: Set<string>): Date {
+  // 休息日 = 法定节假日，或非调休的周末；调休上班日按工作日推进
+  const isOffDay = (d: Date) =>
+    holidays.has(format(d, 'yyyy-MM-dd')) || (isWeekend(d) && !workdays.has(format(d, 'yyyy-MM-dd')));
   let d = addDays(base, 1);
-  while (isWeekend(d) || holidays.has(format(d, 'yyyy-MM-dd'))) {
+  while (isOffDay(d)) {
     d = addDays(d, 1);
   }
   return d;
@@ -199,6 +204,7 @@ export function computeEffectiveDueDate(
   repeat: string,
   repeatUntil?: string,
   holidays?: string[],
+  workdays?: string[],
 ): string {
   // 没有重复规则的任务，直接返回原值
   if (!repeat) return due;
@@ -212,7 +218,7 @@ export function computeEffectiveDueDate(
   // 上限覆盖到十年跨度，足以让 daily/weekly/monthly/yearly 任意规则追上今天
   const MAX_ITERATIONS = 4000;
   for (let i = 0; i < MAX_ITERATIONS; i++) {
-    const next = computeNextDue(current, repeat, repeatUntil, holidays);
+    const next = computeNextDue(current, repeat, repeatUntil, holidays, workdays);
     if (!next || next === current) break;
     if (next >= today) return next;
     current = next;

@@ -198,13 +198,13 @@ function sortTasks(tasks: Task[], mode: SortMode): Task[] {
   return sorted;
 }
 
-function advanceRepeatingTask(tasks: Task[], taskId: string, holidays: string[]): Task[] {
+function advanceRepeatingTask(tasks: Task[], taskId: string, holidays: string[], workdays: string[]): Task[] {
   const task = tasks.find((t) => t.id === taskId);
   if (!task || !task.meta.repeat || !task.meta.due) return tasks;
 
   // 对于已过期的重复任务，先推进到有效日期再算下一次，避免从旧日期算出错误结果
-  const baseDue = computeEffectiveDueDate(task.meta.due, task.meta.repeat, task.meta.repeat_until, holidays);
-  const nextDue = computeNextDue(baseDue, task.meta.repeat, task.meta.repeat_until, holidays);
+  const baseDue = computeEffectiveDueDate(task.meta.due, task.meta.repeat, task.meta.repeat_until, holidays, workdays);
+  const nextDue = computeNextDue(baseDue, task.meta.repeat, task.meta.repeat_until, holidays, workdays);
   if (!nextDue) return tasks;
 
   const advanced: Task = {
@@ -432,14 +432,14 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     if (holidayStore.status !== 'ready') {
       await holidayStore.loadHolidays();
     }
-    const holidays = holidayStore.holidays;
+    const { holidays, workdays } = holidayStore;
 
     let flatAll = toggleSubtaskState(flatTasksOfList(list), taskId, nowIso());
 
     // 被勾选完成的任务若带重复规则，推进到下一次（后代同步重置）
     const toggled = flatAll.find((t) => t.id === taskId);
     if (toggled?.meta.status === 'done' && toggled.meta.repeat) {
-      flatAll = advanceRepeatingTask(flatAll, taskId, holidays);
+      flatAll = advanceRepeatingTask(flatAll, taskId, holidays, workdays);
     }
 
     const nextList = rebuildGroups(list, flatAll);
@@ -468,7 +468,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     if (holidayStore.status !== 'ready') {
       await holidayStore.loadHolidays();
     }
-    const holidays = holidayStore.holidays;
+    const { holidays, workdays } = holidayStore;
 
     const flatAll = flatTasksOfList(list);
     const target = flatAll.find((t) => t.id === taskId);
@@ -492,6 +492,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         flatAll.map((t) => (t.id === taskId ? updated : t)),
         taskId,
         holidays,
+        workdays,
       );
       updated = advanced.find((t) => t.id === taskId) ?? updated;
     }
@@ -665,6 +666,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
     const holidays = useHolidayStore.getState().holidays;
+    const workdays = useHolidayStore.getState().workdays;
     const todayStr = todayIso();
     return keys.reduce(
       (acc, key) => {
@@ -673,7 +675,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
           const counted = new Set<string>();
           for (const t of aggregated) {
             if (!t.meta.due) continue;
-            const date = getCalendarOccurrence(t.meta.due, t.meta.repeat ?? '', t.meta.repeat_until, holidays, todayStr);
+            const date = getCalendarOccurrence(t.meta.due, t.meta.repeat ?? '', t.meta.repeat_until, holidays, todayStr, workdays);
             if (date && dateStrInMonth(date, year, month)) {
               counted.add(t.id);
             }

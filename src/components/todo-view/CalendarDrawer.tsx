@@ -69,20 +69,21 @@ function DayBlock({
   year,
   month,
   tasks,
-  holidays,
+  holidayLabels,
   onSelect,
 }: {
   date: Date;
   year: number;
   month: number;
   tasks: Task[];
-  holidays: string[];
+  holidayLabels: Record<string, string>;
   onSelect: (taskId: string) => void;
 }) {
   const inMonth = dateIsInMonth(date, year, month);
   const today = isToday(date);
   const dayIso = format(date, 'yyyy-MM-dd');
-  const holiday = holidays.includes(dayIso);
+  const holidayLabel = holidayLabels[dayIso];
+  const isWorkday = holidayLabel === '班';
 
   return (
     <div
@@ -106,7 +107,11 @@ function DayBlock({
         <span className="text-xs text-[var(--color-text-muted)]">
           {format(date, 'M月d日')} {WEEKDAY_NAMES[date.getDay()]}
         </span>
-        {holiday && inMonth && <span className="text-[10px] text-[var(--color-danger)]">节日</span>}
+        {holidayLabel && inMonth && (
+          <span className={isWorkday ? 'text-[10px] text-[var(--color-warning)]' : 'text-[10px] text-[var(--color-danger)]'}>
+            {holidayLabel}
+          </span>
+        )}
         {tasks.length > 0 && (
           <span className="ml-auto text-xs tabular-nums text-[var(--color-text-muted)]">{tasks.length} 项</span>
         )}
@@ -140,7 +145,9 @@ export function CalendarDrawer({
   const now = new Date();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
+  const holidayLabels = useHolidayStore((s) => s.labels);
   const holidays = useHolidayStore((s) => s.holidays);
+  const workdays = useHolidayStore((s) => s.workdays);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth() + 1;
@@ -163,8 +170,8 @@ export function CalendarDrawer({
 
   const grid = useMemo(() => getMonthGrid(year, month), [year, month]);
   const byDay = useMemo(
-    () => groupTasksByDay(tasks, year, month, holidays),
-    [tasks, year, month, holidays],
+    () => groupTasksByDay(tasks, year, month, holidays, todayIso(), workdays),
+    [tasks, year, month, holidays, workdays],
   );
 
   const goPrev = () => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1));
@@ -201,7 +208,7 @@ export function CalendarDrawer({
             year={year}
             month={month}
             tasks={byDay.get(format(date, 'yyyy-MM-dd')) ?? []}
-            holidays={holidays}
+            holidayLabels={holidayLabels}
             onSelect={onSelect}
           />
         ))}

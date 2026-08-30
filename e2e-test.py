@@ -100,7 +100,7 @@ def run_tests():
         page.evaluate('() => { localStorage.clear(); sessionStorage.clear(); }')
 
         page.route('https://api.github.com/**', github_api_handler)
-        page.route('https://date.nager.at/**', lambda route: route.fulfill(status=200, content_type='application/json', body='[]'))
+        page.route('https://api.apisbo.com/holidays/**', lambda route: route.fulfill(status=200, content_type='application/json', body='{"code":0,"msg":"success","data":[]}'))
         page.reload()
         page.wait_for_load_state('networkidle')
 

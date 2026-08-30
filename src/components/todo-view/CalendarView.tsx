@@ -63,7 +63,7 @@ function DayCell({
   year,
   month,
   tasks,
-  holidays,
+  holidayLabels,
   onSelect,
   onShowAll,
 }: {
@@ -71,7 +71,7 @@ function DayCell({
   year: number;
   month: number;
   tasks: Task[];
-  holidays: string[];
+  holidayLabels: Record<string, string>;
   onSelect: (taskId: string) => void;
   onShowAll: (dayIso: string) => void;
 }) {
@@ -79,7 +79,8 @@ function DayCell({
   const today = isToday(date);
   const currentWeek = isSameWeek(date, new Date(), { weekStartsOn: 1 });
   const dayIso = format(date, 'yyyy-MM-dd');
-  const holiday = holidays.includes(dayIso);
+  const holidayLabel = holidayLabels[dayIso];
+  const isWorkday = holidayLabel === '班';
   const overflow = tasks.length - MAX_CHIPS_PER_DAY;
 
   return (
@@ -110,8 +111,10 @@ function DayCell({
         >
           {format(date, 'd')}
         </button>
-        {holiday && inMonth && (
-          <span className="text-[9px] text-[var(--color-danger)]">节</span>
+        {holidayLabel && inMonth && (
+          <span className={isWorkday ? 'text-[9px] text-[var(--color-warning)]' : 'text-[9px] text-[var(--color-danger)]'}>
+            {holidayLabel}
+          </span>
         )}
       </div>
 
@@ -222,7 +225,9 @@ export function CalendarView({
   const [listFilter, setListFilter] = useState('');
   const [groupFilter, setGroupFilter] = useState('');
   const [dayPopup, setDayPopup] = useState<string | null>(null);
+  const holidayLabels = useHolidayStore((s) => s.labels);
   const holidays = useHolidayStore((s) => s.holidays);
+  const workdays = useHolidayStore((s) => s.workdays);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth() + 1;
@@ -246,8 +251,8 @@ export function CalendarView({
 
   const grid = useMemo(() => getMonthGrid(year, month), [year, month]);
   const byDay = useMemo(
-    () => groupTasksByDay(filteredTasks, year, month, holidays),
-    [filteredTasks, year, month, holidays],
+    () => groupTasksByDay(filteredTasks, year, month, holidays, todayIso(), workdays),
+    [filteredTasks, year, month, holidays, workdays],
   );
 
   const goPrev = () => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1));
@@ -337,7 +342,7 @@ export function CalendarView({
             year={year}
             month={month}
             tasks={byDay.get(format(date, 'yyyy-MM-dd')) ?? []}
-            holidays={holidays}
+            holidayLabels={holidayLabels}
             onSelect={onSelect}
             onShowAll={setDayPopup}
           />

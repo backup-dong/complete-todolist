@@ -60,6 +60,11 @@ describe('getCalendarOccurrence', () => {
     expect(getCalendarOccurrence('2026-08-13', 'weekdays', undefined, ['2026-08-14'], TODAY)).toBe('2026-08-17');
   });
 
+  it('treats weekend 调休 workday as a working day for weekdays rule', () => {
+    // due Fri 01-02, today Sat 01-03 -> Sat off, Sun 01-04 元旦调休工作 -> next occurrence 01-04
+    expect(getCalendarOccurrence('2026-01-02', 'weekdays', undefined, ['2026-01-01'], '2026-01-03', ['2026-01-04'])).toBe('2026-01-04');
+  });
+
   it('returns last valid occurrence when repeat_until expired', () => {
     const occ = getCalendarOccurrence('2026-08-01', 'weekly', '2026-08-08', [], TODAY);
     expect(occ).toBe('2026-08-08');

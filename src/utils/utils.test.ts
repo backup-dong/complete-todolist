@@ -84,6 +84,11 @@ describe('repeat utils', () => {
     expect(computeNextDue('2026-09-30', 'weekdays', undefined, ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08'])).toBe('2026-10-09');
   });
 
+  it('treats weekend 调休 workday as a working day for weekdays rule', () => {
+    // 2026-01-02 is Friday -> Sat(01-03) off, Sun(01-04) 元旦调休 -> next workday 01-04
+    expect(computeNextDue('2026-01-02', 'weekdays', undefined, ['2026-01-01'], ['2026-01-04'])).toBe('2026-01-04');
+  });
+
   it('handles custom weekday list', () => {
     // 2026-07-01 is Wednesday
     expect(computeNextDue('2026-07-01', 'mon,wed,fri')).toBe('2026-07-03');

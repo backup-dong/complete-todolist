@@ -58,7 +58,7 @@ npm run migrate:v2 -- --dir <local-repo-dir> [--dry-run] [--no-backup]
 ## Testing
 
 - **Unit tests** live next to the code they test (`*.test.ts`). The parser tests are especially important because the JSON serializer round-trip is the core of the app.
-- **End-to-end tests** (`e2e-test.py`) run against a local Vite server with the GitHub API intercepted and mocked by Playwright. They cover settings, list/task CRUD, subtask status inference, repeating tasks, and deletion. The holiday API (`date.nager.at`) is also mocked so repeating-task advancement stays deterministic.
+- **End-to-end tests** (`e2e-test.py`) run against a local Vite server with the GitHub API intercepted and mocked by Playwright. They cover settings, list/task CRUD, subtask status inference, repeating tasks, and deletion. The holiday API (`api.apisbo.com`) is also mocked so repeating-task advancement stays deterministic.
 - The e2e test requires Python and `playwright` installed (`pip install playwright` and `playwright install chromium`).
 
 ## Architecture

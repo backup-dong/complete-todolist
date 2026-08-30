@@ -36,6 +36,7 @@ export function getCalendarOccurrence(
   repeatUntil: string | undefined,
   holidays: string[],
   todayISO: string,
+  workdays?: string[],
 ): string | undefined {
   if (!due) return undefined;
   if (!repeat) return due;
@@ -43,7 +44,7 @@ export function getCalendarOccurrence(
   let current = due;
   if (current >= todayISO) return current;
   for (let i = 0; i < MAX_ITERATIONS; i++) {
-    const next = computeNextDue(current, repeat, repeatUntil, holidays);
+    const next = computeNextDue(current, repeat, repeatUntil, holidays, workdays);
     if (!next || next === current) break;
     if (next >= todayISO) return next;
     current = next;
@@ -63,12 +64,13 @@ export function groupTasksByDay(
   month: number,
   holidays: string[],
   todayISO = format(new Date(), 'yyyy-MM-dd'),
+  workdays?: string[],
 ): Map<string, Task[]> {
   const byDay = new Map<string, Task[]>();
   for (const task of tasks) {
     const due = task.meta.due;
     if (!due) continue;
-    const date = getCalendarOccurrence(due, task.meta.repeat ?? '', task.meta.repeat_until, holidays, todayISO);
+    const date = getCalendarOccurrence(due, task.meta.repeat ?? '', task.meta.repeat_until, holidays, todayISO, workdays);
     if (!date || !dateStrInMonth(date, year, month)) continue;
     const bucket = byDay.get(date);
     if (bucket) {
