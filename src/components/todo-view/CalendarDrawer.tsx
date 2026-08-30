@@ -41,7 +41,7 @@ function DayTaskRow({
       }}
       title={`${task.title}${task.parentId ? '\uff08子任务\uff09' : ''}${task.sourceList ? `\uff08${task.sourceList}\uff09` : ''}`}
       className={[
-        'flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+        'flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[length:var(--cal-row-size)] transition-colors',
         done
           ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)]'
           : overdue
@@ -53,12 +53,12 @@ function DayTaskRow({
       <span className={`min-w-0 flex-1 truncate ${done ? 'line-through' : ''}`}>{task.title}</span>
       {task.parentId && (
         <CornerDownRight
-          className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-muted)]"
+          className="h-[var(--cal-chip-icon)] w-[var(--cal-chip-icon)] shrink-0 text-[var(--color-text-muted)]"
           aria-label="子任务"
         />
       )}
       {task.sourceList && (
-        <span className="shrink-0 text-[11px] text-[var(--color-text-muted)]">{task.sourceList}</span>
+        <span className="shrink-0 text-[length:var(--cal-source-size)] text-[var(--color-text-muted)]">{task.sourceList}</span>
       )}
     </button>
   );
@@ -89,14 +89,14 @@ function DayBlock({
     <div
       data-day-iso={dayIso}
       className={[
-        'border-b border-[var(--color-border-subtle)] px-3 py-2',
+        'border-b border-[var(--color-border-subtle)] px-[var(--cal-cell-pad)] py-[var(--cal-drawer-pad-y)]',
         !inMonth ? 'opacity-40' : '',
       ].join(' ')}
     >
       <div className="mb-1 flex items-center gap-2">
         <span
           className={[
-            'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs tabular-nums',
+            'inline-flex h-[var(--cal-day-num-box)] w-[var(--cal-day-num-box)] shrink-0 items-center justify-center rounded-full text-[length:var(--cal-day-num)] tabular-nums',
             today
               ? 'bg-[var(--color-primary)] font-semibold text-[var(--color-text-inverse)]'
               : 'text-[var(--color-text-secondary)]',
@@ -104,21 +104,21 @@ function DayBlock({
         >
           {format(date, 'd')}
         </span>
-        <span className="text-xs text-[var(--color-text-muted)]">
+        <span className="text-[length:var(--cal-head-size)] text-[var(--color-text-muted)]">
           {format(date, 'M月d日')} {WEEKDAY_NAMES[date.getDay()]}
         </span>
         {holidayLabel && inMonth && (
-          <span className={isWorkday ? 'text-[10px] text-[var(--color-warning)]' : 'text-[10px] text-[var(--color-danger)]'}>
+          <span className={isWorkday ? 'text-[length:var(--cal-holiday-size)] text-[var(--color-warning)]' : 'text-[length:var(--cal-holiday-size)] text-[var(--color-danger)]'}>
             {holidayLabel}
           </span>
         )}
         {tasks.length > 0 && (
-          <span className="ml-auto text-xs tabular-nums text-[var(--color-text-muted)]">{tasks.length} 项</span>
+          <span className="ml-auto text-[length:var(--cal-head-size)] tabular-nums text-[var(--color-text-muted)]">{tasks.length} 项</span>
         )}
       </div>
       {tasks.length === 0 ? (
         inMonth ? (
-          <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">当天无待办</p>
+          <p className="px-2 py-1 text-[length:var(--cal-head-size)] text-[var(--color-text-muted)]">当天无待办</p>
         ) : (
           <div className="px-2 py-1" />
         )
@@ -179,7 +179,7 @@ export function CalendarDrawer({
   const goToday = () => setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
 
   return (
-    <aside className="h-full w-96 shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface-raised)] flex">
+    <aside className="calendar-scale h-full w-96 shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface-raised)] flex">
       <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
         <div className="flex items-center gap-1">
           <button type="button" onClick={goPrev} aria-label="上个月" className="btn-ghost p-1.5">

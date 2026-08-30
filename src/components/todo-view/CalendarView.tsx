@@ -38,7 +38,7 @@ function TaskChip({
       }}
       title={`${task.title}${task.parentId ? '（子任务）' : ''}${task.sourceList ? `（${task.sourceList}）` : ''}`}
       className={[
-        'flex w-full min-w-0 items-center gap-1.5 rounded-md border-l-[3px] px-1.5 py-0.5 text-left text-[11px] leading-tight transition-colors',
+        'flex w-full min-w-0 items-center gap-1.5 rounded-md border-l-[3px] px-1.5 py-[var(--cal-chip-padding-y)] text-left text-[length:var(--cal-chip-size)] leading-tight transition-colors',
         done
           ? 'border-l-[var(--color-border)] bg-[var(--color-surface-hover)] text-[var(--color-text-muted)] opacity-60 hover:opacity-90'
           : overdue
@@ -48,11 +48,11 @@ function TaskChip({
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${done ? 'bg-[var(--color-text-muted)]' : style.dot}`} />
       {task.parentId && (
-        <CornerDownRight className="h-3 w-3 shrink-0 text-[var(--color-text-muted)]" aria-label="子任务" />
+        <CornerDownRight className="h-[var(--cal-chip-icon)] w-[var(--cal-chip-icon)] shrink-0 text-[var(--color-text-muted)]" aria-label="子任务" />
       )}
       <span className={`min-w-0 flex-1 truncate ${done ? 'line-through' : ''}`}>{task.title}</span>
       {task.sourceList && (
-        <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]">{task.sourceList}</span>
+        <span className="shrink-0 text-[length:var(--cal-source-size)] text-[var(--color-text-muted)]">{task.sourceList}</span>
       )}
     </button>
   );
@@ -86,7 +86,7 @@ function DayCell({
   return (
     <div
       className={[
-        'relative flex min-h-[84px] flex-col border-b border-l border-[var(--color-border-subtle)] p-1',
+        'relative flex min-h-[var(--cal-cell-min-h)] flex-col border-b border-l border-[var(--color-border-subtle)] p-[var(--cal-cell-pad)]',
         !inMonth
           ? 'bg-[var(--color-bg)]'
           : currentWeek
@@ -100,7 +100,7 @@ function DayCell({
           onClick={() => tasks.length > 0 && onShowAll(dayIso)}
           title={tasks.length > 0 ? `查看 ${format(date, 'M月d日')} 的全部待办` : undefined}
           className={[
-            'inline-flex h-6 w-6 items-center justify-center rounded-full text-xs tabular-nums transition-colors',
+            'inline-flex h-[var(--cal-day-num-box)] w-[var(--cal-day-num-box)] items-center justify-center rounded-full text-[length:var(--cal-day-num)] tabular-nums transition-colors',
             today
               ? 'bg-[var(--color-primary)] font-semibold text-[var(--color-text-inverse)]'
               : inMonth
@@ -112,13 +112,13 @@ function DayCell({
           {format(date, 'd')}
         </button>
         {holidayLabel && inMonth && (
-          <span className={isWorkday ? 'text-[9px] text-[var(--color-warning)]' : 'text-[9px] text-[var(--color-danger)]'}>
+          <span className={isWorkday ? 'text-[length:var(--cal-holiday-size)] text-[var(--color-warning)]' : 'text-[length:var(--cal-holiday-size)] text-[var(--color-danger)]'}>
             {holidayLabel}
           </span>
         )}
       </div>
 
-      <div className="mt-0.5 flex min-w-0 flex-1 flex-col gap-1 overflow-hidden">
+      <div className="mt-0.5 flex min-w-0 flex-1 flex-col gap-[var(--cal-chip-gap)] overflow-hidden">
         {tasks.slice(0, MAX_CHIPS_PER_DAY).map((task) => (
           <TaskChip key={task.id} task={task} dayIso={dayIso} onSelect={onSelect} />
         ))}
@@ -127,7 +127,7 @@ function DayCell({
             type="button"
             onClick={() => onShowAll(dayIso)}
             title="查看当天全部待办"
-            className="self-start px-1 text-[10px] font-medium text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-primary)]"
+            className="self-start px-1 text-[length:var(--cal-overflow-size)] font-medium text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-primary)]"
           >
             +{overflow} 件
           </button>
@@ -265,7 +265,7 @@ export function CalendarView({
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="calendar-scale flex h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-subtle)] px-3 py-2">
         <div className="flex items-center gap-1">
           <button
@@ -323,12 +323,12 @@ export function CalendarView({
         </div>
       </div>
 
-      <div className="grid grid-cols-7 border-r border-[var(--color-border-subtle)]">
+      <div className="grid min-h-0 flex-1 grid-cols-7 auto-rows-[minmax(var(--cal-cell-min-h),1fr)] overflow-y-auto border-r border-[var(--color-border-subtle)]">
         {WEEKDAY_LABELS.map((label, i) => (
           <div
             key={label}
             className={[
-              'border-b border-[var(--color-border-subtle)] py-1.5 text-center text-xs font-medium',
+              'border-b border-[var(--color-border-subtle)] py-1.5 text-center text-[length:var(--cal-head-size)] font-medium',
               i >= 5 ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text-secondary)]',
             ].join(' ')}
           >

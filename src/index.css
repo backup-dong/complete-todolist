@@ -376,6 +376,43 @@ button {
   animation: task-highlight 1.2s ease-out;
 }
 
+/* 日历视图字号分级：< 2048px（1080p/笔记本）默认档，2K（≥2048px）及以上自动放大 */
+.calendar-scale {
+  --cal-chip-size: 12px;
+  --cal-chip-padding-y: 3px;
+  --cal-chip-gap: 4px;
+  --cal-chip-icon: 12px;
+  --cal-source-size: 11px;
+  --cal-row-size: 14px;
+  --cal-day-num: 14px;
+  --cal-day-num-box: 28px;
+  --cal-holiday-size: 10px;
+  --cal-overflow-size: 12px;
+  --cal-head-size: 12px;
+  --cal-cell-min-h: 96px;
+  --cal-cell-pad: 5px;
+  --cal-drawer-pad-y: 8px;
+}
+
+@media (min-width: 2048px) {
+  .calendar-scale {
+    --cal-chip-size: 14px;
+    --cal-chip-padding-y: 5px;
+    --cal-chip-gap: 6px;
+    --cal-chip-icon: 14px;
+    --cal-source-size: 12px;
+    --cal-row-size: 16px;
+    --cal-day-num: 16px;
+    --cal-day-num-box: 34px;
+    --cal-holiday-size: 12px;
+    --cal-overflow-size: 13px;
+    --cal-head-size: 14px;
+    --cal-cell-min-h: 132px;
+    --cal-cell-pad: 8px;
+    --cal-drawer-pad-y: 12px;
+  }
+}
+
 /* react-photo-view 挂载在 body 下，会被 Radix 弹窗的 body pointer-events:none 波及，导致整层不可交互 */
 .PhotoView-Portal {
   pointer-events: auto !important;
