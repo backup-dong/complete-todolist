@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { format, isToday } from 'date-fns';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CornerDownRight, X } from 'lucide-react';
 import type { Task } from '@/types';
 import {
   dateIsInMonth,
@@ -37,7 +37,7 @@ function DayTaskRow({
         e.stopPropagation();
         onSelect(task.id);
       }}
-      title={`${task.title}${task.sourceList ? `\uff08${task.sourceList}\uff09` : ''}`}
+      title={`${task.title}${task.parentId ? '\uff08子任务\uff09' : ''}${task.sourceList ? `\uff08${task.sourceList}\uff09` : ''}`}
       className={[
         'flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
         done
@@ -49,6 +49,12 @@ function DayTaskRow({
     >
       <span className={`h-2 w-2 shrink-0 rounded-full ${done ? 'bg-[var(--color-text-muted)]' : style.dot}`} />
       <span className={`min-w-0 flex-1 truncate ${done ? 'line-through' : ''}`}>{task.title}</span>
+      {task.parentId && (
+        <CornerDownRight
+          className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-muted)]"
+          aria-label="子任务"
+        />
+      )}
       {task.sourceList && (
         <span className="shrink-0 text-[11px] text-[var(--color-text-muted)]">{task.sourceList}</span>
       )}
