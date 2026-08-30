@@ -13,6 +13,19 @@ import { TaskEditorDialog } from '../tasks/TaskEditorDialog';
 import { TodoView } from '@/components/todo-view/TodoView';
 import { CalendarView } from '@/components/todo-view/CalendarView';
 
+const PRIORITY_RANK: Record<Task['meta']['priority'], number> = { high: 3, med: 2, low: 1 };
+
+/** 按 sortMode 递归排序任务树（拖拽模式保持原 order 顺序）。 */
+function sortTaskTree(nodes: Task[], mode: 'drag' | 'due' | 'priority'): Task[] {
+  if (mode === 'drag') return nodes;
+  const sorted = [...nodes].sort((a, b) =>
+    mode === 'due'
+      ? (a.meta.due ?? '9999-99-99').localeCompare(b.meta.due ?? '9999-99-99')
+      : PRIORITY_RANK[b.meta.priority] - PRIORITY_RANK[a.meta.priority],
+  );
+  return sorted.map((n) => (n.subtasks ? { ...n, subtasks: sortTaskTree(n.subtasks, mode) } : n));
+}
+
 function ProgressBar({ done, total }: { done: number; total: number }) {
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   return (
@@ -290,7 +303,10 @@ export function ContentArea({ onOpenMenu, onToggleCalendar }: { onOpenMenu?: () 
   const filteredTopIds = useMemo(() => new Set(filtered.map((t) => t.id)), [filtered]);
   const displayTasks = todoView
     ? filtered
-    : treeTasks.filter((t) => (activeGroup ? t.group === activeGroup : true) && filteredTopIds.has(t.id));
+    : sortTaskTree(
+        treeTasks.filter((t) => (activeGroup ? t.group === activeGroup : true) && filteredTopIds.has(t.id)),
+        sortMode,
+      );
 
   let selectedTask = displayTasks.find((t) => t.id === selectedTaskId) ?? null;
   // 当前清单内找不到时跨清单查找（含子任务树），使日历抽屉可打开其它清单的待办
