@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { format, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { Task } from '@/types';
@@ -78,6 +78,7 @@ function DayBlock({
 
   return (
     <div
+      data-day-iso={dayIso}
       className={[
         'border-b border-[var(--color-border-subtle)] px-3 py-2',
         !inMonth ? 'opacity-40' : '',
@@ -123,11 +124,28 @@ export function CalendarDrawer({
   onSelect: (taskId: string) => void;
 }) {
   const now = new Date();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
   const holidays = useHolidayStore((s) => s.holidays);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth() + 1;
+
+  // 打开时就定位到"今天"所在位置
+  // 抽屉父容器宽度有 200ms 过渡，需等其完成后再滚动，否则布局尚未就绪
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const container = scrollRef.current;
+      if (!container) return;
+      const todayIso = format(now, 'yyyy-MM-dd');
+      const el = container.querySelector<HTMLDivElement>(`[data-day-iso="${todayIso}"]`);
+      if (!el) return;
+      const targetTop = el.offsetTop - container.offsetTop;
+      container.scrollTo({ top: Math.max(0, targetTop - 16), behavior: 'auto' });
+    }, 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const grid = useMemo(() => getMonthGrid(year, month), [year, month]);
   const byDay = useMemo(
@@ -161,7 +179,7 @@ export function CalendarDrawer({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {grid.map((date, i) => (
           <DayBlock
             key={i}
