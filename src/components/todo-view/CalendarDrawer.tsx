@@ -108,7 +108,11 @@ function DayBlock({
         )}
       </div>
       {tasks.length === 0 ? (
-        <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">当天无待办</p>
+        inMonth ? (
+          <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">当天无待办</p>
+        ) : (
+          <div className="px-2 py-1" />
+        )
       ) : (
         <div className="flex flex-col gap-0.5">
           {tasks.map((task) => (
