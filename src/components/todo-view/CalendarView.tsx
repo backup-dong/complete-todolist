@@ -323,7 +323,7 @@ export function CalendarView({
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-7 auto-rows-[minmax(var(--cal-cell-min-h),1fr)] overflow-y-auto border-r border-[var(--color-border-subtle)]">
+      <div className="grid grid-cols-7 border-r border-[var(--color-border-subtle)]">
         {WEEKDAY_LABELS.map((label, i) => (
           <div
             key={label}
@@ -335,6 +335,9 @@ export function CalendarView({
             {label}
           </div>
         ))}
+      </div>
+
+      <div className="calendar-grid-scroll grid min-h-0 flex-1 grid-cols-7 auto-rows-[minmax(var(--cal-cell-min-h),1fr)] overflow-y-auto border-r border-[var(--color-border-subtle)]">
         {grid.map((date, i) => (
           <DayCell
             key={i}

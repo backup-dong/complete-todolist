@@ -379,18 +379,20 @@ button {
 /* 日历视图字号分级：< 2048px（1080p/笔记本）默认档，2K（≥2048px）及以上自动放大 */
 .calendar-scale {
   --cal-chip-size: 12px;
-  --cal-chip-padding-y: 3px;
-  --cal-chip-gap: 4px;
+  --cal-chip-padding-y: 2px;
+  --cal-chip-gap: 3px;
   --cal-chip-icon: 12px;
   --cal-source-size: 11px;
   --cal-row-size: 14px;
   --cal-day-num: 14px;
-  --cal-day-num-box: 28px;
+  --cal-day-num-box: 24px;
   --cal-holiday-size: 10px;
   --cal-overflow-size: 12px;
   --cal-head-size: 12px;
-  --cal-cell-min-h: 96px;
-  --cal-cell-pad: 5px;
+  /* --cal-cell-min-h 必须能容纳单元格内固定内容（日期 + 3 个任务 chip + "+N 件"按钮），
+     否则窄视口下内容被 overflow-hidden 裁切遮挡 */
+  --cal-cell-min-h: 120px;
+  --cal-cell-pad: 4px;
   --cal-drawer-pad-y: 8px;
 }
 
@@ -407,10 +409,21 @@ button {
     --cal-holiday-size: 12px;
     --cal-overflow-size: 13px;
     --cal-head-size: 14px;
-    --cal-cell-min-h: 132px;
+    /* 同步放大：容纳 3 个 chip + "+N 件"按钮，避免 2K 屏被裁切 */
+    --cal-cell-min-h: 176px;
     --cal-cell-pad: 8px;
     --cal-drawer-pad-y: 12px;
   }
+}
+
+/* 月历网格：内容溢出时仍可滚动（鼠标滚轮/触控板），但不显示滚动条，
+   避免在 13 寸笔记本/浏览器工具栏压缩视口时露出难看的滚动条 */
+.calendar-grid-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.calendar-grid-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* react-photo-view 挂载在 body 下，会被 Radix 弹窗的 body pointer-events:none 波及，导致整层不可交互 */
