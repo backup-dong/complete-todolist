@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardPaste,
+  Copy,
   Eye,
   GripVertical,
   Link as LinkIcon,
@@ -866,12 +867,25 @@ function TaskSubtasksEditor({
   );
 }
 
-function Section({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
+function Section({
+  title,
+  children,
+  className = '',
+  action,
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className={`rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 shadow-sm ${className}`}>
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-        {title}
-      </h3>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+          {title}
+        </h3>
+        {action}
+      </div>
       {children}
     </div>
   );
@@ -881,13 +895,43 @@ function TaskMetaFields({
   draft,
   groups,
   dispatch,
+  taskId,
 }: {
   draft: DraftTask;
   groups: string[];
   dispatch: (action: DraftAction) => void;
+  taskId: string;
 }) {
+  const handleCopyId = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(taskId);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = taskId;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    toast.success('任务ID已复制');
+  }, [taskId]);
+
   return (
-    <Section title="基本信息">
+    <Section
+      title="基本信息"
+      action={
+        <button
+          type="button"
+          onClick={handleCopyId}
+          title="点击复制任务ID"
+          aria-label="复制任务ID"
+          className="inline-flex max-w-[220px] items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+        >
+          <Copy className="h-3 w-3 shrink-0" />
+          <span className="truncate">{taskId}</span>
+        </button>
+      }
+    >
       <div className="space-y-3">
         <input
           value={draft.title}
@@ -1370,7 +1414,7 @@ export function TaskEditor({
 
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mx-auto space-y-4">
-          <TaskMetaFields draft={draft} groups={groups} dispatch={dispatch} />
+          <TaskMetaFields draft={draft} groups={groups} dispatch={dispatch} taskId={task.id} />
           <Section title="标签">
             <TaskTagsEditor
               tags={draft.tags}
