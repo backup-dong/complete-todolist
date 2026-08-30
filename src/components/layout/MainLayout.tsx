@@ -18,7 +18,9 @@ export function MainLayout() {
 
   const calendarTasks = useMemo(() => {
     const list = activeListName ? fileCache[activeListName] : null;
-    return list ? list.groups.flatMap((g) => g.tasks) : [];
+    return list
+      ? list.groups.flatMap((g) => g.tasks).map((t) => ({ ...t, sourceList: activeListName ?? undefined }))
+      : [];
   }, [activeListName, fileCache]);
 
   const toggleSidebarCollapsed = useCallback(() => {
