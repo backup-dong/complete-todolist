@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { FilterState, ParsedList, SortMode, Task, TaskMeta, TodoViewKey } from '@/types';
 import { generateTaskId } from '@/utils/id';
-import { isDueToday, isDueThisWeek, isStartThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
+import { isDueToday, isDueThisWeek, isOverdue, nowIso, todayIso, durationDays } from '@/utils/date';
 import { computeNextDue, computeEffectiveDueDate } from '@/utils/repeat';
 import { dateStrInMonth, getCalendarOccurrence } from '@/utils/calendar';
 import { topLevelTasks, toggleSubtaskState, resetDescendants, getDescendants, replaceSubtree, deleteSubtaskTree } from '@/utils/subtasks';
@@ -125,8 +125,8 @@ function matchesTodoView(task: Task, key: TodoViewKey): boolean {
   if (task.meta.status === 'done') return false;
 
   switch (key) {
-    case 'start-week':
-      return isStartThisWeek(task.meta.start);
+    case 'overdue':
+      return isOverdue(task.meta.due);
     case 'all':
       return true;
     case 'high':
@@ -660,7 +660,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   getTodoViewCounts: () => {
     const aggregated = flattenAllTasks(useListsStore.getState().fileCache);
-    const keys: TodoViewKey[] = ['start-week', 'all', 'high', 'calendar'];
+    const keys: TodoViewKey[] = ['overdue', 'all', 'high', 'calendar'];
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;

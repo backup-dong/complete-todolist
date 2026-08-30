@@ -267,7 +267,7 @@ export function ContentArea({ onOpenMenu, onToggleCalendar }: { onOpenMenu?: () 
   }, [highlightedTaskId]);
 
   const todoViewTitles: Record<TodoViewKey, string> = {
-    'start-week': '本周开始',
+    overdue: '滞后',
     all: '全部',
     high: '高优先级',
     calendar: '日历',

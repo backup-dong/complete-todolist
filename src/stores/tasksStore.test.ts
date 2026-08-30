@@ -327,11 +327,25 @@ describe('tasksStore todo views', () => {
     expect(tasks.map((t) => t.id).sort()).toEqual(['l1', 'l2', 'w1', 'w2']);
   });
 
+  it('setTodoView(overdue) aggregates overdue incomplete tasks', () => {
+    const work = makeWorkList();
+    work.groups[0].tasks.push({
+      ...makeTask('w4', '已逾期工作', '项目Alpha', 4),
+      meta: { ...makeTask('w4', '已逾期工作', '项目Alpha', 4).meta, due: '2026-07-01' },
+    });
+    useListsStore.setState({ fileCache: { 工作: work, 生活: makeLifeList() } });
+
+    useTasksStore.getState().setTodoView('overdue');
+
+    const tasks = useTasksStore.getState().tasks;
+    expect(tasks.map((t) => t.id)).toEqual(['w4']);
+  });
+
   it('getTodoViewCounts returns correct counts', () => {
     useListsStore.setState({ fileCache: { 工作: makeWorkList(), 生活: makeLifeList() } });
 
     const counts = useTasksStore.getState().getTodoViewCounts();
-    expect(counts).toEqual({ 'start-week': 0, all: 4, high: 2, calendar: 3 });
+    expect(counts).toEqual({ overdue: 0, all: 4, high: 2, calendar: 3 });
   });
 
   it('completing task in todo view routes to source list and refreshes view', async () => {

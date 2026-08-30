@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  CalendarDays,
   CalendarRange,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Flag,
   Folder,
   Layers,
@@ -725,7 +725,7 @@ export function Sidebar({
 
   const todoViews = [
     { key: 'calendar', icon: CalendarRange, label: '日历' },
-    { key: 'start-week', icon: CalendarDays, label: '本周开始' },
+    { key: 'overdue', icon: Clock, label: '滞后' },
     { key: 'all', icon: Layers, label: '全部' },
     { key: 'high', icon: Flag, label: '高优先级' },
   ] as const;
