@@ -126,6 +126,24 @@ export function getCachedActiveList(): string | null {
   return localStorage.getItem('dong-todo:active-list');
 }
 
+const SIDEBAR_COLLAPSED_KEY = 'dong-todo:sidebar-collapsed';
+
+export function getSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setSidebarCollapsed(collapsed: boolean): void {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function cacheNotified(taskId: string, due: string): void {
   updateJson<Record<string, string>>(
     'dong-todo:notified-tasks',

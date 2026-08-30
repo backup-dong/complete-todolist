@@ -1,11 +1,21 @@
 import { useCallback, useRef, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { ContentArea } from './ContentArea';
+import { getSidebarCollapsed, setSidebarCollapsed } from '@/utils/storage';
 
 export function MainLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsedState] = useState(() => getSidebarCollapsed());
   const touchStartRef = useRef<{ x: number; y: number; triggered: boolean }>({ x: 0, y: 0, triggered: false });
+
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsedState((prev) => {
+      const next = !prev;
+      setSidebarCollapsed(next);
+      return next;
+    });
+  }, []);
 
   // 打开抽屉时先挂载 DOM，再等下一帧再加 translate，确保 transition 生效
   const openMenu = useCallback(() => {
@@ -57,8 +67,17 @@ export function MainLayout() {
       onTouchMove={handleTouchMove}
     >
       {/* Desktop sidebar */}
-      <div className="hidden md:flex h-full">
-        <Sidebar onClose={closeMenu} />
+      <div
+        className={[
+          'hidden md:flex h-full overflow-hidden transition-[width] duration-200 ease-in-out',
+          sidebarCollapsed ? 'w-16' : 'w-72',
+        ].join(' ')}
+      >
+        <Sidebar
+          onClose={closeMenu}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleSidebarCollapsed}
+        />
       </div>
 
       {/* Mobile drawer */}

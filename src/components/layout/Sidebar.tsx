@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
   CalendarRange,
+  ChevronLeft,
   ChevronRight,
   Flag,
   Folder,
@@ -695,7 +696,11 @@ function ListsSection({
   );
 }
 
-export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
+export function Sidebar({
+  onClose,
+  collapsed = false,
+  onToggleCollapse,
+}: { onClose?: () => void; collapsed?: boolean; onToggleCollapse?: () => void } = {}) {
   const { lists, activeListName, activeGroup, selectList, selectGroup, createGroup, renameGroup, createList, renameList, deleteList, deleteGroup, fileCache } =
     useListsStore();
   const { todoView, setTodoView, getTodoViewCounts, tasks, filter, setFilter } = useTasksStore();
@@ -897,139 +902,219 @@ export function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   return (
     <aside
       className={[
-        'flex h-full w-60 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-raised)] md:w-72',
+        'flex h-full flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-raised)]',
+        collapsed ? 'w-16 md:w-16' : 'w-60 md:w-72',
         onClose ? 'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : '',
       ].join(' ')}
     >
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] p-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--color-primary)] text-[var(--color-text-inverse)]">
-            <ListTodo className="h-5 w-5" />
+      {collapsed && onToggleCollapse ? (
+        <div className="flex items-center justify-center border-b border-[var(--color-border)] py-3">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="btn-ghost p-1.5"
+            aria-label="展开侧边栏"
+            title="展开侧边栏"
+          >
+            <ChevronLeft className="h-4 w-4 rotate-180 transition-transform duration-200" />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--color-primary)] text-[var(--color-text-inverse)]">
+              <ListTodo className="h-5 w-5" />
+            </div>
+            <span className="truncate text-lg font-semibold tracking-tight">Dong Todo</span>
           </div>
-          <span className="text-lg font-semibold tracking-tight">Dong Todo</span>
+          {onToggleCollapse ? (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="btn-ghost p-1.5 hidden md:flex"
+              aria-label="收起侧边栏"
+              title="收起侧边栏"
+            >
+              <ChevronLeft className="h-4 w-4 transition-transform duration-200" />
+            </button>
+          ) : (
+            onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-ghost p-1.5 md:hidden"
+                aria-label="关闭导航"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )
+          )}
         </div>
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-ghost p-1.5 md:hidden"
-            aria-label="关闭导航"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto p-3">
-        <TodoViewsSection
-          items={todoViews}
-          activeKey={todoView}
-          counts={todoViewCounts}
-          onSelect={handleTodoViewClick}
-        />
-
-        <ListsSection
-          lists={lists}
-          activeListName={activeListName}
-          fileCache={fileCache}
-          activeGroup={activeGroup}
-          showNewGroupForList={showNewGroupForList}
-          newGroupName={newGroupName}
-          editingListName={editingListName}
-          editingListNewName={editingListNewName}
-          editingGroupName={editingGroupName}
-          editingGroupNewName={editingGroupNewName}
-          expandedListNames={expandedListNames}
-          onSelectList={handleSelectList}
-          onDeleteList={handleDeleteList}
-          onSelectGroup={(name, listName) => {
-            if (name && listName) {
-              setTodoView(null);
-              if (activeListName !== listName) {
-                selectList(listName);
-              }
-              selectGroup(name);
-            } else {
-              selectGroup(null);
-            }
-            onClose?.();
-          }}
-          onDeleteGroup={handleDeleteGroup}
-          onShowNewGroup={setShowNewGroupForList}
-          onNewGroupNameChange={setNewGroupName}
-          onCreateGroup={handleCreateGroup}
-          onCancelNewGroup={() => {
-            setNewGroupName('');
-            setShowNewGroupForList(null);
-          }}
-          onStartEditList={handleStartEditList}
-          onEditListNameChange={handleEditListNameChange}
-          onSaveEditList={handleSaveEditList}
-          onCancelEditList={handleCancelEditList}
-          onStartEditGroup={handleStartEditGroup}
-          onEditGroupNameChange={handleEditGroupNameChange}
-          onSaveEditGroup={handleSaveEditGroup}
-          onCancelEditGroup={handleCancelEditGroup}
-          onToggleListCollapse={handleToggleListCollapse}
-        />
-
-        {showNewList ? (
-          <NewListInput
-            value={newListName}
-            onChange={setNewListName}
-            onSubmit={handleCreateList}
-            onCancel={() => setShowNewList(false)}
+      {collapsed && onToggleCollapse ? (
+        <div className="flex flex-1 flex-col items-center gap-1 overflow-y-auto p-3">
+          {todoViews.map((item) => {
+            const Icon = item.icon;
+            const isActive = todoView === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => handleTodoViewClick(item.key)}
+                title={item.label}
+                aria-label={item.label}
+                className={[
+                  'flex h-9 w-9 items-center justify-center rounded-md transition-colors duration-100',
+                  isActive
+                    ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
+                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]',
+                ].join(' ')}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-3">
+          <TodoViewsSection
+            items={todoViews}
+            activeKey={todoView}
+            counts={todoViewCounts}
+            onSelect={handleTodoViewClick}
           />
-        ) : (
+
+          <ListsSection
+            lists={lists}
+            activeListName={activeListName}
+            fileCache={fileCache}
+            activeGroup={activeGroup}
+            showNewGroupForList={showNewGroupForList}
+            newGroupName={newGroupName}
+            editingListName={editingListName}
+            editingListNewName={editingListNewName}
+            editingGroupName={editingGroupName}
+            editingGroupNewName={editingGroupNewName}
+            expandedListNames={expandedListNames}
+            onSelectList={handleSelectList}
+            onDeleteList={handleDeleteList}
+            onSelectGroup={(name, listName) => {
+              if (name && listName) {
+                setTodoView(null);
+                if (activeListName !== listName) {
+                  selectList(listName);
+                }
+                selectGroup(name);
+              } else {
+                selectGroup(null);
+              }
+              onClose?.();
+            }}
+            onDeleteGroup={handleDeleteGroup}
+            onShowNewGroup={setShowNewGroupForList}
+            onNewGroupNameChange={setNewGroupName}
+            onCreateGroup={handleCreateGroup}
+            onCancelNewGroup={() => {
+              setNewGroupName('');
+              setShowNewGroupForList(null);
+            }}
+            onStartEditList={handleStartEditList}
+            onEditListNameChange={handleEditListNameChange}
+            onSaveEditList={handleSaveEditList}
+            onCancelEditList={handleCancelEditList}
+            onStartEditGroup={handleStartEditGroup}
+            onEditGroupNameChange={handleEditGroupNameChange}
+            onSaveEditGroup={handleSaveEditGroup}
+            onCancelEditGroup={handleCancelEditGroup}
+            onToggleListCollapse={handleToggleListCollapse}
+          />
+
+          {showNewList ? (
+            <NewListInput
+              value={newListName}
+              onChange={setNewListName}
+              onSubmit={handleCreateList}
+              onCancel={() => setShowNewList(false)}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowNewList(true)}
+              className="mt-3 flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-colors duration-100"
+            >
+              <Plus className="h-[18px] w-[18px]" />
+              <span>新建清单</span>
+            </button>
+          )}
+
+          <TagsSection
+            tags={tagEntries}
+            activeTags={filter.tags}
+            onToggle={handleTagClick}
+          />
+        </div>
+      )}
+
+      <div className={['border-t border-[var(--color-border)] p-3', collapsed && onToggleCollapse ? 'flex flex-col items-center gap-2' : ''].join(' ')}>
+        {!(collapsed && onToggleCollapse) && (
           <button
             type="button"
-            onClick={() => setShowNewList(true)}
-            className="mt-3 flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)] transition-colors duration-100"
+            onClick={() => setQueueExpanded((v) => !v)}
+            className="w-full"
+            aria-expanded={queueExpanded}
           >
-            <Plus className="h-[18px] w-[18px]" />
-            <span>新建清单</span>
+            <SyncIndicator pendingCount={pendingWrites} />
           </button>
         )}
+        {!(collapsed && onToggleCollapse) && <PendingQueue expanded={queueExpanded} />}
+        {collapsed && onToggleCollapse ? (
+          <>
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+              aria-label="设置"
+              title="设置"
+            >
+              <Settings2 className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              type="button"
+              onClick={() => pushPending()}
+              className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+              aria-label="立即同步"
+              title="立即同步"
+            >
+              <RefreshCw className="h-[18px] w-[18px]" />
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="mb-3 mt-3 flex items-center justify-between">
+              <ThemeToggle className="w-full" />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/settings')}
+                className="btn-secondary flex-1 py-1.5 text-xs"
+              >
+                <Settings2 className="mr-1.5 h-3.5 w-3.5" />
+                设置
+              </button>
+              <button
+                type="button"
+                onClick={() => pushPending()}
+                className="btn-secondary flex-1 py-1.5 text-xs"
 
-        <TagsSection
-          tags={tagEntries}
-          activeTags={filter.tags}
-          onToggle={handleTagClick}
-        />
-      </div>
-
-      <div className="border-t border-[var(--color-border)] p-3">
-        <button
-          type="button"
-          onClick={() => setQueueExpanded((v) => !v)}
-          className="w-full"
-          aria-expanded={queueExpanded}
-        >
-          <SyncIndicator pendingCount={pendingWrites} />
-        </button>
-        <PendingQueue expanded={queueExpanded} />
-        <div className="mb-3 mt-3 flex items-center justify-between">
-          <ThemeToggle className="w-full" />
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => navigate('/settings')}
-            className="btn-secondary flex-1 py-1.5 text-xs"
-          >
-            <Settings2 className="mr-1.5 h-3.5 w-3.5" />
-            设置
-          </button>
-          <button
-            type="button"
-            onClick={() => pushPending()}
-            className="btn-secondary flex-1 py-1.5 text-xs"
-
-          >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            立即同步
-          </button>
-        </div>
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                立即同步
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </aside>
   );
