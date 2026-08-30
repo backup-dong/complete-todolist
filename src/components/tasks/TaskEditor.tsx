@@ -958,6 +958,17 @@ function TaskMetaFields({
   );
 }
 
+/** ISO 时间（2026-07-02T14:30:00+08:00）→ datetime-local 输入值（2026-07-02T14:30）。 */
+function isoToLocalInput(iso: string): string {
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/.exec(iso ?? '');
+  return m ? m[1] : '';
+}
+
+/** datetime-local 输入值 → 与 app 一致的 ISO 时间（固定 +08:00）。 */
+function localInputToIso(value: string): string {
+  return `${value}:00+08:00`;
+}
+
 function TaskStatusFields({
   draft,
   dispatch,
@@ -998,11 +1009,23 @@ function TaskStatusFields({
             <option value="active">进行中</option>
             <option value="done">已完成</option>
           </select>
-          {draft.status === 'done' && draft.completed_at && (
-            <span className="mt-2 inline-flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
-              <Check className="h-3.5 w-3.5" />
-              完成于 {formatDateTime(draft.completed_at)}
-            </span>
+          {draft.status === 'done' && (
+            <div className="mt-2">
+              <span className="mb-1 inline-flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+                <Check className="h-3.5 w-3.5" />
+                完成时间
+              </span>
+              <input
+                type="datetime-local"
+                value={isoToLocalInput(draft.completed_at ?? '')}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  dispatch({ type: 'set', field: 'completed_at', value: localInputToIso(e.target.value) });
+                }}
+                className="input w-full"
+                aria-label="完成时间"
+              />
+            </div>
           )}
         </label>
       </div>
