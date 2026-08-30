@@ -136,7 +136,30 @@ function matchesTodoView(task: Task, key: TodoViewKey): boolean {
   }
 }
 
-function matchesFilter(task: Task, filter: FilterState, query: string): boolean {
+/** 任务用于检索的文本：标题 + 备注 + 标签。 */
+function taskSearchText(task: Task): string {
+  return `${task.title} ${task.note ?? ''} ${task.meta.tags?.join(' ') ?? ''}`.toLowerCase();
+}
+
+/** 计算某清单中全部顶层任务的子任务检索文本映射（仅搜索时使用）。 */
+function listDescendantHaystack(list: ParsedList): Map<string, string> {
+  const flat = list.groups.flatMap((g) => g.tasks);
+  const map = new Map<string, string>();
+  for (const parent of flat) {
+    if (parent.parentId !== null) continue;
+    const descendants = getDescendants(flat, parent.id);
+    if (descendants.length === 0) continue;
+    map.set(parent.id, descendants.map(taskSearchText).join(' '));
+  }
+  return map;
+}
+
+function matchesFilter(
+  task: Task,
+  filter: FilterState,
+  query: string,
+  descendantHaystack = '',
+): boolean {
   if (filter.status.length > 0 && !filter.status.includes(task.meta.status ?? 'pending')) return false;
   if (filter.priority !== 'all' && task.meta.priority !== filter.priority) return false;
   if (filter.timeRange !== 'all') {
@@ -151,7 +174,7 @@ function matchesFilter(task: Task, filter: FilterState, query: string): boolean 
   }
   if (query) {
     const q = query.toLowerCase();
-    const haystack = `${task.title} ${task.note ?? ''} ${task.meta.tags?.join(' ') ?? ''}`.toLowerCase();
+    const haystack = `${taskSearchText(task)} ${descendantHaystack}`;
     if (!haystack.includes(q)) return false;
   }
   return true;
@@ -610,7 +633,23 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   getFilteredTasks: () => {
     const { tasks, filter, searchQuery, sortMode } = get();
-    const filtered = tasks.filter((t) => matchesFilter(t, filter, searchQuery));
+    let descendantHaystacks: Map<string, string> | undefined;
+    if (searchQuery) {
+      // 搜索时父任务的子任务命中也算匹配；按清单构建一次映射避免重复计算
+      descendantHaystacks = new Map();
+      const seen = new Set<string>();
+      for (const task of tasks) {
+        const listName = task.sourceList ?? useListsStore.getState().activeListName;
+        if (!listName || seen.has(listName)) continue;
+        seen.add(listName);
+        const list = useListsStore.getState().fileCache[listName];
+        if (!list) continue;
+        for (const [id, text] of listDescendantHaystack(list)) descendantHaystacks.set(id, text);
+      }
+    }
+    const filtered = tasks.filter((t) =>
+      matchesFilter(t, filter, searchQuery, descendantHaystacks?.get(t.id) ?? ''),
+    );
     return sortTasks(filtered, sortMode);
   },
 

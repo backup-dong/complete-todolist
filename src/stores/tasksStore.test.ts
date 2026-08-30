@@ -476,4 +476,35 @@ describe('tasksStore tags', () => {
     useTasksStore.setState({ tasks: list.groups.flatMap((g) => g.tasks), searchQuery: 'urgent' });
     expect(useTasksStore.getState().getFilteredTasks().map((t) => t.id)).toEqual(['a']);
   });
+
+  it('search matches subtask text', () => {
+    const list: ParsedList = {
+      meta: { name: '工作', created: '2026-07-01', archived: false },
+      groups: [
+        {
+          name: '项目Alpha',
+          tasks: [
+            { ...makeTask('a', '父任务', '项目Alpha', 1) },
+            {
+              id: 'a1',
+              title: '关于竞品的关键调研报告',
+              group: '项目Alpha',
+              parentId: 'a',
+              meta: { priority: 'med', created: '2026-07-01', order: 1 },
+            },
+          ],
+        },
+      ],
+      rawContent: '',
+    };
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({
+      tasks: list.groups.flatMap((g) => g.tasks).filter((t) => t.parentId === null),
+      searchQuery: '关键',
+    });
+    expect(useTasksStore.getState().getFilteredTasks().map((t) => t.id)).toEqual(['a']);
+
+    useTasksStore.setState({ searchQuery: '不存在的词' });
+    expect(useTasksStore.getState().getFilteredTasks()).toEqual([]);
+  });
 });
