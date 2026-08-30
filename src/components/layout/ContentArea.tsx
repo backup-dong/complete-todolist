@@ -261,15 +261,17 @@ export function ContentArea({ onOpenMenu, onToggleCalendar }: { onOpenMenu?: () 
   };
 
   const activeList = activeListName ? fileCache[activeListName] : null;
+  // 分组选项跟随选中任务所属的清单（跨清单编辑时不能用当前清单的分组）
   const groups = useMemo(() => {
-    if (todoView && selectedTaskId) {
-      const selectedTask = getFilteredTasks().find((t) => t.id === selectedTaskId);
-      if (selectedTask?.sourceList) {
-        return fileCache[selectedTask.sourceList]?.groups.map((g) => g.name) ?? [];
+    if (selectedTaskId) {
+      for (const [, list] of Object.entries(fileCache)) {
+        if (list.groups.some((g) => g.tasks.some((t) => t.id === selectedTaskId))) {
+          return list.groups.map((g) => g.name);
+        }
       }
     }
     return activeList?.groups.map((g) => g.name) ?? [];
-  }, [activeList, fileCache, getFilteredTasks, selectedTaskId, todoView]);
+  }, [activeList, fileCache, selectedTaskId]);
   const allTasks = useMemo(() => {
     if (todoView) return getFilteredTasks();
     return topLevelTasks(activeList?.groups.flatMap((g) => g.tasks) ?? []);
@@ -290,7 +292,19 @@ export function ContentArea({ onOpenMenu, onToggleCalendar }: { onOpenMenu?: () 
     ? filtered
     : treeTasks.filter((t) => (activeGroup ? t.group === activeGroup : true) && filteredTopIds.has(t.id));
 
-  const selectedTask = displayTasks.find((t) => t.id === selectedTaskId) ?? null;
+  let selectedTask = displayTasks.find((t) => t.id === selectedTaskId) ?? null;
+  // 当前清单内找不到时跨清单查找（含子任务树），使日历抽屉可打开其它清单的待办
+  if (!selectedTask && selectedTaskId) {
+    for (const [, list] of Object.entries(fileCache)) {
+      const found = buildSubtaskTree(list.groups.flatMap((g) => g.tasks), null).find(
+        (t) => t.id === selectedTaskId,
+      );
+      if (found) {
+        selectedTask = found;
+        break;
+      }
+    }
+  }
 
   const handleCreateTask = async () => {
     const title = newTaskTitle.trim();
