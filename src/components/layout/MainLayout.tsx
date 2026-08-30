@@ -26,6 +26,20 @@ export function MainLayout() {
     [fileCache],
   );
 
+  // 抽屉里点击子任务时打开其顶层主任务（列表视图的编辑对话框只按顶层任务查找）
+  const handleCalendarSelect = useCallback(
+    (taskId: string) => {
+      const allTasks = Object.values(fileCache).flatMap((list) => list.groups.flatMap((g) => g.tasks));
+      const byId = new Map(allTasks.map((t) => [t.id, t]));
+      let cur = byId.get(taskId);
+      while (cur?.parentId && byId.has(cur.parentId)) {
+        cur = byId.get(cur.parentId);
+      }
+      selectTask(cur?.id ?? taskId);
+    },
+    [fileCache, selectTask],
+  );
+
   const toggleSidebarCollapsed = useCallback(() => {
     setSidebarCollapsedState((prev) => {
       const next = !prev;
@@ -156,7 +170,7 @@ export function MainLayout() {
           <CalendarDrawer
             onClose={closeCalendar}
             tasks={calendarTasks}
-            onSelect={selectTask}
+            onSelect={handleCalendarSelect}
           />
         )}
       </div>
