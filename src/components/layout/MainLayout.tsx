@@ -13,15 +13,18 @@ export function MainLayout() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number; triggered: boolean }>({ x: 0, y: 0, triggered: false });
 
-  const { activeListName, fileCache } = useListsStore();
+  const { fileCache } = useListsStore();
   const selectTask = useTasksStore((s) => s.selectTask);
 
-  const calendarTasks = useMemo(() => {
-    const list = activeListName ? fileCache[activeListName] : null;
-    return list
-      ? list.groups.flatMap((g) => g.tasks).map((t) => ({ ...t, sourceList: activeListName ?? undefined }))
-      : [];
-  }, [activeListName, fileCache]);
+  const calendarTasks = useMemo(
+    () =>
+      Object.entries(fileCache).flatMap(([listName, list]) =>
+        list
+          ? list.groups.flatMap((g) => g.tasks).map((t) => ({ ...t, sourceList: listName }))
+          : [],
+      ),
+    [fileCache],
+  );
 
   const toggleSidebarCollapsed = useCallback(() => {
     setSidebarCollapsedState((prev) => {
