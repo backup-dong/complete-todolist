@@ -88,7 +88,8 @@
             "due": "2026-07-10",
             "repeat": "weekly",
             "repeat_until": "2026-12-31",
-            "order": 1
+            "order": 1,
+            "pinned": true
           },
           "note": "需要调研飞书任务、Notion、Todoist 三家的功能对比",
           "reflection": null,
@@ -180,6 +181,7 @@
 | `repeat_until` | string | 否 | 重复截止日期；超过则不再推进 |
 | `repeat_count` | number | 否 | 已推进次数计数 |
 | `order` | number | 否 | 同父级内位置，1 起；`buildSubtaskTree` 依据它排序 |
+| `pinned` | boolean | 否 | 置顶标记（见 9.9 置顶）；仅顶级任务使用，置顶任务在渲染层整体排前。解析时仅接受 `true`（畸形值归一为未置顶）；不置顶时字段缺省，JSON 不残留 |
 | `tags` | string[] | 否 | 标签列表（编辑/筛选行为见 9.8 标签） |
 
 #### 链接（`Link`）、附件（`FileRef`）、提醒（`Reminder`）
@@ -231,6 +233,15 @@
   拖拽重排（drag 模式）写回新的 `order` 序列。
 - 排序模式 `SortMode = 'drag' | 'due' | 'priority'`：后两者是渲染期排序，
   不写回磁盘；`drag` 是唯一持久化顺序。
+- **置顶优先层**：`meta.pinned === true` 的顶级任务在渲染层整体排前
+  （不分完成状态），层内仍按当前 `SortMode` 比较；置顶是渲染层「分区」，
+  **不**写入 `order`、不改变持久化数组顺序（旧版本应用读取会丢弃该字段，
+  可接受，不升格式版本）。
+- **置顶与拖拽**：drag 模式重排不允许跨越置顶/非置顶边界（store 层
+  `reorderTasks` / `reorderTasksInGroup` 对跨界拖动直接 no-op；
+  跨界移动需通过置顶/取消置顶操作完成）。`reorderTasksInGroup`
+  按「置顶分区 + 持久化数组序」重建展示顺序后再重写 `order`，
+  保证 UI 下标与工作数组一致。
 
 ### 2.7 不变量与约束（Invariants）
 
@@ -242,6 +253,8 @@
 6. 顶层任务的 `order` 在写回前重排为 1..n 连续；同父子任务同理。
 7. 同名分组在解析后合并为一个 `Group`。
 8. 清单文件至少含一个分组（解析时兜底「默认分组」）。
+9. `pinned` 仅对顶级任务有意义；子任务携带该字段时所有排序路径忽略
+   （子任务顺序只由 `order` 决定），UI 也不提供置顶入口。
 
 ## 三、解析与序列化
 
@@ -450,6 +463,7 @@ activeList(fileCache) → flatAll = groups.flatMap(g => g.tasks)
 
 - TaskCard 递归渲染子任务：卡片内 `task.subtasks.map(...)`；
   「全部完成/部分完成」圆环来自 `normalizeTask` 推断结果。
+- 顶层节点渲染前经 `sortTaskTree` 排序（含置顶优先层，见 9.9）。
 - 有子任务的父任务在列表不渲染可点击圆环（防止误解与误操作，见第四章约定）。
 
 ### 8.3 编辑器（TaskEditor / TaskEditorDialog）
@@ -539,6 +553,51 @@ activeList(fileCache) → flatAll = groups.flatMap(g => g.tasks)
   `TaskCard.tsx`（展示）、`Sidebar.tsx`（侧边栏区块）、
   `src/stores/tasksStore.ts`（`matchesFilter` / `setFilter`）、
   `src/types/index.ts`（`FilterState.tags`）。
+
+### 9.9 置顶（Pin）
+
+**数据模型**
+
+- `TaskMeta.pinned?: boolean`，随任务 JSON 持久化（序列化随 `meta` 原样写出）。
+- 解析归一化：仅接受布尔 `true`（`partial.pinned === true ? true : undefined`），
+  字符串/数字等畸形值一律归一为未置顶——与 `tags` 同一防御风格。
+- 取消置顶写 `undefined` 而非 `false`：`JSON.stringify` 丢弃 `undefined`，
+  保证未置顶任务的 JSON 中**不残留** `"pinned": false`。
+
+**排序语义**
+
+- 置顶是渲染层「优先层」：`pinned === true` 的顶级任务整体排前（不分完成
+  状态），层内仍按当前 `SortMode`（拖拽=order / 截止 / 优先级）排序；
+  利用 ES2019+ `Array.prototype.sort` 稳定性保证同层顺序确定。
+- 落地两处比较器：`tasksStore.sortTasks`（待办四视图 + `getFilteredTasks`
+  + `reorderTasks` 的工作列表）与 `ContentArea.sortTaskTree`（列表视图树排序，
+  drag 模式改为稳定的置顶分区）。
+- 分组渲染无需特判：`TaskList.grouped` 按传入数组顺序构建 `Map`，
+  数组置顶优先后各 `GroupSection` 内自动置顶在前。
+- **仅顶级任务可置顶**：子任务顺序只由 `order` 决定，`buildSubtaskTree` /
+  `sortByOrder` 不感知置顶（不变量 9）。
+
+**入口**
+
+- 任务卡片图钉按钮（`TaskCard`，`data-testid="pin-task"`）：未置顶时悬停
+  显示（与删除按钮同款 reveal 样式），已置顶时常显高亮填充图标作为状态
+  指示；直接调用 `tasksStore.updateTask(id, { meta: { pinned: ... } })`
+  （不走 prop 透传，拖拽浮层/待办视图中零改动可用）。子任务卡片不渲染。
+- 任务编辑器「状态」区块置顶复选框（`TaskEditor`，`data-testid="pin-toggle"`）：
+  走 draft → `makeTask` 的成套保存路径，与其他 meta 字段一致；
+  编辑子任务时自动隐藏。
+
+**交互约束与边界**
+
+- 拖拽跨界守卫：`reorderTasks` / `reorderTasksInGroup` 对跨越置顶边界的
+  拖动直接 no-op（详见 2.6 排序规则）；`reorderTasksInGroup` 先按
+  「置顶分区 + 持久化数组序」重建展示顺序再重写 `order`。
+- 重复任务推进 `advanceRepeatingTask` 展开 `...task.meta`，置顶自动保留。
+- 新建任务无 `pinned`，出现在非置顶区顶部（`order: minOrder - 1`），符合预期。
+- 待办视图（start-week / all / high）只聚合顶级任务，置顶经 `sortTasks`
+  生效；calendar 视图布局独立，不受影响。
+- 兼容：旧 JSON 无 `pinned` 字段解析为未置顶；旧版本应用读取后丢弃该字段
+  （白名单归一化），不升 `version`。
 
 ## 十、备注（Note）、链接（Links）与附件（Files）详解
 
