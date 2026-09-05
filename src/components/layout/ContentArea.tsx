@@ -118,10 +118,10 @@ function ListHeader({
             type="button"
             onClick={onToggleCalendar}
             title="日历视图"
-            className="btn-secondary flex shrink-0 items-center gap-1.5 py-1.5 text-xs"
+            className="btn-secondary hidden shrink-0 items-center gap-1.5 py-1.5 text-xs md:flex"
           >
             <Calendar className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">日历</span>
+            <span>日历</span>
           </button>
           <button
             type="button"
