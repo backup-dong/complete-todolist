@@ -5,7 +5,7 @@ import { isDueToday, isDueThisWeek, isOverdue, nowIso, todayIso, durationDays } 
 import { computeNextDue, computeEffectiveDueDate } from '@/utils/repeat';
 import { dateStrInMonth, getCalendarOccurrence } from '@/utils/calendar';
 import { topLevelTasks, toggleSubtaskState, resetDescendants, getDescendants, replaceSubtree, deleteSubtaskTree } from '@/utils/subtasks';
-import { getPendingWrites, getCachedFileContent } from '@/utils/storage';
+import { getPendingWrites, getCachedFileContent, loadSortMode, saveSortMode, loadTodoView, saveTodoView } from '@/utils/storage';
 import { useListsStore } from './listsStore';
 import { useHolidayStore } from './holidayStore';
 import { normalizeTask, parseJsonToList } from '@/parser';
@@ -226,10 +226,10 @@ function advanceRepeatingTask(tasks: Task[], taskId: string, holidays: string[],
 export const useTasksStore = create<TasksState>((set, get) => ({
   tasks: [],
   selectedTaskId: null,
-  sortMode: 'drag',
+  sortMode: loadSortMode(),
   filter: { status: [], priority: 'all', timeRange: 'all', tags: [] },
   searchQuery: '',
-  todoView: null,
+  todoView: loadTodoView(),
 
   loadTasks: async (listName) => {
     // 先使用本地缓存渲染，避免切换清单时阻塞 UI
@@ -605,7 +605,10 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   selectTask: (id) => set({ selectedTaskId: id }),
-  setSortMode: (mode) => set({ sortMode: mode }),
+  setSortMode: (mode) => {
+    saveSortMode(mode);
+    set({ sortMode: mode });
+  },
   setFilter: (f) => set((state) => ({ filter: { ...state.filter, ...f } })),
   setSearchQuery: (q) => set({ searchQuery: q }),
   clearFilters: () =>
@@ -614,6 +617,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       searchQuery: '',
     }),
   setTodoView: (key) => {
+    saveTodoView(key);
     if (key) {
       useListsStore.setState({ activeListName: null, activeGroup: null });
       useListsStore.getState().fetchAllListsContent();
@@ -691,9 +695,12 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   },
 
   resetTasksState: () => {
+    saveSortMode('drag');
+    saveTodoView(null);
     set({
       tasks: [],
       selectedTaskId: null,
+      sortMode: 'drag',
       searchQuery: '',
       todoView: null,
       filter: { status: [], priority: 'all', timeRange: 'all', tags: [] },

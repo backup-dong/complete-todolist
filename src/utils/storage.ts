@@ -1,6 +1,50 @@
-import type { GithubConfig } from '@/types';
+import type { GithubConfig, SortMode, TodoViewKey } from '@/types';
 
 const CONFIG_KEY = 'dong-todo:github-config';
+
+const SORT_MODES: SortMode[] = ['drag', 'due', 'priority'];
+const TODO_VIEW_KEYS: TodoViewKey[] = ['overdue', 'all', 'high', 'calendar'];
+
+const SORT_MODE_KEY = 'dong-todo:sort-mode';
+const TODO_VIEW_KEY = 'dong-todo:todo-view';
+
+export function loadSortMode(): SortMode {
+  try {
+    const raw = localStorage.getItem(SORT_MODE_KEY);
+    return (SORT_MODES as string[]).includes(raw ?? '') ? (raw as SortMode) : 'drag';
+  } catch {
+    return 'drag';
+  }
+}
+
+export function saveSortMode(mode: SortMode): void {
+  try {
+    localStorage.setItem(SORT_MODE_KEY, mode);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function loadTodoView(): TodoViewKey | null {
+  try {
+    const raw = localStorage.getItem(TODO_VIEW_KEY);
+    return (TODO_VIEW_KEYS as string[]).includes(raw ?? '') ? (raw as TodoViewKey) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveTodoView(key: TodoViewKey | null): void {
+  try {
+    if (key) {
+      localStorage.setItem(TODO_VIEW_KEY, key);
+    } else {
+      localStorage.removeItem(TODO_VIEW_KEY);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export function getJson<T>(key: string, fallback: T): T {
   try {
