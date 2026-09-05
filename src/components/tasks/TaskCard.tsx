@@ -4,6 +4,7 @@ import {
   Check,
   Link as LinkIcon,
   ListChecks,
+  Pin,
   Repeat,
   Trash2,
 } from 'lucide-react';
@@ -13,6 +14,7 @@ import { computeEffectiveDueDate, formatRepeat } from '@/utils/repeat';
 import { FileListDisplay } from './FileAttachments';
 import { TagPill } from './TagPill';
 import { useFileDownload } from '@/utils/useFileDownload';
+import { useTasksStore } from '@/stores/tasksStore';
 
 function useDueColor(due?: string, status?: Task['meta']['status']): string {
   if (!due) return '';
@@ -378,6 +380,30 @@ export function TaskCard({
             </div>
           )}
         </div>
+
+        {task.parentId === null && (
+          <button
+            type="button"
+            data-testid="pin-task"
+            aria-label={task.meta.pinned ? '取消置顶' : '置顶'}
+            onClick={(e) => {
+              e.stopPropagation();
+              useTasksStore
+                .getState()
+                .updateTask(task.id, {
+                  meta: { pinned: task.meta.pinned ? undefined : true },
+                });
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-opacity duration-100 ${
+              task.meta.pinned
+                ? 'text-[var(--color-primary)] opacity-100'
+                : 'text-[var(--color-text-muted)] opacity-0 hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100'
+            }`}
+          >
+            <Pin className="h-4 w-4" fill={task.meta.pinned ? 'currentColor' : 'none'} />
+          </button>
+        )}
 
         <button
           type="button"

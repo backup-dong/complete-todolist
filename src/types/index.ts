@@ -12,6 +12,7 @@ export interface TaskMeta {
   repeat_until?: string;
   repeat_count?: number;
   order?: number;
+  pinned?: boolean;
   tags?: string[];
 }
 

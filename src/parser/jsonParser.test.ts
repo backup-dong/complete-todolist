@@ -165,6 +165,69 @@ describe('json parser round-trip', () => {
     expect(tasks[1].meta.tags).toEqual(['ok', 'x']);
   });
 
+  it('round-trips pinned flag and drops it when absent', () => {
+    const raw = JSON.stringify({
+      version: 2,
+      meta: { name: 'M', created: '2026-07-01' },
+      groups: [{
+        name: 'G',
+        tasks: [
+          {
+            id: 't1',
+            title: '置顶任务',
+            parentId: null,
+            group: 'G',
+            meta: { priority: 'med', created: '2026-07-01', pinned: true },
+          },
+          {
+            id: 't2',
+            title: '普通任务',
+            parentId: null,
+            group: 'G',
+            meta: { priority: 'med', created: '2026-07-01' },
+          },
+        ],
+      }],
+    });
+    const parsed = parseJsonToList(raw);
+    expect(parsed.groups[0].tasks[0].meta.pinned).toBe(true);
+    expect(parsed.groups[0].tasks[1].meta.pinned).toBeUndefined();
+
+    const serialized = serializeListToJson(parsed);
+    expect(serialized).toContain('"pinned": true');
+    const task2Json = JSON.parse(serialized).groups[0].tasks[1];
+    expect(task2Json.meta).not.toHaveProperty('pinned');
+  });
+
+  it('normalizes malformed pinned values defensively', () => {
+    const raw = JSON.stringify({
+      version: 2,
+      meta: { name: 'M', created: '2026-07-01' },
+      groups: [{
+        name: 'G',
+        tasks: [
+          {
+            id: 't1',
+            title: '字符串置顶',
+            parentId: null,
+            group: 'G',
+            meta: { priority: 'med', created: '2026-07-01', pinned: 'yes' },
+          },
+          {
+            id: 't2',
+            title: '假置顶',
+            parentId: null,
+            group: 'G',
+            meta: { priority: 'med', created: '2026-07-01', pinned: false },
+          },
+        ],
+      }],
+    });
+    const parsed = parseJsonToList(raw);
+    expect(parsed.groups[0].tasks[0].meta.pinned).toBeUndefined();
+    expect(parsed.groups[0].tasks[1].meta.pinned).toBeUndefined();
+  });
+
   it('generates id for tasks missing id field', () => {
     const raw = JSON.stringify({
       version: 2,

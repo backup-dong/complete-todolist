@@ -34,6 +34,8 @@ function defaultTaskMeta(partial: Partial<TaskMeta> = {}): TaskMeta {
     repeat_until: partial.repeat_until,
     repeat_count: partial.repeat_count,
     order: partial.order,
+    // 归一化 pinned，过滤畸形值（非布尔统一视为未置顶），不写入时保持 JSON 干净
+    pinned: partial.pinned === true ? true : undefined,
     // 归一化 tags，防止畸形 JSON（如字符串）在 join/some 处崩溃
     tags: Array.isArray(partial.tags)
       ? partial.tags

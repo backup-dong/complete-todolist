@@ -218,6 +218,39 @@ def run_tests():
         if not weekly or weekly.get('meta', {}).get('due') != expected_due or weekly.get('meta', {}).get('status') != 'pending':
             log_failure(f'Repeating task did not advance due date correctly. JSON:\n{files.get("工作.json", "")}')
 
+        # 9.5 Pin task - pinned task jumps to top; unpin via editor restores order
+        page.locator('input[placeholder*="新建任务"]').fill('置顶验证A')
+        page.keyboard.press('Enter')
+        page.wait_for_timeout(800)
+
+        page.locator('[data-testid="task-card"]:has-text("测试任务") [data-testid="pin-task"]').click(force=True)
+        page.wait_for_timeout(1200)
+
+        first_card = page.locator('[data-testid="task-card"] >> nth=0').inner_text()
+        if '测试任务' not in first_card:
+            log_failure(f'Pinned task did not jump to first position. First card: {first_card}')
+
+        data = json.loads(files.get('工作.json', '{}'))
+        pinned_task = get_task_by_title(data, '测试任务')
+        if not pinned_task or pinned_task.get('meta', {}).get('pinned') is not True:
+            log_failure(f'Task pinned flag not persisted. JSON:\n{files.get("工作.json", "")}')
+
+        # Unpin via the editor checkbox; JSON should drop the pinned key
+        page.click('text=测试任务')
+        page.wait_for_timeout(300)
+        page.locator('[data-testid="task-editor"] [data-testid="pin-toggle"]').uncheck()
+        page.click('button:has-text("保存")')
+        page.wait_for_timeout(1500)
+
+        data = json.loads(files.get('工作.json', '{}'))
+        unpinned_task = get_task_by_title(data, '测试任务')
+        if not unpinned_task or 'pinned' in unpinned_task.get('meta', {}):
+            log_failure(f'Pinned flag not removed from JSON after unpin. JSON:\n{files.get("工作.json", "")}')
+
+        first_card = page.locator('[data-testid="task-card"] >> nth=0').inner_text()
+        if '置顶验证A' not in first_card:
+            log_failure(f'Order not restored after unpin. First card: {first_card}')
+
         # 10. Delete task
         page.locator('[data-testid="task-card"]:has-text("测试任务") [data-testid="delete-task"]').click(force=True)
         page.wait_for_timeout(200)

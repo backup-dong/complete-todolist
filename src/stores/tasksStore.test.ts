@@ -522,3 +522,104 @@ describe('tasksStore tags', () => {
     expect(useTasksStore.getState().getFilteredTasks()).toEqual([]);
   });
 });
+
+describe('tasksStore pinned sort', () => {
+  beforeEach(() => {
+    useListsStore.setState({
+      lists: [],
+      activeListName: '工作',
+      activeGroup: null,
+      fileCache: {},
+    });
+    useTasksStore.setState({
+      tasks: [],
+      selectedTaskId: null,
+      sortMode: 'drag',
+      filter: { status: [], priority: 'all', timeRange: 'all', tags: [] },
+      searchQuery: '',
+      todoView: null,
+    });
+  });
+
+  function seed(tasks: Task[]) {
+    const list: ParsedList = {
+      meta: { name: '工作', created: '2026-07-01', archived: false },
+      groups: [{ name: '默认分组', tasks }],
+      rawContent: '',
+    };
+    useListsStore.setState({ fileCache: { 工作: list } });
+    useTasksStore.setState({ tasks: tasks.filter((t) => t.parentId === null) });
+  }
+
+  it('pinned tasks sort above all unpinned tasks in drag mode, regardless of order', () => {
+    const pinned = { ...makeTask('p1', '置顶', '默认分组', 99), meta: { ...makeTask('p1', '置顶', '默认分组', 99).meta, pinned: true as const } };
+    seed([
+      makeTask('t1', '任务1', '默认分组', 1),
+      makeTask('t2', '任务2', '默认分组', 2),
+      pinned,
+    ]);
+    expect(useTasksStore.getState().getFilteredTasks().map((t) => t.id)).toEqual(['p1', 't1', 't2']);
+  });
+
+  it('pinned tasks sort first in due mode; pinned group still orders by due', () => {
+    const withDue = (id: string, order: number, due?: string, pinned?: boolean): Task => ({
+      ...makeTask(id, id, '默认分组', order),
+      meta: { ...makeTask(id, id, '默认分组', order).meta, due, pinned },
+    });
+    useTasksStore.setState({ sortMode: 'due' });
+    seed([
+      withDue('t1', 1, '2026-07-01'),
+      withDue('p1', 2, '2026-08-01', true), // 置顶但截止更晚
+      withDue('p2', 3, '2026-07-15', true), // 置顶且截止更早
+      withDue('t2', 4, '2026-06-01'), // 非置顶但截止最早
+    ]);
+    expect(useTasksStore.getState().getFilteredTasks().map((t) => t.id)).toEqual(['p2', 'p1', 't2', 't1']);
+  });
+
+  it('pinned tasks sort first in priority mode; pinned group still orders by priority', () => {
+    const withPriority = (id: string, order: number, priority: Task['meta']['priority'], pinned?: boolean): Task => ({
+      ...makeTask(id, id, '默认分组', order),
+      meta: { ...makeTask(id, id, '默认分组', order).meta, priority, pinned },
+    });
+    useTasksStore.setState({ sortMode: 'priority' });
+    seed([
+      withPriority('t1', 1, 'high'),
+      withPriority('p1', 2, 'low', true), // 置顶但优先级最低
+      withPriority('p2', 3, 'high', true),
+    ]);
+    expect(useTasksStore.getState().getFilteredTasks().map((t) => t.id)).toEqual(['p2', 'p1', 't1']);
+  });
+
+  it('updateTask persists pinned flag via meta merge', async () => {
+    seed([makeTask('t1', '任务1', '默认分组', 1)]);
+    await useTasksStore.getState().updateTask('t1', { meta: { pinned: true } });
+    const updated = useListsStore.getState().fileCache['工作']!.groups[0].tasks[0];
+    expect(updated.meta.pinned).toBe(true);
+
+    await useTasksStore.getState().updateTask('t1', { meta: { pinned: undefined } });
+    expect(useListsStore.getState().fileCache['工作']!.groups[0].tasks[0].meta.pinned).toBeUndefined();
+  });
+
+  it('reorderTasksInGroup is a no-op when dragging across the pinned boundary', async () => {
+    const pinned = { ...makeTask('p1', '置顶', '默认分组', 1), meta: { ...makeTask('p1', '置顶', '默认分组', 1).meta, pinned: true as const } };
+    seed([pinned, makeTask('t1', '任务1', '默认分组', 2), makeTask('t2', '任务2', '默认分组', 3)]);
+
+    // p1 在下标 0，t2 在下标 2：跨界拖动应为 no-op
+    await useTasksStore.getState().reorderTasksInGroup('默认分组', 0, 2);
+    const groupTasks = useListsStore.getState().fileCache['工作']!.groups[0].tasks;
+    expect(groupTasks.map((t) => t.id)).toEqual(['p1', 't1', 't2']);
+    expect(groupTasks.map((t) => t.meta.order)).toEqual([1, 2, 3]);
+  });
+
+  it('reorderTasksInGroup reorders within the unpinned segment by display order', async () => {
+    const pinned = { ...makeTask('p1', '置顶', '默认分组', 1), meta: { ...makeTask('p1', '置顶', '默认分组', 1).meta, pinned: true as const } };
+    seed([pinned, makeTask('t1', '任务1', '默认分组', 2), makeTask('t2', '任务2', '默认分组', 3)]);
+
+    // 展示顺序 [p1, t1, t2]，把 t1 拖到末尾（下标 1 → 2）
+    await useTasksStore.getState().reorderTasksInGroup('默认分组', 1, 2);
+    const groupTasks = useListsStore.getState().fileCache['工作']!.groups[0].tasks;
+    expect(groupTasks.map((t) => t.id)).toEqual(['p1', 't2', 't1']);
+    expect(groupTasks.map((t) => t.meta.order)).toEqual([1, 2, 3]);
+    expect(groupTasks[0].meta.pinned).toBe(true);
+  });
+});

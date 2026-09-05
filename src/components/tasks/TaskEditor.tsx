@@ -161,6 +161,7 @@ interface DraftTask {
   repeat_until: string;
   note: string;
   linksText: string;
+  pinned: boolean;
   subtasks: Task[];
   files: FileRef[];
   tags: string[];
@@ -183,6 +184,7 @@ function buildDraft(task: Task): DraftTask {
     repeat_until: task.meta.repeat_until ?? '',
     note: task.note ?? '',
     linksText: linksToText(task.links),
+    pinned: task.meta.pinned ?? false,
     subtasks: task.subtasks ?? [],
     files: task.files ?? [],
     tags: task.meta.tags ?? [],
@@ -972,9 +974,11 @@ function localInputToIso(value: string): string {
 function TaskStatusFields({
   draft,
   dispatch,
+  isSubtask = false,
 }: {
   draft: DraftTask;
   dispatch: (action: DraftAction) => void;
+  isSubtask?: boolean;
 }) {
   return (
     <Section title="状态">
@@ -1028,6 +1032,21 @@ function TaskStatusFields({
             </div>
           )}
         </label>
+
+        {!isSubtask && (
+          <label className="block md:col-span-2">
+            <span className="flex items-center gap-2 text-sm text-[var(--color-text-primary)]">
+              <input
+                type="checkbox"
+                data-testid="pin-toggle"
+                checked={draft.pinned}
+                onChange={(e) => dispatch({ type: 'set', field: 'pinned', value: e.target.checked })}
+                className="h-4 w-4"
+              />
+              置顶该任务（排在任务列表最前）
+            </span>
+          </label>
+        )}
       </div>
     </Section>
   );
@@ -1316,6 +1335,7 @@ export function TaskEditor({
         repeat: draft.repeat || undefined,
         repeat_until: draft.repeat_until || undefined,
         tags: draft.tags.length > 0 ? draft.tags : undefined,
+        pinned: draft.pinned ? true : undefined,
       },
       note: draft.note || undefined,
       links: textToLinks(draft.linksText),
@@ -1446,7 +1466,7 @@ export function TaskEditor({
             />
           </Section>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <TaskStatusFields draft={draft} dispatch={dispatch} />
+            <TaskStatusFields draft={draft} dispatch={dispatch} isSubtask={task.parentId !== null} />
             <TaskDateFields draft={draft} dispatch={dispatch} />
           </div>
 

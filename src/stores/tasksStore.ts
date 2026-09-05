@@ -180,22 +180,26 @@ function matchesFilter(
   return true;
 }
 
-function sortTasks(tasks: Task[], mode: SortMode): Task[] {
-  const sorted = [...tasks];
+function modeComparator(a: Task, b: Task, mode: SortMode): number {
   if (mode === 'due') {
-    sorted.sort((a, b) => {
-      if (!a.meta.due && !b.meta.due) return 0;
-      if (!a.meta.due) return 1;
-      if (!b.meta.due) return -1;
-      return a.meta.due.localeCompare(b.meta.due);
-    });
-  } else if (mode === 'priority') {
-    const rank = { high: 3, med: 2, low: 1 };
-    sorted.sort((a, b) => rank[b.meta.priority] - rank[a.meta.priority]);
-  } else {
-    sorted.sort((a, b) => (a.meta.order ?? 0) - (b.meta.order ?? 0));
+    if (!a.meta.due && !b.meta.due) return 0;
+    if (!a.meta.due) return 1;
+    if (!b.meta.due) return -1;
+    return a.meta.due.localeCompare(b.meta.due);
   }
-  return sorted;
+  if (mode === 'priority') {
+    const rank = { high: 3, med: 2, low: 1 };
+    return rank[b.meta.priority] - rank[a.meta.priority];
+  }
+  return (a.meta.order ?? 0) - (b.meta.order ?? 0);
+}
+
+function sortTasks(tasks: Task[], mode: SortMode): Task[] {
+  // 置顶优先层：pinned 任务整体排前，层内仍按当前排序方式（sort 稳定保证确定性）
+  return [...tasks].sort(
+    (a, b) =>
+      Number(b.meta.pinned ?? false) - Number(a.meta.pinned ?? false) || modeComparator(a, b, mode),
+  );
 }
 
 function advanceRepeatingTask(tasks: Task[], taskId: string, holidays: string[], workdays: string[]): Task[] {
@@ -535,6 +539,10 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     }
     if (fromIdx < 0 || fromIdx >= filtered.length || toIdx < 0 || toIdx >= filtered.length) return;
 
+    // 跨置顶边界拖拽为 no-op：置顶由 pinned 标志决定，越界拖动会被比较器弹回，
+    // 表现为"拖不动"；跨界需通过置顶/取消置顶操作完成。
+    if (Boolean(filtered[fromIdx].meta.pinned) !== Boolean(filtered[toIdx].meta.pinned)) return;
+
     const movedTask = filtered[fromIdx];
     const reordered = [...filtered];
     reordered.splice(fromIdx, 1);
@@ -575,16 +583,33 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
     const group = list.groups.find((g) => g.name === groupName);
     if (!group) return;
-    if (fromIdx < 0 || fromIdx >= group.tasks.length || toIdx < 0 || toIdx >= group.tasks.length) return;
 
-    const reordered = [...group.tasks];
+    // 与列表展示顺序对齐：保持持久化数组顺序、仅做置顶分区（与 sortTaskTree 拖拽路径一致）。
+    // 注意只取顶级任务——group.tasks 含子任务，展示层只渲染 topLevelTasks。
+    const displayTasks = [
+      ...group.tasks.filter((t) => t.parentId === null && t.meta.pinned),
+      ...group.tasks.filter((t) => t.parentId === null && !t.meta.pinned),
+    ];
+    if (fromIdx < 0 || fromIdx >= displayTasks.length || toIdx < 0 || toIdx >= displayTasks.length) return;
+
+    // 跨置顶边界拖拽为 no-op，跨界需通过置顶/取消置顶操作完成。
+    if (Boolean(displayTasks[fromIdx].meta.pinned) !== Boolean(displayTasks[toIdx].meta.pinned)) return;
+
+    const reordered = [...displayTasks];
     const [moved] = reordered.splice(fromIdx, 1);
     reordered.splice(toIdx, 0, moved);
 
     const nextList = { ...list };
+    const movedIds = new Set(displayTasks.map((t) => t.id));
     nextList.groups = nextList.groups.map((g) =>
       g.name === groupName
-        ? { ...g, tasks: reordered.map((t, i) => ({ ...t, meta: { ...t.meta, order: i + 1 } })) }
+        ? {
+            ...g,
+            tasks: [
+              ...reordered.map((t, i) => ({ ...t, meta: { ...t.meta, order: i + 1 } })),
+              ...g.tasks.filter((t) => !movedIds.has(t.id)),
+            ],
+          }
         : g,
     );
 

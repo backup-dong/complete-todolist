@@ -15,13 +15,18 @@ import { CalendarView } from '@/components/todo-view/CalendarView';
 
 const PRIORITY_RANK: Record<Task['meta']['priority'], number> = { high: 3, med: 2, low: 1 };
 
-/** 按 sortMode 递归排序任务树（拖拽模式保持原 order 顺序）。 */
+/** 按 sortMode 排序任务树；置顶任务整体排前（层内仍按 sortMode），拖拽模式保持 order 顺序。 */
 function sortTaskTree(nodes: Task[], mode: 'drag' | 'due' | 'priority'): Task[] {
-  if (mode === 'drag') return nodes;
-  const sorted = [...nodes].sort((a, b) =>
-    mode === 'due'
-      ? (a.meta.due ?? '9999-99-99').localeCompare(b.meta.due ?? '9999-99-99')
-      : PRIORITY_RANK[b.meta.priority] - PRIORITY_RANK[a.meta.priority],
+  if (mode === 'drag') {
+    // filter 分区稳定：nodes 进来时已是 order 排序，保证层内 order 顺序不变
+    return [...nodes.filter((n) => n.meta.pinned), ...nodes.filter((n) => !n.meta.pinned)];
+  }
+  const sorted = [...nodes].sort(
+    (a, b) =>
+      Number(b.meta.pinned ?? false) - Number(a.meta.pinned ?? false) ||
+      (mode === 'due'
+        ? (a.meta.due ?? '9999-99-99').localeCompare(b.meta.due ?? '9999-99-99')
+        : PRIORITY_RANK[b.meta.priority] - PRIORITY_RANK[a.meta.priority]),
   );
   return sorted.map((n) => (n.subtasks ? { ...n, subtasks: sortTaskTree(n.subtasks, mode) } : n));
 }
