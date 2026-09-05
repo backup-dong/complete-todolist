@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useSyncStore } from '@/stores/syncStore';
 import { useListsStore } from '@/stores/listsStore';
+import { useTasksStore } from '@/stores/tasksStore';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Settings } from '@/components/settings/Settings';
 import { NotificationProvider } from '@/components/common/NotificationProvider';
@@ -34,7 +35,8 @@ function AppRoutes() {
   }, [config, ensureInitialized, fetchLists, fetchAllListsContent, navigate, setInitialLoading]);
 
   useEffect(() => {
-    if (lists.length > 0 && !useListsStore.getState().activeListName) {
+    // 待办视图激活时不自动选中清单，避免视图与清单同时高亮
+    if (lists.length > 0 && !useListsStore.getState().activeListName && !useTasksStore.getState().todoView) {
       useListsStore.getState().selectList(lists[0].name);
     }
   }, [lists]);
@@ -46,7 +48,8 @@ function AppRoutes() {
       return;
     }
     if (!listsFetched) return;
-    if (lists.length === 0 || (activeListName && fileCache[activeListName])) {
+    // 待办视图激活时无需选中具体清单即可关闭首屏遮罩
+    if (lists.length === 0 || (activeListName && fileCache[activeListName]) || useTasksStore.getState().todoView) {
       setInitialLoading(false);
     }
   }, [config, lists, listsFetched, activeListName, fileCache, initialLoading, setInitialLoading]);

@@ -5,7 +5,7 @@ import { isDueToday, isDueThisWeek, isOverdue, nowIso, todayIso, durationDays } 
 import { computeNextDue, computeEffectiveDueDate } from '@/utils/repeat';
 import { dateStrInMonth, getCalendarOccurrence } from '@/utils/calendar';
 import { topLevelTasks, toggleSubtaskState, resetDescendants, getDescendants, replaceSubtree, deleteSubtaskTree } from '@/utils/subtasks';
-import { getPendingWrites, getCachedFileContent, loadSortMode, saveSortMode, loadTodoView, saveTodoView } from '@/utils/storage';
+import { getPendingWrites, getCachedFileContent, loadSortMode, saveSortMode, loadTodoView, saveTodoView, cacheActiveList } from '@/utils/storage';
 import { useListsStore } from './listsStore';
 import { useHolidayStore } from './holidayStore';
 import { normalizeTask, parseJsonToList } from '@/parser';
@@ -620,6 +620,8 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     saveTodoView(key);
     if (key) {
       useListsStore.setState({ activeListName: null, activeGroup: null });
+      // 清空缓存的活跃清单，避免刷新后清单与待办视图同时高亮
+      cacheActiveList('');
       useListsStore.getState().fetchAllListsContent();
       set({ todoView: key, selectedTaskId: null, filter: { status: [], priority: 'all', timeRange: 'all', tags: [] }, searchQuery: '' });
       const aggregated = flattenAllTasks(useListsStore.getState().fileCache);
