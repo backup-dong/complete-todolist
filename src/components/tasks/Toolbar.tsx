@@ -224,7 +224,7 @@ export function ViewToggle({ mode, onChange }: { mode: SortMode; onChange: (mode
             ].join(' ')}
           >
             {m.icon}
-            <span className="hidden sm:inline">{m.label}</span>
+            <span className="hidden lg:inline">{m.label}</span>
           </button>
         );
       })}

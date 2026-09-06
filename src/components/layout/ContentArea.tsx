@@ -106,7 +106,7 @@ function ListHeader({
   onToggleBatchMode: () => void;
 }) {
   return (
-    <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
       <div className="hidden items-center gap-3 md:flex">
         <h1 className="text-xl font-semibold tracking-tight text-[var(--color-text)]">{title}</h1>
         {total > 0 && <ProgressBar done={done} total={total} />}
@@ -117,8 +117,8 @@ function ListHeader({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 pb-1 md:pb-0">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-1 md:pb-0">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onToggleCalendar}
