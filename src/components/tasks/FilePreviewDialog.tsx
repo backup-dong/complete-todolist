@@ -211,7 +211,7 @@ export function FilePreviewDialog({ file, onClose }: { file: FileRef | null; onC
                     <button
                       type="button"
                       title="关闭"
-                      className="shrink-0 rounded p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                      className="shrink-0 rounded p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
                     >
                       <X className="h-4 w-4" />
                     </button>

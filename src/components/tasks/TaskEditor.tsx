@@ -1035,7 +1035,7 @@ function TaskStatusFields({
 
         {!isSubtask && (
           <div className="flex items-center gap-2 md:col-span-2">
-            <span id="pin-label" className="text-sm text-[var(--color-text-primary)]">置顶</span>
+            <span id="pin-label" className="text-xs font-medium text-[var(--color-text-secondary)]">置顶</span>
             <button
               type="button"
               role="switch"
