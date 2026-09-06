@@ -1035,12 +1035,13 @@ function TaskStatusFields({
 
         {!isSubtask && (
           <div className="flex items-center gap-2 md:col-span-2">
+            <span id="pin-label" className="text-sm text-[var(--color-text-primary)]">置顶</span>
             <button
               type="button"
               role="switch"
               aria-checked={draft.pinned}
+              aria-labelledby="pin-label"
               data-testid="pin-toggle"
-              aria-label="置顶"
               onClick={() => dispatch({ type: 'set', field: 'pinned', value: !draft.pinned })}
               className={[
                 'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-150',
@@ -1055,7 +1056,6 @@ function TaskStatusFields({
                 ].join(' ')}
               />
             </button>
-            <span className="text-sm text-[var(--color-text-primary)]">置顶</span>
           </div>
         )}
       </div>
