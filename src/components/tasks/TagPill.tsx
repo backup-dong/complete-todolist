@@ -5,7 +5,10 @@ import { X } from 'lucide-react';
  */
 export function TagPill({ label, onRemove }: { label: string; onRemove?: () => void }) {
   return (
-    <span className="badge border border-[var(--color-border)] bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)]">
+    <span
+      title={label}
+      className="badge min-w-0 max-w-full [overflow-wrap:anywhere] border border-[var(--color-border)] bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)]"
+    >
       {label}
       {onRemove && (
         <button

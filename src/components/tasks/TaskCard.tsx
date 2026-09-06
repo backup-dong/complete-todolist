@@ -172,7 +172,9 @@ function SubtaskItem({
           onChange={() => onToggle(subtask.id)}
           className={checkboxClass}
         />
-        <span className={completed ? 'line-through opacity-60' : ''}>{subtask.title}</span>
+        <span className={`min-w-0 [overflow-wrap:anywhere] ${completed ? 'line-through opacity-60' : ''}`}>
+          {subtask.title}
+        </span>
       </label>
 
       <TaskLinks links={subtask.links} compact className="mt-1 flex flex-wrap items-center gap-1.5 pl-6" max={3} />
@@ -305,7 +307,7 @@ export function TaskCard({
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-center gap-2">
             {task.sourceList && (
-              <span className="shrink-0 rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]">
+              <span className="max-w-28 shrink-0 truncate rounded bg-[var(--color-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]">
                 {task.sourceList}
               </span>
             )}
@@ -315,7 +317,8 @@ export function TaskCard({
                 e.stopPropagation();
                 onStartEdit();
               }}
-              className="text-left text-base font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] rounded"
+              title={task.title}
+              className="min-w-0 [overflow-wrap:anywhere] rounded text-left text-base font-medium text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]"
             >
               {task.title}
             </button>

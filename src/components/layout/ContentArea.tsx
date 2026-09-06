@@ -451,8 +451,8 @@ export function ContentArea({ onOpenMenu, onToggleCalendar }: { onOpenMenu?: () 
   }
 
   return (
-    <div className="flex h-full flex-1 overflow-hidden">
-      <div className="flex flex-1 flex-col">
+    <div className="flex h-full min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
         <MobileHeader
           title={todoView ? todoViewTitles[todoView] : activeListName ?? ''}
           done={doneCount}

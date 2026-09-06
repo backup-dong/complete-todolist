@@ -111,6 +111,12 @@ html, body, #root {
   background-color: var(--color-bg);
 }
 
+/* 移动端兜底：任何意外撑宽的子元素不允许让页面横向滚动/错位。
+   用 clip 而非 hidden，避免创建滚动容器导致 sticky 失效 */
+#root {
+  overflow-x: clip;
+}
+
 body {
   font-family: var(--font-sans);
   color: var(--color-text);
@@ -230,6 +236,7 @@ button {
   color: var(--color-text);
   font-size: 0.875rem;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .prose :where(h1, h2, h3, h4, h5, h6) {
@@ -270,6 +277,7 @@ button {
 .prose a {
   color: var(--color-primary);
   text-decoration: underline;
+  overflow-wrap: anywhere;
 }
 
 .prose a:hover {
