@@ -281,7 +281,9 @@ export function TaskCard({
         'group relative cursor-pointer rounded-lg border p-3 shadow-sm transition-all duration-150 ease-out hover:shadow-md md:p-4',
         selected
           ? 'border-[var(--color-primary)] bg-[var(--color-primary-subtle)]'
-          : 'border-[var(--color-border-subtle)] bg-[var(--color-surface)] hover:border-[var(--color-border)]',
+          : task.meta.pinned
+            ? 'border-[var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-primary)_6%,var(--color-surface))] hover:border-[var(--color-border)]'
+            : 'border-[var(--color-border-subtle)] bg-[var(--color-surface)] hover:border-[var(--color-border)]',
         highlight ? 'animate-task-highlight' : '',
       ].join(' ')}
     >
