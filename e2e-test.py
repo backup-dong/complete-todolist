@@ -224,7 +224,8 @@ def run_tests():
         page.wait_for_timeout(800)
 
         page.locator('[data-testid="task-card"]:has-text("测试任务") [data-testid="pin-task"]').click(force=True)
-        page.wait_for_timeout(1200)
+        # saveListContent 有 1500ms 防抖推送，需等待超过防抖窗口
+        page.wait_for_timeout(2200)
 
         first_card = page.locator('[data-testid="task-card"] >> nth=0').inner_text()
         if '测试任务' not in first_card:
@@ -235,12 +236,12 @@ def run_tests():
         if not pinned_task or pinned_task.get('meta', {}).get('pinned') is not True:
             log_failure(f'Task pinned flag not persisted. JSON:\n{files.get("工作.json", "")}')
 
-        # Unpin via the editor checkbox; JSON should drop the pinned key
+        # Unpin via the editor switch; JSON should drop the pinned key
         page.click('text=测试任务')
         page.wait_for_timeout(300)
-        page.locator('[data-testid="task-editor"] [data-testid="pin-toggle"]').uncheck()
+        page.locator('[data-testid="task-editor"] [data-testid="pin-toggle"]').click()
         page.click('button:has-text("保存")')
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(2200)
 
         data = json.loads(files.get('工作.json', '{}'))
         unpinned_task = get_task_by_title(data, '测试任务')

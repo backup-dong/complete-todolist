@@ -1034,18 +1034,29 @@ function TaskStatusFields({
         </label>
 
         {!isSubtask && (
-          <label className="block md:col-span-2">
-            <span className="flex items-center gap-2 text-sm text-[var(--color-text-primary)]">
-              <input
-                type="checkbox"
-                data-testid="pin-toggle"
-                checked={draft.pinned}
-                onChange={(e) => dispatch({ type: 'set', field: 'pinned', value: e.target.checked })}
-                className="h-4 w-4"
+          <div className="flex items-center gap-2 md:col-span-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={draft.pinned}
+              data-testid="pin-toggle"
+              aria-label="置顶"
+              onClick={() => dispatch({ type: 'set', field: 'pinned', value: !draft.pinned })}
+              className={[
+                'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-150',
+                'focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus)]',
+                draft.pinned ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-surface-hover)]',
+              ].join(' ')}
+            >
+              <span
+                className={[
+                  'inline-block h-4 w-4 transform rounded-full bg-[var(--color-text-inverse)] shadow transition-transform duration-150',
+                  draft.pinned ? 'translate-x-[18px]' : 'translate-x-0.5',
+                ].join(' ')}
               />
-              置顶该任务（排在任务列表最前）
-            </span>
-          </label>
+            </button>
+            <span className="text-sm text-[var(--color-text-primary)]">置顶</span>
+          </div>
         )}
       </div>
     </Section>
