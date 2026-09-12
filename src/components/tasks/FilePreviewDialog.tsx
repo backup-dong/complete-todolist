@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Download, X, AlertCircle, ZoomIn, ZoomOut, RotateCcw, RotateCw } from 'lucide-react';
+import { Download, X, AlertCircle, ZoomIn, ZoomOut, RotateCcw, RotateCw, Maximize2, Minimize2 } from 'lucide-react';
 import { PhotoProvider, PhotoView } from 'react-photo-view';
 import 'react-photo-view/dist/react-photo-view.css';
 import type { FileRef } from '@/types';
@@ -163,6 +163,7 @@ function FilePreviewLoader({
 
 export function FilePreviewDialog({ file, onClose }: { file: FileRef | null; onClose: () => void }) {
   const config = useSyncStore((s) => s.config);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const download = async () => {
     if (!file || !config) return;
@@ -178,7 +179,11 @@ export function FilePreviewDialog({ file, onClose }: { file: FileRef | null; onC
   };
 
   return (
-    <Dialog.Root open={file !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog.Root open={file !== null} onOpenChange={(open) => {
+      if (open) return;
+      setFullscreen(false);
+      onClose();
+    }}>
       <Dialog.Portal>
         <Dialog.Overlay
           className="fixed inset-0 z-50 bg-[var(--color-backdrop)] backdrop-blur-sm"
@@ -189,8 +194,20 @@ export function FilePreviewDialog({ file, onClose }: { file: FileRef | null; onC
             onClose();
           }}
         />
-        <div className="fixed inset-0 z-50 flex pointer-events-none md:items-center md:justify-center md:p-6">
-          <Dialog.Content className="pointer-events-auto z-50 flex h-full w-full flex-col overflow-hidden bg-[var(--color-surface-raised)] outline-none md:h-[85vh] md:max-w-3xl md:rounded-xl md:border md:border-[var(--color-border)] md:shadow-lg">
+        <div
+          className={[
+            'fixed inset-0 z-50 flex pointer-events-none',
+            fullscreen ? '' : 'md:items-center md:justify-center md:p-6',
+          ].join(' ')}
+        >
+          <Dialog.Content
+            className={[
+              'pointer-events-auto z-50 flex h-full w-full flex-col overflow-hidden bg-[var(--color-surface-raised)] outline-none',
+              fullscreen
+                ? 'md:h-full md:max-w-none md:rounded-none md:border-0 md:shadow-none'
+                : 'md:h-[85vh] md:max-w-3xl md:rounded-xl md:border md:border-[var(--color-border)] md:shadow-lg',
+            ].join(' ')}
+          >
             <Dialog.Title className="sr-only">附件预览</Dialog.Title>
             {file && (
               <>
@@ -199,6 +216,14 @@ export function FilePreviewDialog({ file, onClose }: { file: FileRef | null; onC
                   <span className="shrink-0 text-xs text-[var(--color-text-muted)]">
                     {formatFileSize(file.size)}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setFullscreen((v) => !v)}
+                    title={fullscreen ? '退出全屏' : '全屏'}
+                    className="shrink-0 rounded p-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                  >
+                    {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                  </button>
                   <button
                     type="button"
                     onClick={download}
