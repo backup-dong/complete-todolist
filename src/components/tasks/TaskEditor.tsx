@@ -1313,6 +1313,9 @@ export function TaskEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const config = useSyncStore((s) => s.config);
   const activeListName = useListsStore((s) => s.activeListName);
+  // 附件存放到任务实际所属清单；待办（全部/滞后等）聚合视图下 activeListName 可能为空
+  // 或指向其它清单，必须用 task.sourceList 兜底，否则按钮被禁用或附件传错目录
+  const listName = task.sourceList ?? activeListName;
 
   // 已有标签建议：从任务所属清单的全部任务（含子任务）收集，去重排序
   const suggestions = useMemo(() => {
@@ -1365,13 +1368,13 @@ export function TaskEditor({
 
   const handleUploadFiles = useCallback(
     async (fileList: File[] | FileList | null) => {
-      if (!fileList || !config || !activeListName) return;
+      if (!fileList || !config || !listName) return;
       setUploading(true);
       try {
         const newFiles: FileRef[] = [];
         for (const file of Array.from(fileList)) {
           try {
-            const ref = await uploadFileToRepo(config, file, activeListName, task.id);
+            const ref = await uploadFileToRepo(config, file, listName, task.id);
             newFiles.push(ref);
           } catch (err) {
             console.error(`Upload failed for ${file.name}:`, err);
@@ -1386,18 +1389,18 @@ export function TaskEditor({
         setUploading(false);
       }
     },
-    [config, activeListName, task.id, draft.files],
+    [config, listName, task.id, draft.files],
   );
 
   // 剪贴板上传改为按钮控制：默认不监听粘贴，点击「粘贴」后开启一次性粘贴模式，
   // 再按 Ctrl+V 才会上传（系统复制的文件无法用 navigator.clipboard.read() 直接读取）。
-  const { arm: armPaste } = useClipboardPaste(handleUploadFiles, !!config && !!activeListName);
+  const { arm: armPaste } = useClipboardPaste(handleUploadFiles, !!config && !!listName);
 
   const handlePasteClipboard = useCallback(() => {
-    if (!config || !activeListName) return;
+    if (!config || !listName) return;
     armPaste();
     toast.info('已开启粘贴模式，请按 Ctrl+V 粘贴剪贴板中的文件/图片');
-  }, [config, activeListName, armPaste]);
+  }, [config, listName, armPaste]);
 
   const handleDeleteFile = useCallback(
     async (file: FileRef) => {
@@ -1436,7 +1439,7 @@ export function TaskEditor({
   }, [draft.subtasks, draft.completed_at, saveTask]);
 
   return (
-    <TaskEditorCtx.Provider value={{ config, activeListName, taskId: task.id }}>
+    <TaskEditorCtx.Provider value={{ config, activeListName: listName, taskId: task.id }}>
     <div
       className="flex h-full flex-col bg-[var(--color-surface-raised)]"
       data-testid="task-editor"
@@ -1525,7 +1528,7 @@ export function TaskEditor({
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                disabled={uploading || !config || !activeListName}
+                disabled={uploading || !config || !listName}
                 onClick={() => fileInputRef.current?.click()}
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"
               >
@@ -1534,7 +1537,7 @@ export function TaskEditor({
               </button>
               <button
                 type="button"
-                disabled={uploading || !config || !activeListName}
+                disabled={uploading || !config || !listName}
                 onClick={handlePasteClipboard}
                 title="点击开启粘贴模式，再按 Ctrl+V 粘贴文件/图片"
                 className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] px-3 py-2.5 text-sm text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] transition-colors disabled:opacity-40"

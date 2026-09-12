@@ -43,4 +43,5 @@
 | 旧 Markdown 解析：`scanBlocks` 会把任务正文首行形如 `key: value` 的行误判为元数据；子任务层级跳级会生成空文本占位子任务 | 否 | `scanner.ts:16-19,226-235` |
 | 待办列表预览附件，弹窗外点击会触发待办列表的事件 | 是 | 根因：`FilePreviewDialog` 经 Portal 渲染在 `TaskCard` 的 React 树内，遮罩/内容点击会沿 React 树冒泡到卡片，误触发 `handleCardClick` 打开任务编辑。修复：① `FilePreviewDialog` 遮罩 `onClick` 阻止冒泡并手动关闭弹窗；② `TaskCard.handleCardClick` 增加 `e.currentTarget.contains(target)` 守卫，只响应卡片 DOM 内的点击 |
 | 修复侧边栏待办清单数量统计了子待办 | 是 | `GroupRow` 计数改用 `topLevelTasks`（`Sidebar.tsx` 的 `ListGroups`），分组徽标 `done/total` 只统计父任务，不再计入子任务 |
-| _最后更新：2026-08-29_ |||
+| 视图模式下的待办没法上传文件 | 是 | 根因：附件上传/粘贴按钮的可用状态和存储路径都用 `activeListName`，待办聚合视图（全部/滞后/高优先级/日历）下该值为空或指向其它清单，按钮被禁用或附件传错目录。修复：`TaskEditor` 改用 `task.sourceList ?? activeListName` 作为附件目标清单（上传、粘贴、按钮禁用态及子任务附件共享的 `TaskEditorCtx` 同步更新），与 `updateTask` 的跨清单保存逻辑一致 |
+| _最后更新：2026-09-12_ |||
