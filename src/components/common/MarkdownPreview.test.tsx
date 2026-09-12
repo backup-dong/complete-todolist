@@ -27,4 +27,16 @@ describe('MarkdownPreview', () => {
     expect(html).toContain('<li class="task-list-item"><input type="checkbox" disabled=""');
     expect(html).toContain('<li>无序 B</li>');
   });
+
+  it('renders a mermaid fenced block as MermaidDiagram container', () => {
+    const html = render('```mermaid\nflowchart TD\n    A --> B\n```');
+    expect(html).toContain('data-testid="mermaid-diagram"');
+    expect(html).not.toContain('language-mermaid');
+  });
+
+  it('renders a plain code block as code, not a diagram', () => {
+    const html = render('```js\nconst a = 1;\n```');
+    expect(html).toContain('<code class="language-js">');
+    expect(html).not.toContain('mermaid-diagram');
+  });
 });

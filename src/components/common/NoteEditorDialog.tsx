@@ -96,6 +96,10 @@ function insertFormat(value: string, selStart: number, selEnd: number, type: str
       const wrapped = selected ? `\n\`\`\`\n${selected}\n\`\`\`\n` : marker;
       return { newValue: before + wrapped + after, newCursor: selected ? selStart + wrapped.length : selStart + 5 };
     }
+    case 'mermaid': {
+      const template = '\n```mermaid\nflowchart TD\n    A[开始] --> B{判断条件}\n    B -->|是| C[执行处理]\n    B -->|否| D[结束]\n```\n';
+      return { newValue: before + template + after, newCursor: selStart + 12 };
+    }
     case 'datetime': {
       const text = format(new Date(), 'yyyyMMdd HH:mm:ss');
       return { newValue: before + text + after, newCursor: selStart + text.length };

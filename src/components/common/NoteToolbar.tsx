@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bold, Italic, Link, Image, Table, List, ListOrdered, CheckSquare, Code, Clock } from 'lucide-react';
+import { Bold, Italic, Link, Image, Table, List, ListOrdered, CheckSquare, Code, Clock, Workflow } from 'lucide-react';
 
 interface NoteToolbarProps {
   onFormat: (type: string) => void;
@@ -71,6 +71,7 @@ export function NoteToolbar({ onFormat }: NoteToolbarProps) {
       <ToolbarSeparator />
 
       <Btn icon={Code} onClick={() => onFormat('code-block')} title="代码块" />
+      <Btn icon={Workflow} onClick={() => onFormat('mermaid')} title="插入流程图（Mermaid）" />
 
       <ToolbarSeparator />
 
