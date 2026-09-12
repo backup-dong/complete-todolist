@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback } from 'react';
 import { format } from 'date-fns';
-import { Eye, Pencil, Maximize } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { Eye, Pencil, Maximize, X } from 'lucide-react';
 import { MarkdownPreview } from './MarkdownPreview';
 import { NoteToolbar } from './NoteToolbar';
 import { NoteEditorDialog } from './NoteEditorDialog';
@@ -114,6 +115,7 @@ function insertFormat(value: string, selStart: number, selEnd: number, type: str
 export function NoteEditor({ value, onChange, placeholder = '备注（Markdown）', rows = 4, className = '', title }: NoteEditorProps) {
   const [mode, setMode] = useState<'edit' | 'preview'>('preview');
   const [fullscreen, setFullscreen] = useState(false);
+  const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [dialog, setDialog] = useState<'table' | 'link' | 'image' | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -186,6 +188,14 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
           )}
           <button
             type="button"
+            onClick={() => setPreviewFullscreen(true)}
+            className="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+            title="全屏预览"
+          >
+            <Maximize className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
             onClick={() => setMode('edit')}
             className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
           >
@@ -249,6 +259,37 @@ export function NoteEditor({ value, onChange, placeholder = '备注（Markdown�
           <MarkdownPreview content={value} />
         </div>
       )}
+
+      <Dialog.Root open={previewFullscreen} onOpenChange={setPreviewFullscreen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-[var(--color-backdrop)] backdrop-blur-sm" />
+          <div className="pointer-events-none fixed inset-0 z-50 flex p-4">
+            <Dialog.Content
+              className="pointer-events-auto flex h-full w-full flex-col overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] shadow-lg outline-none"
+              aria-describedby={undefined}
+            >
+              <Dialog.Title className="sr-only">全屏备注预览</Dialog.Title>
+              <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-4 py-2">
+                <span className="text-xs font-medium text-[var(--color-text-secondary)]">{title ?? '备注预览'}</span>
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
+                    aria-label="关闭"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </Dialog.Close>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="mx-auto max-w-3xl">
+                  <MarkdownPreview content={value} />
+                </div>
+              </div>
+            </Dialog.Content>
+          </div>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <NoteEditorDialog
         open={fullscreen}
