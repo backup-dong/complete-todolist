@@ -37,7 +37,7 @@ export async function fetchFilePreviewDataUrl(
   const cached = dataUrlCache.get(fileRef.sha);
   if (cached) return cached;
 
-  const { base64 } = await getBinaryFileContent(config, fileRef.path);
+  const { base64 } = await getBinaryFileContent(config, fileRef.path, fileRef.sha);
   const dataUrl = `data:${fileRef.mime};base64,${base64}`;
   dataUrlCache.set(fileRef.sha, dataUrl);
   return dataUrl;

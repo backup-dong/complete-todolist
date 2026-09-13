@@ -120,11 +120,24 @@ export async function uploadBinaryFile(
   return data.content?.sha ?? '';
 }
 
-/** 获取文件内容并返回 base64 编码的字符串及 SHA */
+/**
+ * 获取文件内容并返回 base64 编码的字符串及 SHA。
+ * 优先走 Git Data Blobs API（支持最大 100MB），解决 Contents API 超过 1MB 返回空 content 的问题。
+ */
 export async function getBinaryFileContent(
   config: GithubConfig,
   path: string,
+  sha?: string,
 ): Promise<{ sha: string; base64: string }> {
+  if (sha) {
+    const { data } = await getOctokit().rest.git.getBlob({
+      owner: config.owner,
+      repo: config.repo,
+      file_sha: sha,
+    });
+    return { sha: data.sha, base64: data.content.replace(/\n/g, '') };
+  }
+
   const { data } = await getOctokit().rest.repos.getContent({
     owner: config.owner,
     repo: config.repo,

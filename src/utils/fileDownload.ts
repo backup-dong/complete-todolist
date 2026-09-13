@@ -2,7 +2,7 @@ import type { FileRef, GithubConfig } from '@/types';
 import { getBinaryFileContent } from '@/github/client';
 
 export async function downloadFileRef(config: GithubConfig, fileRef: FileRef): Promise<void> {
-  const { base64 } = await getBinaryFileContent(config, fileRef.path);
+  const { base64 } = await getBinaryFileContent(config, fileRef.path, fileRef.sha);
   const byteChars = atob(base64);
   const bytes = new Uint8Array(byteChars.length);
   for (let i = 0; i < byteChars.length; i++) {
